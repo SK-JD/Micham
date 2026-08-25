@@ -1,0 +1,53 @@
+import Dexie, { type Table } from "dexie";
+import type {
+  Account,
+  AppConfig,
+  Budget,
+  Category,
+  Person,
+  Profile,
+  RecurringTransaction,
+  Settlement,
+  SyncOperation,
+  Transaction,
+} from "./types";
+import { defaultConfig, seedCategories } from "./defaults";
+
+class MichamDatabase extends Dexie {
+  appConfig!: Table<AppConfig, string>;
+  profiles!: Table<Profile, string>;
+  accounts!: Table<Account, string>;
+  categories!: Table<Category, string>;
+  transactions!: Table<Transaction, string>;
+  budgets!: Table<Budget, string>;
+  recurringTransactions!: Table<RecurringTransaction, string>;
+  people!: Table<Person, string>;
+  settlements!: Table<Settlement, string>;
+  syncQueue!: Table<SyncOperation, string>;
+
+  constructor() {
+    super("micham_local_database");
+    this.version(1).stores({
+      appConfig: "id, updatedAt",
+      profiles: "id, connectedUserId, setupComplete, updatedAt",
+      accounts: "id, active, updatedAt",
+      categories: "id, kind, parentId, active, updatedAt",
+      transactions: "id, type, accountId, toAccountId, categoryId, date, updatedAt",
+      budgets: "id, categoryId, active, updatedAt",
+      recurringTransactions: "id, accountId, categoryId, active, nextDate, updatedAt",
+      people: "id, connectedUserId, active, updatedAt",
+      settlements: "id, personId, direction, date, updatedAt",
+      syncQueue: "id, entity, entityId, action, updatedAt",
+    });
+  }
+}
+
+export const db = new MichamDatabase();
+
+export async function initializeDatabase() {
+  const config = await db.appConfig.get("primary");
+  if (!config) await db.appConfig.put(defaultConfig);
+
+  const categoryCount = await db.categories.count();
+  if (categoryCount === 0) await db.categories.bulkPut(seedCategories());
+}
