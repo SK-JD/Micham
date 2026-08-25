@@ -81,6 +81,33 @@ const emptySnapshot: Snapshot = {
   settlements: [],
 };
 
+const LOGIN_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
+const AI_LIMIT = { max: 10, windowMs: 60 * 1000 };
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+const MAX_LOGO_BYTES = 1024 * 1024;
+
+function checkRateLimit(key: string, max: number, windowMs: number) {
+  const now = Date.now();
+  const raw = localStorage.getItem(key);
+  const attempts = raw ? (JSON.parse(raw) as number[]) : [];
+  const recent = attempts.filter((timestamp) => now - timestamp < windowMs);
+  if (recent.length >= max) {
+    const retryAfterMs = windowMs - (now - recent[0]);
+    return { allowed: false, retryAfterMs };
+  }
+  recent.push(now);
+  localStorage.setItem(key, JSON.stringify(recent));
+  return { allowed: true, retryAfterMs: 0 };
+}
+
+function resetRateLimit(key: string) {
+  localStorage.removeItem(key);
+}
+
+function minutesFromMs(value: number) {
+  return Math.max(1, Math.ceil(value / 60000));
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [loading, setLoading] = useState(true);
@@ -291,22 +318,41 @@ function AuthGate({
   const [accounts, setAccounts] = useState([{ name: "Cash", openingBalance: 0 }]);
 
   const login = async () => {
-    if (loginId === config.adminId && password === config.adminPassword) {
+    const normalizedLoginId = loginId.trim();
+    const loginLimit = checkRateLimit(`micham_login_${normalizedLoginId || "blank"}`, LOGIN_LIMIT.max, LOGIN_LIMIT.windowMs);
+    if (!loginLimit.allowed) {
+      alert(`Too many login attempts. Try again in ${minutesFromMs(loginLimit.retryAfterMs)} minute(s).`);
+      return;
+    }
+
+    if (normalizedLoginId === config.adminId && password === config.adminPassword) {
+      resetRateLimit(`micham_login_${normalizedLoginId}`);
       await onAdminLogin();
       return;
     }
 
     const passwordHash = await hashPassword(password);
-    const profile = await db.profiles.where("loginId").equals(loginId).first();
+    const profile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
     if (!profile || profile.passwordHash !== passwordHash) {
       alert("Invalid login.");
       return;
     }
+    resetRateLimit(`micham_login_${normalizedLoginId}`);
     await onLogin(profile.id);
   };
 
   const register = async () => {
-    const existing = await db.profiles.where("loginId").equals(loginId).first();
+    const normalizedLoginId = loginId.trim();
+    if (normalizedLoginId.length < 3) {
+      alert("Login ID must be at least 3 characters.");
+      return;
+    }
+    if (password.length < 8) {
+      alert("Password must be at least 8 characters.");
+      return;
+    }
+
+    const existing = await db.profiles.where("loginId").equals(normalizedLoginId).first();
     if (existing) {
       alert("This login ID already exists.");
       return;
@@ -318,9 +364,9 @@ function AuthGate({
     await db.transaction("rw", db.profiles, db.accounts, async () => {
       await db.profiles.put({
         id: profileId,
-        loginId,
+        loginId: normalizedLoginId,
         passwordHash,
-        displayName: displayName || loginId,
+        displayName: displayName || normalizedLoginId,
         currency,
         setupComplete: true,
         createdAt: timestamp,
@@ -949,7 +995,17 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
 
   const importData = async (file?: File) => {
     if (!file) return;
-    const payload = JSON.parse(await file.text()) as ImportPayload;
+    if (file.size > MAX_IMPORT_BYTES) {
+      alert("Import file is too large. Maximum size is 5 MB.");
+      return;
+    }
+    let payload: ImportPayload;
+    try {
+      payload = JSON.parse(await file.text()) as ImportPayload;
+    } catch {
+      alert("Import file is not valid JSON.");
+      return;
+    }
     if (!payload.accounts || !payload.transactions || !payload.categories) {
       alert("Import file is not valid.");
       return;
@@ -1074,6 +1130,9 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
         <div className="grid gap-3">
           <TextField label="Groq API key" value={groqApiKey} onChange={setGroqApiKey} type="password" placeholder="Paste API key" />
           <TextField label="Model" value={aiModel} onChange={setAiModel} placeholder="llama-3.1-8b-instant" />
+          <p className="text-sm text-amber-700">
+            For production, route AI through a protected server function. Browser-stored keys are only suitable for local testing.
+          </p>
           <button className="primary-button" onClick={saveAiConfig}>
             <Bot size={18} /> Save AI Settings
           </button>
@@ -1156,6 +1215,14 @@ function AdminView({
 
   const uploadLogo = async (file?: File) => {
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Upload an image file.");
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      alert("Logo image is too large. Maximum size is 1 MB.");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => setForm((current) => ({ ...current, logoImage: String(reader.result) }));
     reader.readAsDataURL(file);
@@ -1231,6 +1298,11 @@ function AiChatView({ snapshot, currency }: { snapshot: Snapshot; currency: stri
     if (!question.trim()) return;
     if (!snapshot.config.groqApiKey) {
       alert("Add the Groq API key in Settings.");
+      return;
+    }
+    const aiLimit = checkRateLimit("micham_ai_chat", AI_LIMIT.max, AI_LIMIT.windowMs);
+    if (!aiLimit.allowed) {
+      alert(`AI chat is rate limited. Try again in ${minutesFromMs(aiLimit.retryAfterMs)} minute(s).`);
       return;
     }
 
