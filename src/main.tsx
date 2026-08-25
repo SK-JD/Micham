@@ -4,12 +4,13 @@ import {
   ArrowDownLeft,
   ArrowRightLeft,
   ArrowUpRight,
+  BarChart3,
   Bot,
   CalendarDays,
   Download,
-  Landmark,
-  Lock,
+  Home,
   LogOut,
+  MoreHorizontal,
   Palette,
   Plus,
   RefreshCw,
@@ -38,7 +39,7 @@ import type {
 } from "./lib/types";
 import "./styles/index.css";
 
-type View = "dashboard" | "daily" | "monthly" | "calendar" | "people" | "settings" | "admin" | "ai";
+type View = "dashboard" | "daily" | "add" | "monthly" | "calendar" | "people" | "settings" | "admin" | "ai";
 type SessionRole = "guest" | "user" | "admin";
 
 interface Snapshot {
@@ -108,6 +109,43 @@ function minutesFromMs(value: number) {
   return Math.max(1, Math.ceil(value / 60000));
 }
 
+function belongsToProfile<T extends { ownerProfileId?: string; deletedAt?: string }>(item: T, profileId?: string, includeGlobal = false) {
+  if (item.deletedAt) return false;
+  if (!profileId) return includeGlobal && !item.ownerProfileId;
+  return item.ownerProfileId === profileId || (includeGlobal && !item.ownerProfileId);
+}
+
+function uniqueById<T extends { id: string }>(items: T[]) {
+  return Array.from(new Map(items.map((item) => [item.id, item])).values());
+}
+
+async function claimUnownedData(profileId: string) {
+  const ownedAccounts = await db.accounts.where("ownerProfileId").equals(profileId).count();
+  if (ownedAccounts > 0) return;
+
+  const timestamp = nowIso();
+  const [accounts, transactions, budgets, recurring, people, settlements] = await Promise.all([
+    db.accounts.toArray(),
+    db.transactions.toArray(),
+    db.budgets.toArray(),
+    db.recurringTransactions.toArray(),
+    db.people.toArray(),
+    db.settlements.toArray(),
+  ]);
+  await db.transaction(
+    "rw",
+    [db.accounts, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements],
+    async () => {
+      await db.accounts.bulkPut(accounts.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
+      await db.transactions.bulkPut(transactions.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
+      await db.budgets.bulkPut(budgets.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
+      await db.recurringTransactions.bulkPut(recurring.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
+      await db.people.bulkPut(people.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
+      await db.settlements.bulkPut(settlements.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
+    },
+  );
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [loading, setLoading] = useState(true);
@@ -115,6 +153,7 @@ function App() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [sessionRole, setSessionRole] = useState<SessionRole>(() => (sessionStorage.getItem("micham_role") as SessionRole) || "guest");
   const [currentProfileId, setCurrentProfileId] = useState(() => sessionStorage.getItem("micham_profile_id") || "");
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const refresh = async (profileId = currentProfileId) => {
     const [config, profiles, accounts, categories, transactions, budgets, recurring, people, settlements] = await Promise.all([
@@ -132,13 +171,13 @@ function App() {
     setSnapshot({
       config: config ?? emptySnapshot.config,
       profile,
-      accounts: accounts.filter((item) => !item.deletedAt),
-      categories: categories.filter((item) => !item.deletedAt),
-      transactions: transactions.filter((item) => !item.deletedAt),
-      budgets: budgets.filter((item) => !item.deletedAt),
-      recurring: recurring.filter((item) => !item.deletedAt),
-      people: people.filter((item) => !item.deletedAt),
-      settlements: settlements.filter((item) => !item.deletedAt),
+      accounts: uniqueById(accounts.filter((item) => belongsToProfile(item, profile?.id))),
+      categories: uniqueById(categories.filter((item) => belongsToProfile(item, profile?.id, true))),
+      transactions: uniqueById(transactions.filter((item) => belongsToProfile(item, profile?.id))),
+      budgets: uniqueById(budgets.filter((item) => belongsToProfile(item, profile?.id))),
+      recurring: uniqueById(recurring.filter((item) => belongsToProfile(item, profile?.id))),
+      people: uniqueById(people.filter((item) => belongsToProfile(item, profile?.id))),
+      settlements: uniqueById(settlements.filter((item) => belongsToProfile(item, profile?.id))),
     });
   };
 
@@ -197,6 +236,7 @@ function App() {
             sessionStorage.setItem("micham_profile_id", profileId);
             setSessionRole("user");
             setCurrentProfileId(profileId);
+            await claimUnownedData(profileId);
             await refresh(profileId);
           }}
           onAdminLogin={async () => {
@@ -243,8 +283,10 @@ function App() {
               totalBalance={totalBalance}
               summary={summary}
               onDone={refresh}
+              onNavigate={setView}
             />
           )}
+          {view === "add" && <AddView snapshot={snapshot} onDone={refresh} />}
           {view === "daily" && (
             <DailyView snapshot={snapshot} currency={currency} selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
           )}
@@ -258,14 +300,23 @@ function App() {
         </main>
 
         <nav className="sticky bottom-0 z-20 border-t border-slate-200 bg-white">
-          <div className={`mx-auto grid max-w-6xl ${snapshot.config.aiEnabled ? "grid-cols-7" : "grid-cols-6"} gap-1 px-2 py-2 text-xs`}>
-            <NavButton icon={<WalletCards size={18} />} label="Home" active={view === "dashboard"} onClick={() => setView("dashboard")} />
-            <NavButton icon={<CalendarDays size={18} />} label="Daily" active={view === "daily"} onClick={() => setView("daily")} />
-            <NavButton icon={<ArrowUpRight size={18} />} label="Month" active={view === "monthly"} onClick={() => setView("monthly")} />
-            <NavButton icon={<CalendarDays size={18} />} label="Calendar" active={view === "calendar"} onClick={() => setView("calendar")} />
-            <NavButton icon={<Users size={18} />} label="People" active={view === "people"} onClick={() => setView("people")} />
-            {snapshot.config.aiEnabled ? <NavButton icon={<Bot size={18} />} label="AI" active={view === "ai"} onClick={() => setView("ai")} /> : null}
-            <NavButton icon={<Settings size={18} />} label="Settings" active={view === "settings"} onClick={() => setView("settings")} />
+          {moreOpen ? (
+            <div className="mx-auto grid max-w-6xl grid-cols-2 gap-2 border-b border-slate-100 px-4 py-3 sm:grid-cols-4">
+              <MoreButton icon={<CalendarDays size={18} />} label="Calendar" onClick={() => { setView("calendar"); setMoreOpen(false); }} />
+              <MoreButton icon={<Users size={18} />} label="People" onClick={() => { setView("people"); setMoreOpen(false); }} />
+              {snapshot.config.aiEnabled ? <MoreButton icon={<Bot size={18} />} label="AI Chat" onClick={() => { setView("ai"); setMoreOpen(false); }} /> : null}
+              <MoreButton icon={<Settings size={18} />} label="Settings" onClick={() => { setView("settings"); setMoreOpen(false); }} />
+            </div>
+          ) : null}
+          <div className="mx-auto grid max-w-6xl grid-cols-5 gap-1 px-2 py-2 text-xs">
+            <NavButton icon={<Home size={18} />} label="Home" active={view === "dashboard"} onClick={() => { setView("dashboard"); setMoreOpen(false); }} />
+            <NavButton icon={<CalendarDays size={18} />} label="Daily" active={view === "daily"} onClick={() => { setView("daily"); setMoreOpen(false); }} />
+            <button className={`add-nav-button ${view === "add" ? "add-nav-button-active" : ""}`} onClick={() => { setView("add"); setMoreOpen(false); }}>
+              <Plus size={24} />
+              <span>Add</span>
+            </button>
+            <NavButton icon={<BarChart3 size={18} />} label="Reports" active={view === "monthly"} onClick={() => { setView("monthly"); setMoreOpen(false); }} />
+            <NavButton icon={<MoreHorizontal size={18} />} label="More" active={moreOpen || ["calendar", "people", "settings", "ai"].includes(view)} onClick={() => setMoreOpen((value) => !value)} />
           </div>
         </nav>
       </div>
@@ -378,6 +429,7 @@ function AuthGate({
           .filter((account) => account.name.trim())
           .map((account) => ({
             id: createId(),
+            ownerProfileId: profileId,
             name: account.name.trim(),
             openingBalance: Number(account.openingBalance) || 0,
             active: true,
@@ -475,6 +527,15 @@ function AuthGate({
 function NavButton({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
   return (
     <button className={`nav-button ${active ? "nav-button-active" : ""}`} onClick={onClick}>
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function MoreButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button className="more-button" onClick={onClick}>
       {icon}
       <span>{label}</span>
     </button>
@@ -617,6 +678,7 @@ function Dashboard({
   totalBalance,
   summary,
   onDone,
+  onNavigate,
 }: {
   snapshot: Snapshot;
   balances: { account: Account; balance: number }[];
@@ -624,17 +686,51 @@ function Dashboard({
   totalBalance: number;
   summary: ReturnType<typeof summarize>;
   onDone: () => Promise<void>;
+  onNavigate: (view: View) => void;
 }) {
   return (
     <div className="grid gap-5">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total balance" value={formatMoney(totalBalance, currency)} icon={<WalletCards size={20} />} />
-        <StatCard label="Month income" value={formatMoney(summary.monthlyIncome, currency)} icon={<ArrowDownLeft size={20} />} />
-        <StatCard label="Month expenses" value={formatMoney(summary.monthlyExpenses, currency)} icon={<ArrowUpRight size={20} />} />
-        <StatCard label="Today spent" value={formatMoney(summary.todaySpend, currency)} icon={<CalendarDays size={20} />} />
+      <section className="home-hero">
+        <div>
+          <p className="text-sm font-semibold opacity-80">Available balance</p>
+          <h2>{formatMoney(totalBalance, currency)}</h2>
+          <p className="text-sm opacity-80">
+            Income {formatMoney(summary.monthlyIncome, currency)} · Expenses {formatMoney(summary.monthlyExpenses, currency)}
+          </p>
+        </div>
+        <button className="hero-add-button" onClick={() => onNavigate("add")}>
+          <Plus size={22} /> Add Transaction
+        </button>
+      </section>
+
+      <div className="quick-actions-grid">
+        <button className="action-tile action-expense" onClick={() => onNavigate("add")}>
+          <ArrowUpRight size={20} />
+          <span>Add Expense</span>
+        </button>
+        <button className="action-tile action-income" onClick={() => onNavigate("add")}>
+          <ArrowDownLeft size={20} />
+          <span>Add Income</span>
+        </button>
+        <button className="action-tile action-transfer" onClick={() => onNavigate("add")}>
+          <ArrowRightLeft size={20} />
+          <span>Transfer</span>
+        </button>
+        {snapshot.config.aiEnabled ? (
+          <button className="action-tile action-ai" onClick={() => onNavigate("ai")}>
+            <Bot size={20} />
+            <span>AI Chat</span>
+          </button>
+        ) : null}
       </div>
 
-      <QuickTransaction snapshot={snapshot} onDone={onDone} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatCard label="Month savings" value={formatMoney(summary.monthlySavings, currency)} icon={<WalletCards size={20} />} />
+        <StatCard label="Today spent" value={formatMoney(summary.todaySpend, currency)} icon={<CalendarDays size={20} />} />
+        <StatCard label="Accounts" value={String(balances.length)} icon={<WalletCards size={20} />} />
+      </div>
+
+      <DashboardCharts snapshot={snapshot} currency={currency} />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
         <Panel title="Accounts">
@@ -651,6 +747,114 @@ function Dashboard({
           <TransactionList snapshot={snapshot} currency={currency} transactions={snapshot.transactions.slice(-6).reverse()} />
         </Panel>
       </div>
+    </div>
+  );
+}
+
+function DashboardCharts({ snapshot, currency }: { snapshot: Snapshot; currency: string }) {
+  const categoryRows = categorySpend(snapshot.categories, snapshot.transactions).slice(0, 5);
+  const maxCategory = Math.max(...categoryRows.map((item) => item.amount), 1);
+  const days = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const monthPrefix = new Date().toISOString().slice(0, 7);
+  const dailyRows = Array.from({ length: days }, (_, index) => {
+    const date = `${monthPrefix}-${String(index + 1).padStart(2, "0")}`;
+    const amount = snapshot.transactions
+      .filter((item) => item.type === "expense" && sameDay(item.date, date))
+      .reduce((sum, item) => sum + item.amount, 0);
+    return { day: index + 1, amount };
+  });
+  const maxDaily = Math.max(...dailyRows.map((item) => item.amount), 1);
+  const month = summarize(snapshot.transactions);
+  const totalFlow = Math.max(month.monthlyIncome + month.monthlyExpenses, 1);
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
+      <Panel title="Cash Flow">
+        <div className="donut-layout">
+          <div
+            className="flow-ring"
+            style={{
+              background: `conic-gradient(var(--accent) 0 ${(month.monthlyIncome / totalFlow) * 360}deg, #ef4444 ${(month.monthlyIncome / totalFlow) * 360}deg 360deg)`,
+            }}
+          >
+            <span>{formatMoney(month.monthlySavings, currency)}</span>
+          </div>
+          <div className="grid flex-1 gap-2">
+            <div className="legend-row">
+              <span><i className="legend-dot legend-income" />Income</span>
+              <strong>{formatMoney(month.monthlyIncome, currency)}</strong>
+            </div>
+            <div className="legend-row">
+              <span><i className="legend-dot legend-expense" />Expenses</span>
+              <strong>{formatMoney(month.monthlyExpenses, currency)}</strong>
+            </div>
+          </div>
+        </div>
+      </Panel>
+
+      <Panel title="Top Categories">
+        <div className="chart-list">
+          {categoryRows.map(({ category, amount }) => (
+            <div className="bar-row" key={category.id}>
+              <div className="bar-row-header">
+                <span>{category.name}</span>
+                <strong>{formatMoney(amount, currency)}</strong>
+              </div>
+              <div className="bar-track">
+                <span style={{ width: `${Math.max(6, (amount / maxCategory) * 100)}%` }} />
+              </div>
+            </div>
+          ))}
+          {categoryRows.length === 0 ? <Empty text="Add expenses to see category charts." /> : null}
+        </div>
+      </Panel>
+
+      <Panel title="Daily Spending">
+        <div className="daily-bars">
+          {dailyRows.map((item) => (
+            <div className="daily-bar" key={item.day} title={`${item.day}: ${formatMoney(item.amount, currency)}`}>
+              <span style={{ height: `${Math.max(item.amount ? 8 : 2, (item.amount / maxDaily) * 100)}%` }} />
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 flex justify-between text-xs text-slate-500">
+          <span>1</span>
+          <span>{days}</span>
+        </div>
+      </Panel>
+
+      <Panel title="Account Balance">
+        <div className="chart-list">
+          {snapshot.accounts.map((account) => {
+            const balance = accountBalance(account, snapshot.transactions);
+            const maxBalance = Math.max(...snapshot.accounts.map((item) => Math.abs(accountBalance(item, snapshot.transactions))), 1);
+            return (
+              <div className="bar-row" key={account.id}>
+                <div className="bar-row-header">
+                  <span>{account.name}</span>
+                  <strong>{formatMoney(balance, currency)}</strong>
+                </div>
+                <div className="bar-track">
+                  <span className={balance < 0 ? "danger-bar" : ""} style={{ width: `${Math.max(6, (Math.abs(balance) / maxBalance) * 100)}%` }} />
+                </div>
+              </div>
+            );
+          })}
+          {snapshot.accounts.length === 0 ? <Empty text="Create an account to see balances." /> : null}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function AddView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => Promise<void> }) {
+  return (
+    <div className="mx-auto grid max-w-3xl gap-5">
+      <div>
+        <h2 className="text-2xl font-semibold text-slate-950">Add Transaction</h2>
+        <p className="text-sm text-slate-500">Record expense, income, or transfer quickly.</p>
+      </div>
+      <QuickTransaction snapshot={snapshot} onDone={onDone} />
     </div>
   );
 }
@@ -673,6 +877,7 @@ function QuickTransaction({ snapshot, onDone }: { snapshot: Snapshot; onDone: ()
     const timestamp = nowIso();
     await db.transactions.put({
       id: createId(),
+      ownerProfileId: snapshot.profile?.id,
       type,
       amount: Number(amount) || 0,
       accountId,
@@ -691,44 +896,49 @@ function QuickTransaction({ snapshot, onDone }: { snapshot: Snapshot; onDone: ()
 
   return (
     <Panel title="Quick Add">
-      <div className="grid gap-3 md:grid-cols-[140px_1fr_1fr_1fr_auto]">
-        <select className="field-input" value={type} onChange={(event) => setType(event.target.value as TransactionType)}>
-          <option value="expense">Expense</option>
-          <option value="income">Income</option>
-          <option value="transfer">Transfer</option>
-        </select>
-        <input className="field-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" />
-        <select className="field-input" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
-          {snapshot.accounts.map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.name}
-            </option>
+      <div className="grid gap-4">
+        <div className="segmented-control">
+          {(["expense", "income", "transfer"] as TransactionType[]).map((item) => (
+            <button className={type === item ? "segment-active" : ""} key={item} onClick={() => setType(item)}>
+              {item === "expense" ? <ArrowUpRight size={17} /> : item === "income" ? <ArrowDownLeft size={17} /> : <ArrowRightLeft size={17} />}
+              {item[0].toUpperCase() + item.slice(1)}
+            </button>
           ))}
-        </select>
-        {type === "transfer" ? (
-          <select className="field-input" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <input className="amount-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" />
+          <SelectField label="Account" value={accountId} onChange={setAccountId}>
             {snapshot.accounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
               </option>
             ))}
-          </select>
-        ) : (
-          <select className="field-input" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
-            {snapshot.categories
-              .filter((category) => category.kind === (type === "income" ? "income" : "expense") && category.active)
-              .map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
+          </SelectField>
+        {type === "transfer" ? (
+          <SelectField label="To account" value={toAccountId} onChange={setToAccountId}>
+              {snapshot.accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
                 </option>
               ))}
-          </select>
+          </SelectField>
+        ) : (
+          <SelectField label="Category" value={categoryId} onChange={setCategoryId}>
+              {snapshot.categories
+                .filter((category) => category.kind === (type === "income" ? "income" : "expense") && category.active)
+                .map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+          </SelectField>
         )}
-        <button className="primary-button" onClick={save} disabled={!amount || !accountId}>
-          Save
-        </button>
+          <button className="primary-button" onClick={save} disabled={!amount || !accountId}>
+            Save
+          </button>
+        </div>
+        <input className="field-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
       </div>
-      <input className="field-input mt-3" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
     </Panel>
   );
 }
@@ -858,6 +1068,7 @@ function PeopleView({ snapshot, currency, onDone }: { snapshot: Snapshot; curren
     const timestamp = nowIso();
     await db.people.put({
       id: createId(),
+      ownerProfileId: snapshot.profile?.id,
       localDisplayName: name,
       active: true,
       createdAt: timestamp,
@@ -872,6 +1083,7 @@ function PeopleView({ snapshot, currency, onDone }: { snapshot: Snapshot; curren
     const timestamp = nowIso();
     await db.settlements.put({
       id: createId(),
+      ownerProfileId: snapshot.profile?.id,
       personId,
       direction,
       originalAmount: Number(amount) || 0,
@@ -907,17 +1119,17 @@ function PeopleView({ snapshot, currency, onDone }: { snapshot: Snapshot; curren
       </Panel>
       <Panel title="Owe / Owed">
         <div className="grid gap-3">
-          <select className="field-input" value={personId} onChange={(event) => setPersonId(event.target.value)}>
+          <SelectField label="Person" value={personId} onChange={setPersonId}>
             {snapshot.people.map((person) => (
               <option key={person.id} value={person.id}>
                 {person.localDisplayName}
               </option>
             ))}
-          </select>
-          <select className="field-input" value={direction} onChange={(event) => setDirection(event.target.value as "to_me" | "by_me")}>
+          </SelectField>
+          <SelectField label="Type" value={direction} onChange={(value) => setDirection(value as "to_me" | "by_me")}>
             <option value="to_me">Someone owes me</option>
             <option value="by_me">I owe someone</option>
-          </select>
+          </SelectField>
           <input className="field-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" />
           <input className="field-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
           <button className="primary-button" onClick={addSettlement} disabled={!personId || !amount}>
@@ -943,6 +1155,7 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
     const timestamp = nowIso();
     await db.categories.put({
       id: createId(),
+      ownerProfileId: snapshot.profile?.id,
       name: categoryName,
       kind: categoryKind,
       active: true,
@@ -958,6 +1171,7 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
     const timestamp = nowIso();
     await db.budgets.put({
       id: createId(),
+      ownerProfileId: snapshot.profile?.id,
       categoryId: budgetCategoryId,
       amount: Number(budgetAmount) || 0,
       period: "monthly",
@@ -1143,7 +1357,7 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
         <div className="grid gap-3">
           <div className="grid grid-cols-[1fr_120px_auto] gap-2">
             <input className="field-input" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="Category name" />
-            <select className="field-input" value={categoryKind} onChange={(event) => setCategoryKind(event.target.value as "expense" | "income")}>
+            <select className="select-input" value={categoryKind} onChange={(event) => setCategoryKind(event.target.value as "expense" | "income")}>
               <option value="expense">Expense</option>
               <option value="income">Income</option>
             </select>
@@ -1162,7 +1376,7 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
 
       <Panel title="Budgets">
         <div className="grid gap-3">
-          <select className="field-input" value={budgetCategoryId} onChange={(event) => setBudgetCategoryId(event.target.value)}>
+          <select className="select-input" value={budgetCategoryId} onChange={(event) => setBudgetCategoryId(event.target.value)}>
             {snapshot.categories
               .filter((category) => category.kind === "expense")
               .map((category) => (
@@ -1458,6 +1672,27 @@ function TextField({
     <label className="grid gap-1">
       <span className="field-label">{label}</span>
       <input className="field-input" type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="select-field">
+      <span>{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        {children}
+      </select>
     </label>
   );
 }

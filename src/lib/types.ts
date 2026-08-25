@@ -42,12 +42,14 @@ export interface Profile extends BaseEntity {
 }
 
 export interface Account extends BaseEntity {
+  ownerProfileId?: string;
   name: string;
   openingBalance: number;
   active: boolean;
 }
 
 export interface Category extends BaseEntity {
+  ownerProfileId?: string;
   name: string;
   kind: CategoryKind;
   parentId?: string;
@@ -55,6 +57,7 @@ export interface Category extends BaseEntity {
 }
 
 export interface Transaction extends BaseEntity {
+  ownerProfileId?: string;
   type: TransactionType;
   amount: number;
   accountId?: string;
@@ -66,6 +69,7 @@ export interface Transaction extends BaseEntity {
 }
 
 export interface Budget extends BaseEntity {
+  ownerProfileId?: string;
   categoryId: string;
   amount: number;
   period: BudgetPeriod;
@@ -73,6 +77,7 @@ export interface Budget extends BaseEntity {
 }
 
 export interface RecurringTransaction extends BaseEntity {
+  ownerProfileId?: string;
   type: TransactionType;
   amount: number;
   accountId: string;
@@ -84,12 +89,14 @@ export interface RecurringTransaction extends BaseEntity {
 }
 
 export interface Person extends BaseEntity {
+  ownerProfileId?: string;
   localDisplayName: string;
   connectedUserId?: string;
   active: boolean;
 }
 
 export interface Settlement extends BaseEntity {
+  ownerProfileId?: string;
   personId: string;
   direction: OweDirection;
   originalAmount: number;
