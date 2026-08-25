@@ -9,6 +9,11 @@
   --text: #0f172a;
 }
 
+:root[data-theme="dark"] {
+  --surface: #0f172a;
+  --text: #e5e7eb;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -21,6 +26,10 @@ body {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
+:root[data-theme="dark"] body {
+  background: #0f172a;
+}
+
 button,
 input,
 select {
@@ -30,6 +39,11 @@ select {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.logo-button {
+  border-radius: 8px;
+  display: inline-flex;
 }
 
 .primary-button,
@@ -69,6 +83,20 @@ button:disabled {
   border: 1px solid #cbd5e1;
   color: #0f172a;
   gap: 0.5rem;
+}
+
+:root[data-theme="dark"] .secondary-button,
+:root[data-theme="dark"] .small-button,
+:root[data-theme="dark"] .icon-button,
+:root[data-theme="dark"] .choice-button,
+:root[data-theme="dark"] .more-button,
+:root[data-theme="dark"] .action-tile,
+:root[data-theme="dark"] section.rounded-lg,
+:root[data-theme="dark"] header,
+:root[data-theme="dark"] nav {
+  background: #111827;
+  border-color: #334155;
+  color: #e5e7eb;
 }
 
 .secondary-button {
@@ -114,6 +142,11 @@ button:disabled {
   gap: 0.2rem;
   min-height: 52px;
   padding: 0.35rem;
+}
+
+.nav-button:disabled {
+  background: transparent;
+  color: #94a3b8;
 }
 
 .nav-button-active {
@@ -219,6 +252,36 @@ button:disabled {
   min-width: 0;
   padding: 0.6rem 0.75rem;
   width: 100%;
+}
+
+:root[data-theme="dark"] .field-input,
+:root[data-theme="dark"] .select-input,
+:root[data-theme="dark"] .select-field select,
+:root[data-theme="dark"] .amount-input {
+  background: #0b1120;
+  border-color: #334155;
+  color: #e5e7eb;
+}
+
+.password-wrap {
+  display: grid;
+  position: relative;
+}
+
+.password-wrap button {
+  align-items: center;
+  color: #64748b;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 44px;
+}
+
+.password-wrap .field-input {
+  padding-right: 2.8rem;
 }
 
 .select-input,
@@ -508,6 +571,52 @@ button:disabled {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 20%, transparent);
 }
 
+.calendar-day-income {
+  background: color-mix(in srgb, #16a34a 12%, white);
+  border-color: #86efac;
+}
+
+.calendar-day-income strong {
+  color: #15803d;
+}
+
+.calendar-day-expense {
+  background: color-mix(in srgb, #ef4444 10%, white);
+  border-color: #fecaca;
+}
+
+.calendar-day-mixed {
+  background: color-mix(in srgb, var(--brand) 12%, white);
+  border-color: color-mix(in srgb, var(--brand) 35%, white);
+}
+
+.friend-row {
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr auto;
+  padding: 0.75rem;
+}
+
+.friend-row p {
+  color: #64748b;
+  font-size: 0.8rem;
+  margin: 0.15rem 0 0;
+}
+
+.friend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  grid-column: 1 / -1;
+}
+
+.danger-button {
+  color: #dc2626;
+}
+
 .switch {
   display: inline-flex;
   position: relative;
@@ -548,6 +657,34 @@ button:disabled {
 
 .switch input:checked + span::after {
   transform: translateX(22px);
+}
+
+.toast-host {
+  bottom: 92px;
+  display: grid;
+  gap: 0.5rem;
+  position: fixed;
+  right: 1rem;
+  width: min(360px, calc(100vw - 2rem));
+  z-index: 60;
+}
+
+.toast {
+  background: #0f172a;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 650;
+  padding: 0.75rem 0.9rem;
+  box-shadow: 0 16px 40px rgb(15 23 42 / 25%);
+}
+
+.toast-success {
+  background: #166534;
+}
+
+.toast-error {
+  background: #b91c1c;
 }
 
 @media (max-width: 640px) {

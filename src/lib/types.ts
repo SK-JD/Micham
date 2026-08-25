@@ -29,12 +29,14 @@ export interface AppConfig {
   aiEnabled: boolean;
   groqApiKey?: string;
   aiModel: string;
+  themeMode: "light" | "dark";
   updatedAt: string;
 }
 
 export interface Profile extends BaseEntity {
   loginId: string;
   passwordHash: string;
+  connectionCode: string;
   displayName: string;
   currency: string;
   connectedUserId?: string;
@@ -91,7 +93,9 @@ export interface RecurringTransaction extends BaseEntity {
 export interface Person extends BaseEntity {
   ownerProfileId?: string;
   localDisplayName: string;
+  inviteCode?: string;
   connectedUserId?: string;
+  status: "local" | "pending" | "connected" | "blocked";
   active: boolean;
 }
 

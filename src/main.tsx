@@ -8,14 +8,21 @@ import {
   Bot,
   CalendarDays,
   Download,
+  Eye,
+  EyeOff,
   Home,
+  Image,
   LogOut,
   MoreHorizontal,
+  Moon,
   Palette,
   Plus,
   RefreshCw,
   Settings,
+  Sun,
+  Trash2,
   Upload,
+  UserPlus,
   Users,
   WalletCards,
 } from "lucide-react";
@@ -41,6 +48,7 @@ import "./styles/index.css";
 
 type View = "dashboard" | "daily" | "add" | "monthly" | "calendar" | "people" | "settings" | "admin" | "ai";
 type SessionRole = "guest" | "user" | "admin";
+type Toast = { id: string; tone: "success" | "error" | "info"; message: string };
 
 interface Snapshot {
   config: AppConfig;
@@ -71,6 +79,7 @@ const emptySnapshot: Snapshot = {
     aiEnabled: false,
     groqApiKey: "",
     aiModel: "llama-3.1-8b-instant",
+    themeMode: "light",
     updatedAt: nowIso(),
   },
   accounts: [],
@@ -107,6 +116,10 @@ function resetRateLimit(key: string) {
 
 function minutesFromMs(value: number) {
   return Math.max(1, Math.ceil(value / 60000));
+}
+
+function createConnectionCode() {
+  return `MCH-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 }
 
 function belongsToProfile<T extends { ownerProfileId?: string; deletedAt?: string }>(item: T, profileId?: string, includeGlobal = false) {
@@ -154,6 +167,13 @@ function App() {
   const [sessionRole, setSessionRole] = useState<SessionRole>(() => (sessionStorage.getItem("micham_role") as SessionRole) || "guest");
   const [currentProfileId, setCurrentProfileId] = useState(() => sessionStorage.getItem("micham_profile_id") || "");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const notify = (message: string, tone: Toast["tone"] = "info") => {
+    const id = createId();
+    setToasts((items) => [...items, { id, message, tone }]);
+    window.setTimeout(() => setToasts((items) => items.filter((item) => item.id !== id)), 3200);
+  };
 
   const refresh = async (profileId = currentProfileId) => {
     const [config, profiles, accounts, categories, transactions, budgets, recurring, people, settlements] = await Promise.all([
@@ -192,6 +212,7 @@ function App() {
     document.documentElement.style.setProperty("--accent", snapshot.config.accentColor);
     document.documentElement.style.setProperty("--surface", snapshot.config.surfaceColor);
     document.documentElement.style.setProperty("--text", snapshot.config.textColor);
+    document.documentElement.dataset.theme = snapshot.config.themeMode;
     document.title = snapshot.config.appName;
   }, [snapshot.config]);
 
@@ -231,6 +252,7 @@ function App() {
       <Shell snapshot={snapshot}>
         <AuthGate
           config={snapshot.config}
+          notify={notify}
           onLogin={async (profileId) => {
             sessionStorage.setItem("micham_role", "user");
             sessionStorage.setItem("micham_profile_id", profileId);
@@ -254,7 +276,9 @@ function App() {
       <div className="grid min-h-screen grid-rows-[auto_1fr_auto]">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-            <Logo config={snapshot.config} />
+            <button className="logo-button" title="Settings" onClick={() => setView("settings")}>
+              <Logo config={snapshot.config} />
+            </button>
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-lg font-semibold text-slate-950">{snapshot.config.appName}</h1>
               <p className="truncate text-xs text-slate-500">{snapshot.config.tagline}</p>
@@ -286,7 +310,7 @@ function App() {
               onNavigate={setView}
             />
           )}
-          {view === "add" && <AddView snapshot={snapshot} onDone={refresh} />}
+          {view === "add" && <AddView snapshot={snapshot} notify={notify} onDone={refresh} />}
           {view === "daily" && (
             <DailyView snapshot={snapshot} currency={currency} selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
           )}
@@ -294,23 +318,23 @@ function App() {
           {view === "calendar" && (
             <CalendarView snapshot={snapshot} currency={currency} selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
           )}
-          {view === "people" && <PeopleView snapshot={snapshot} currency={currency} onDone={refresh} />}
-          {view === "settings" && <SettingsView snapshot={snapshot} onDone={refresh} />}
-          {view === "ai" && <AiChatView snapshot={snapshot} currency={currency} />}
+          {view === "people" && <PeopleView snapshot={snapshot} currency={currency} notify={notify} onDone={refresh} />}
+          {view === "settings" && <SettingsView snapshot={snapshot} notify={notify} onDone={refresh} />}
+          {view === "ai" && <AiChatView snapshot={snapshot} currency={currency} notify={notify} />}
         </main>
 
         <nav className="sticky bottom-0 z-20 border-t border-slate-200 bg-white">
           {moreOpen ? (
             <div className="mx-auto grid max-w-6xl grid-cols-2 gap-2 border-b border-slate-100 px-4 py-3 sm:grid-cols-4">
+              <MoreButton icon={<CalendarDays size={18} />} label="Daily" onClick={() => { setView("daily"); setMoreOpen(false); }} />
               <MoreButton icon={<CalendarDays size={18} />} label="Calendar" onClick={() => { setView("calendar"); setMoreOpen(false); }} />
               <MoreButton icon={<Users size={18} />} label="People" onClick={() => { setView("people"); setMoreOpen(false); }} />
-              {snapshot.config.aiEnabled ? <MoreButton icon={<Bot size={18} />} label="AI Chat" onClick={() => { setView("ai"); setMoreOpen(false); }} /> : null}
               <MoreButton icon={<Settings size={18} />} label="Settings" onClick={() => { setView("settings"); setMoreOpen(false); }} />
             </div>
           ) : null}
           <div className="mx-auto grid max-w-6xl grid-cols-5 gap-1 px-2 py-2 text-xs">
             <NavButton icon={<Home size={18} />} label="Home" active={view === "dashboard"} onClick={() => { setView("dashboard"); setMoreOpen(false); }} />
-            <NavButton icon={<CalendarDays size={18} />} label="Daily" active={view === "daily"} onClick={() => { setView("daily"); setMoreOpen(false); }} />
+            <NavButton icon={<Bot size={18} />} label="Chat" active={view === "ai"} disabled={!snapshot.config.aiEnabled} onClick={() => { if (snapshot.config.aiEnabled) { setView("ai"); setMoreOpen(false); } }} />
             <button className={`add-nav-button ${view === "add" ? "add-nav-button-active" : ""}`} onClick={() => { setView("add"); setMoreOpen(false); }}>
               <Plus size={24} />
               <span>Add</span>
@@ -320,6 +344,7 @@ function App() {
           </div>
         </nav>
       </div>
+      <ToastHost toasts={toasts} />
     </Shell>
   );
 }
@@ -354,10 +379,12 @@ async function hashPassword(value: string) {
 
 function AuthGate({
   config,
+  notify,
   onLogin,
   onAdminLogin,
 }: {
   config: AppConfig;
+  notify: (message: string, tone?: Toast["tone"]) => void;
   onLogin: (profileId: string) => Promise<void>;
   onAdminLogin: () => Promise<void>;
 }) {
@@ -372,7 +399,7 @@ function AuthGate({
     const normalizedLoginId = loginId.trim();
     const loginLimit = checkRateLimit(`micham_login_${normalizedLoginId || "blank"}`, LOGIN_LIMIT.max, LOGIN_LIMIT.windowMs);
     if (!loginLimit.allowed) {
-      alert(`Too many login attempts. Try again in ${minutesFromMs(loginLimit.retryAfterMs)} minute(s).`);
+      notify(`Too many login attempts. Try again in ${minutesFromMs(loginLimit.retryAfterMs)} minute(s).`, "error");
       return;
     }
 
@@ -385,7 +412,7 @@ function AuthGate({
     const passwordHash = await hashPassword(password);
     const profile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
     if (!profile || profile.passwordHash !== passwordHash) {
-      alert("Invalid login.");
+      notify("Invalid login.", "error");
       return;
     }
     resetRateLimit(`micham_login_${normalizedLoginId}`);
@@ -395,17 +422,17 @@ function AuthGate({
   const register = async () => {
     const normalizedLoginId = loginId.trim();
     if (normalizedLoginId.length < 3) {
-      alert("Login ID must be at least 3 characters.");
+      notify("Login ID must be at least 3 characters.", "error");
       return;
     }
     if (password.length < 8) {
-      alert("Password must be at least 8 characters.");
+      notify("Password must be at least 8 characters.", "error");
       return;
     }
 
     const existing = await db.profiles.where("loginId").equals(normalizedLoginId).first();
     if (existing) {
-      alert("This login ID already exists.");
+      notify("This login ID already exists.", "error");
       return;
     }
 
@@ -417,6 +444,7 @@ function AuthGate({
         id: profileId,
         loginId: normalizedLoginId,
         passwordHash,
+        connectionCode: createConnectionCode(),
         displayName: displayName || normalizedLoginId,
         currency,
         setupComplete: true,
@@ -439,6 +467,7 @@ function AuthGate({
           })),
       );
     });
+    notify("Local account created.", "success");
     await onLogin(profileId);
   };
 
@@ -524,9 +553,21 @@ function AuthGate({
   );
 }
 
-function NavButton({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
+function NavButton({
+  icon,
+  label,
+  active,
+  disabled = false,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <button className={`nav-button ${active ? "nav-button-active" : ""}`} onClick={onClick}>
+    <button className={`nav-button ${active ? "nav-button-active" : ""}`} disabled={disabled} onClick={onClick}>
       {icon}
       <span>{label}</span>
     </button>
@@ -556,6 +597,7 @@ function Onboarding({ config, onDone }: { config: AppConfig; onDone: () => Promi
         id: profileId,
         loginId: displayName || "local-user",
         passwordHash: await hashPassword("local-user"),
+        connectionCode: createConnectionCode(),
         displayName: displayName || "Local User",
         currency,
         setupComplete: true,
@@ -847,7 +889,7 @@ function DashboardCharts({ snapshot, currency }: { snapshot: Snapshot; currency:
   );
 }
 
-function AddView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => Promise<void> }) {
+function AddView({ snapshot, onDone }: { snapshot: Snapshot; notify?: (message: string, tone?: Toast["tone"]) => void; onDone: () => Promise<void> }) {
   return (
     <div className="mx-auto grid max-w-3xl gap-5">
       <div>
@@ -855,7 +897,53 @@ function AddView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => Promi
         <p className="text-sm text-slate-500">Record expense, income, or transfer quickly.</p>
       </div>
       <QuickTransaction snapshot={snapshot} onDone={onDone} />
+      <SplitExpensePanel snapshot={snapshot} onDone={onDone} />
     </div>
+  );
+}
+
+function SplitExpensePanel({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => Promise<void> }) {
+  const [personId, setPersonId] = useState(snapshot.people[0]?.id ?? "");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+
+  const saveSplit = async () => {
+    const timestamp = nowIso();
+    await db.settlements.put({
+      id: createId(),
+      ownerProfileId: snapshot.profile?.id,
+      personId,
+      direction: "to_me",
+      originalAmount: Number(amount) || 0,
+      repaidAmount: 0,
+      date: timestamp,
+      note: note || "Split expense",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    });
+    setAmount("");
+    setNote("");
+    await onDone();
+  };
+
+  return (
+    <Panel title="Split Expense">
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+        <SelectField label="Person" value={personId} onChange={setPersonId}>
+          {snapshot.people.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.localDisplayName}
+            </option>
+          ))}
+        </SelectField>
+        <input className="field-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Share amount" />
+        <button className="primary-button" onClick={saveSplit} disabled={!personId || !amount}>
+          Save Split
+        </button>
+      </div>
+      <input className="field-input mt-3" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Dinner split, trip, rent..." />
+    </Panel>
   );
 }
 
@@ -868,6 +956,7 @@ function QuickTransaction({ snapshot, onDone }: { snapshot: Snapshot; onDone: ()
   const [toAccountId, setToAccountId] = useState(snapshot.accounts[1]?.id ?? "");
   const [categoryId, setCategoryId] = useState(expenseCategory?.id ?? "");
   const [note, setNote] = useState("");
+  const [receiptName, setReceiptName] = useState("");
 
   useEffect(() => {
     setCategoryId(type === "income" ? incomeCategory?.id ?? "" : expenseCategory?.id ?? "");
@@ -891,7 +980,14 @@ function QuickTransaction({ snapshot, onDone }: { snapshot: Snapshot; onDone: ()
     });
     setAmount("");
     setNote("");
+    setReceiptName("");
     await onDone();
+  };
+
+  const attachReceipt = (file?: File) => {
+    if (!file) return;
+    setReceiptName(file.name);
+    setNote((value) => value || `Receipt image: ${file.name}`);
   };
 
   return (
@@ -937,7 +1033,14 @@ function QuickTransaction({ snapshot, onDone }: { snapshot: Snapshot; onDone: ()
             Save
           </button>
         </div>
-        <input className="field-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <input className="field-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
+          <label className="secondary-button cursor-pointer">
+            <Image size={18} /> Receipt
+            <input className="hidden" type="file" accept="image/*" onChange={(event) => attachReceipt(event.target.files?.[0])} />
+          </label>
+        </div>
+        {receiptName ? <p className="text-sm text-slate-500">Attached: {receiptName}</p> : null}
       </div>
     </Panel>
   );
@@ -1039,13 +1142,18 @@ function CalendarView({
       <input className="field-input w-full max-w-xs" type="month" value={selectedDate.slice(0, 7)} onChange={(event) => setSelectedDate(`${event.target.value}-01`)} />
       <div className="calendar-grid">
         {dates.map((date) => {
-          const dailySpend = snapshot.transactions
-            .filter((item) => item.type === "expense" && sameDay(item.date, date))
+          const dailyTransactions = snapshot.transactions.filter((item) => sameDay(item.date, date));
+          const dailySpend = dailyTransactions
+            .filter((item) => item.type === "expense")
             .reduce((sum, item) => sum + item.amount, 0);
+          const dailyIncome = dailyTransactions
+            .filter((item) => item.type === "income")
+            .reduce((sum, item) => sum + item.amount, 0);
+          const calendarTone = dailySpend && dailyIncome ? "calendar-day-mixed" : dailyIncome ? "calendar-day-income" : dailySpend ? "calendar-day-expense" : "";
           return (
-            <button className={`calendar-day ${date === selectedDate ? "calendar-day-active" : ""}`} key={date} onClick={() => setSelectedDate(date)}>
+            <button className={`calendar-day ${calendarTone} ${date === selectedDate ? "calendar-day-active" : ""}`} key={date} onClick={() => setSelectedDate(date)}>
               <span>{Number(date.slice(-2))}</span>
-              <strong>{dailySpend ? formatMoney(dailySpend, currency) : ""}</strong>
+              <strong>{dailySpend ? `-${formatMoney(dailySpend, currency)}` : dailyIncome ? `+${formatMoney(dailyIncome, currency)}` : ""}</strong>
             </button>
           );
         })}
@@ -1057,8 +1165,19 @@ function CalendarView({
   );
 }
 
-function PeopleView({ snapshot, currency, onDone }: { snapshot: Snapshot; currency: string; onDone: () => Promise<void> }) {
+function PeopleView({
+  snapshot,
+  currency,
+  notify,
+  onDone,
+}: {
+  snapshot: Snapshot;
+  currency: string;
+  notify: (message: string, tone?: Toast["tone"]) => void;
+  onDone: () => Promise<void>;
+}) {
   const [name, setName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [personId, setPersonId] = useState(snapshot.people[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"to_me" | "by_me">("to_me");
@@ -1070,12 +1189,17 @@ function PeopleView({ snapshot, currency, onDone }: { snapshot: Snapshot; curren
       id: createId(),
       ownerProfileId: snapshot.profile?.id,
       localDisplayName: name,
+      inviteCode,
+      connectedUserId: inviteCode || undefined,
+      status: inviteCode ? "pending" : "local",
       active: true,
       createdAt: timestamp,
       updatedAt: timestamp,
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     });
     setName("");
+    setInviteCode("");
+    notify(inviteCode ? "Friend request saved as pending." : "Local person added.", "success");
     await onDone();
   };
 
@@ -1096,6 +1220,13 @@ function PeopleView({ snapshot, currency, onDone }: { snapshot: Snapshot; curren
     });
     setAmount("");
     setNote("");
+    notify("Owe/owed entry recorded.", "success");
+    await onDone();
+  };
+
+  const updatePerson = async (person: Person, patch: Partial<Person>) => {
+    await db.people.update(person.id, { ...patch, updatedAt: nowIso() });
+    notify("Friend updated.", "success");
     await onDone();
   };
 
@@ -1103,16 +1234,29 @@ function PeopleView({ snapshot, currency, onDone }: { snapshot: Snapshot; curren
     <div className="grid gap-5 lg:grid-cols-2">
       <Panel title="People">
         <div className="grid gap-3">
-          <div className="flex gap-2">
+          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
             <input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Local display name" />
+            <input className="field-input" value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase())} placeholder="Friend code optional" />
             <button className="primary-button" onClick={addPerson} disabled={!name.trim()}>
-              Add
+              <UserPlus size={18} /> Add
             </button>
           </div>
           {snapshot.people.map((person) => (
-            <div className="row" key={person.id}>
-              <span>{person.localDisplayName}</span>
+            <div className="friend-row" key={person.id}>
+              <div>
+                <strong>{person.localDisplayName}</strong>
+                <p>{person.status || "local"} {person.inviteCode ? `· ${person.inviteCode}` : ""}</p>
+              </div>
               <strong>{formatMoney(personBalance(person, snapshot.settlements), currency)}</strong>
+              <div className="friend-actions">
+                {person.status === "pending" ? (
+                  <button className="small-button" onClick={() => updatePerson(person, { status: "connected" })}>Connect</button>
+                ) : null}
+                <button className="small-button" onClick={() => updatePerson(person, { status: "blocked", active: false })}>Block</button>
+                <button className="small-button danger-button" onClick={() => updatePerson(person, { deletedAt: nowIso(), active: false })}>
+                  <Trash2 size={15} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -1141,15 +1285,16 @@ function PeopleView({ snapshot, currency, onDone }: { snapshot: Snapshot; curren
   );
 }
 
-function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => Promise<void> }) {
+function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: (message: string, tone?: Toast["tone"]) => void; onDone: () => Promise<void> }) {
   const [categoryName, setCategoryName] = useState("");
   const [categoryKind, setCategoryKind] = useState<"expense" | "income">("expense");
   const [budgetCategoryId, setBudgetCategoryId] = useState(snapshot.categories.find((item) => item.kind === "expense")?.id ?? "");
   const [budgetAmount, setBudgetAmount] = useState("");
-  const [connectId, setConnectId] = useState("");
-  const [connectPassword, setConnectPassword] = useState("");
   const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
   const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const addCategory = async () => {
     const timestamp = nowIso();
@@ -1164,6 +1309,7 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     });
     setCategoryName("");
+    notify("Category added.", "success");
     await onDone();
   };
 
@@ -1181,6 +1327,7 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     });
     setBudgetAmount("");
+    notify("Budget added.", "success");
     await onDone();
   };
 
@@ -1210,18 +1357,18 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
   const importData = async (file?: File) => {
     if (!file) return;
     if (file.size > MAX_IMPORT_BYTES) {
-      alert("Import file is too large. Maximum size is 5 MB.");
+      notify("Import file is too large. Maximum size is 5 MB.", "error");
       return;
     }
     let payload: ImportPayload;
     try {
       payload = JSON.parse(await file.text()) as ImportPayload;
     } catch {
-      alert("Import file is not valid JSON.");
+      notify("Import file is not valid JSON.", "error");
       return;
     }
     if (!payload.accounts || !payload.transactions || !payload.categories) {
-      alert("Import file is not valid.");
+      notify("Import file is not valid.", "error");
       return;
     }
     const duplicateIds = payload.transactions.filter((item) => snapshot.transactions.some((existing) => existing.id === item.id)).length;
@@ -1240,28 +1387,33 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
         await db.settlements.bulkPut(payload.settlements ?? []);
       },
     );
+    notify("Import completed.", "success");
     await onDone();
   };
 
   const updateConfigToggle = async (key: "syncEnabled" | "aiEnabled", value: boolean) => {
     await db.appConfig.update("primary", { [key]: value, updatedAt: nowIso() });
+    notify(`${key === "aiEnabled" ? "AI Chat" : "Sync"} ${value ? "enabled" : "disabled"}.`, "success");
     await onDone();
   };
 
   const saveAiConfig = async () => {
     await db.appConfig.update("primary", { groqApiKey, aiModel, aiEnabled: Boolean(groqApiKey), updatedAt: nowIso() });
+    notify("AI settings saved.", "success");
     await onDone();
   };
 
   const connectProfile = async () => {
-    if (!snapshot.profile || !connectId || !connectPassword) return;
+    if (!snapshot.profile) return;
     const timestamp = nowIso();
+    const connectionCode = snapshot.profile.connectionCode || createConnectionCode();
     await db.transaction(
       "rw",
       [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.appConfig],
       async () => {
         await db.profiles.update(snapshot.profile!.id, {
-          connectedUserId: connectId,
+          connectedUserId: connectionCode,
+          connectionCode,
           updatedAt: timestamp,
           syncState: "queued",
         });
@@ -1275,7 +1427,36 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
         await db.appConfig.update("primary", { syncEnabled: true, updatedAt: timestamp });
       },
     );
-    setConnectPassword("");
+    notify("Connected locally. Your existing data is queued for cloud sync.", "success");
+    await onDone();
+  };
+
+  const changePassword = async () => {
+    if (!snapshot.profile) return;
+    if ((await hashPassword(currentPassword)) !== snapshot.profile.passwordHash) {
+      notify("Current password is incorrect.", "error");
+      return;
+    }
+    if (newPassword.length < 8) {
+      notify("New password must be at least 8 characters.", "error");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      notify("New password and confirmation do not match.", "error");
+      return;
+    }
+    await db.profiles.update(snapshot.profile.id, { passwordHash: await hashPassword(newPassword), updatedAt: nowIso() });
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    notify("Password changed.", "success");
+    await onDone();
+  };
+
+  const toggleDarkMode = async () => {
+    const themeMode = snapshot.config.themeMode === "dark" ? "light" : "dark";
+    await db.appConfig.update("primary", { themeMode, updatedAt: nowIso() });
+    notify(`${themeMode === "dark" ? "Dark" : "Light"} mode enabled.`, "success");
     await onDone();
   };
 
@@ -1290,6 +1471,17 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
           <div className="row">
             <span>Currency</span>
             <strong>{snapshot.profile?.currency}</strong>
+          </div>
+          <div className="row">
+            <span>Connection Code</span>
+            <strong>{snapshot.profile?.connectionCode || "Not created"}</strong>
+          </div>
+          <div className="row">
+            <span>Theme</span>
+            <button className="secondary-button" onClick={toggleDarkMode}>
+              {snapshot.config.themeMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+              {snapshot.config.themeMode === "dark" ? "Light" : "Dark"}
+            </button>
           </div>
           <div className="row">
             <span>Sync</span>
@@ -1331,13 +1523,25 @@ function SettingsView({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => 
           </div>
         ) : (
           <div className="grid gap-3">
-            <TextField label="Connect ID" value={connectId} onChange={setConnectId} placeholder="Email or phone" />
-            <TextField label="Password" value={connectPassword} onChange={setConnectPassword} type="password" />
-            <button className="primary-button" onClick={connectProfile} disabled={!connectId || !connectPassword}>
+            <p className="text-sm text-slate-600">
+              This creates your unique local connection code and marks all existing device data ready for cloud sync.
+            </p>
+            <button className="primary-button" onClick={connectProfile}>
               <RefreshCw size={18} /> Connect With Us
             </button>
           </div>
         )}
+      </Panel>
+
+      <Panel title="Change Password">
+        <div className="grid gap-3">
+          <TextField label="Current password" value={currentPassword} onChange={setCurrentPassword} type="password" />
+          <TextField label="New password" value={newPassword} onChange={setNewPassword} type="password" />
+          <TextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" />
+          <button className="primary-button" onClick={changePassword}>
+            Save Password
+          </button>
+        </div>
       </Panel>
 
       <Panel title="AI Chat">
@@ -1503,20 +1707,21 @@ function AdminView({
   );
 }
 
-function AiChatView({ snapshot, currency }: { snapshot: Snapshot; currency: string }) {
+function AiChatView({ snapshot, currency, notify }: { snapshot: Snapshot; currency: string; notify: (message: string, tone?: Toast["tone"]) => void }) {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [imageContext, setImageContext] = useState("");
 
   const ask = async () => {
     if (!question.trim()) return;
     if (!snapshot.config.groqApiKey) {
-      alert("Add the Groq API key in Settings.");
+      notify("Add the Groq API key in Settings.", "error");
       return;
     }
     const aiLimit = checkRateLimit("micham_ai_chat", AI_LIMIT.max, AI_LIMIT.windowMs);
     if (!aiLimit.allowed) {
-      alert(`AI chat is rate limited. Try again in ${minutesFromMs(aiLimit.retryAfterMs)} minute(s).`);
+      notify(`AI chat is rate limited. Try again in ${minutesFromMs(aiLimit.retryAfterMs)} minute(s).`, "error");
       return;
     }
 
@@ -1563,7 +1768,7 @@ function AiChatView({ snapshot, currency }: { snapshot: Snapshot; currency: stri
               content:
                 "Answer only from the provided personal finance JSON. If the answer is not present, say that the local data does not contain enough information.",
             },
-            { role: "user", content: `Finance data:\n${JSON.stringify(context)}\n\nQuestion: ${userMessage}` },
+            { role: "user", content: `Finance data:\n${JSON.stringify(context)}\n\nAttached image context: ${imageContext || "none"}\n\nQuestion: ${userMessage}` },
           ],
           temperature: 0.1,
         }),
@@ -1578,7 +1783,14 @@ function AiChatView({ snapshot, currency }: { snapshot: Snapshot; currency: stri
       ]);
     } finally {
       setLoading(false);
+      setImageContext("");
     }
+  };
+
+  const attachImage = (file?: File) => {
+    if (!file) return;
+    setImageContext(`User attached image '${file.name}'. Browser-only mode cannot read image contents yet; ask user to confirm extracted fields.`);
+    notify("Image attached to chat context.", "success");
   };
 
   return (
@@ -1593,7 +1805,7 @@ function AiChatView({ snapshot, currency }: { snapshot: Snapshot; currency: stri
               </div>
             ))}
           </div>
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
             <input
               className="field-input"
               value={question}
@@ -1603,10 +1815,15 @@ function AiChatView({ snapshot, currency }: { snapshot: Snapshot; currency: stri
               }}
               placeholder="How much did I spend this month?"
             />
+            <label className="secondary-button cursor-pointer">
+              <Image size={18} />
+              <input className="hidden" type="file" accept="image/*" onChange={(event) => attachImage(event.target.files?.[0])} />
+            </label>
             <button className="primary-button" onClick={ask} disabled={loading || !question.trim()}>
               <Bot size={18} /> {loading ? "Asking" : "Ask"}
             </button>
           </div>
+          {imageContext ? <p className="text-sm text-slate-500">{imageContext}</p> : null}
         </div>
       </Panel>
     </div>
@@ -1668,11 +1885,32 @@ function TextField({
   placeholder?: string;
   type?: string;
 }) {
+  const [visible, setVisible] = useState(false);
+  const isPassword = type === "password";
   return (
     <label className="grid gap-1">
       <span className="field-label">{label}</span>
-      <input className="field-input" type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+      <span className="password-wrap">
+        <input className="field-input" type={isPassword && visible ? "text" : type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+        {isPassword ? (
+          <button type="button" onClick={() => setVisible((item) => !item)} title={visible ? "Hide password" : "Show password"}>
+            {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        ) : null}
+      </span>
     </label>
+  );
+}
+
+function ToastHost({ toasts }: { toasts: Toast[] }) {
+  return (
+    <div className="toast-host">
+      {toasts.map((toast) => (
+        <div className={`toast toast-${toast.tone}`} key={toast.id}>
+          {toast.message}
+        </div>
+      ))}
+    </div>
   );
 }
 
