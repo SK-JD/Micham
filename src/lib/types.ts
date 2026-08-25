@@ -17,6 +17,7 @@ export interface AppConfig {
   appName: string;
   tagline: string;
   logoText: string;
+  logoImage?: string;
   primaryColor: string;
   accentColor: string;
   surfaceColor: string;
@@ -26,10 +27,14 @@ export interface AppConfig {
   adminPassword: string;
   syncEnabled: boolean;
   aiEnabled: boolean;
+  groqApiKey?: string;
+  aiModel: string;
   updatedAt: string;
 }
 
 export interface Profile extends BaseEntity {
+  loginId: string;
+  passwordHash: string;
   displayName: string;
   currency: string;
   connectedUserId?: string;

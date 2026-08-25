@@ -39,6 +39,18 @@ class MichamDatabase extends Dexie {
       settlements: "id, personId, direction, date, updatedAt",
       syncQueue: "id, entity, entityId, action, updatedAt",
     });
+    this.version(2).stores({
+      appConfig: "id, updatedAt",
+      profiles: "id, loginId, connectedUserId, setupComplete, updatedAt",
+      accounts: "id, active, updatedAt",
+      categories: "id, kind, parentId, active, updatedAt",
+      transactions: "id, type, accountId, toAccountId, categoryId, date, updatedAt",
+      budgets: "id, categoryId, active, updatedAt",
+      recurringTransactions: "id, accountId, categoryId, active, nextDate, updatedAt",
+      people: "id, connectedUserId, active, updatedAt",
+      settlements: "id, personId, direction, date, updatedAt",
+      syncQueue: "id, entity, entityId, action, updatedAt",
+    });
   }
 }
 

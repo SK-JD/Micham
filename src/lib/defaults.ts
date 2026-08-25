@@ -21,6 +21,8 @@ export const defaultConfig: AppConfig = {
   adminPassword: "Admin@123",
   syncEnabled: false,
   aiEnabled: false,
+  groqApiKey: "",
+  aiModel: "llama-3.1-8b-instant",
   updatedAt: nowIso(),
 };
 

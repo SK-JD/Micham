@@ -174,6 +174,21 @@ button:disabled {
   width: 36px;
 }
 
+.chat-message {
+  background: #f1f5f9;
+  border-radius: 8px;
+  color: #0f172a;
+  line-height: 1.5;
+  max-width: min(720px, 92%);
+  padding: 0.75rem 0.9rem;
+  white-space: pre-wrap;
+}
+
+.chat-message-user {
+  background: color-mix(in srgb, var(--brand) 14%, white);
+  justify-self: end;
+}
+
 .progress {
   background: #e2e8f0;
   border-radius: 999px;
