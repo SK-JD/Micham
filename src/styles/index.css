@@ -3,24 +3,25 @@
 @tailwind utilities;
 
 :root {
-  --brand: #0878ff;
-  --accent: #00a77f;
-  --surface: #f8fafc;
+  --brand: #005f46;
+  --accent: #64dcae;
+  --surface: #f3fbf7;
   --text: #0f172a;
   --panel: #ffffff;
-  --panel-muted: #f8fafc;
-  --border: #e2e8f0;
-  --muted: #64748b;
-  --brand-gradient: linear-gradient(135deg, var(--brand) 0%, #0797d9 48%, var(--accent) 100%);
+  --panel-muted: #eef8f2;
+  --border: #cde8dc;
+  --muted: #55756a;
+  --brand-gradient: linear-gradient(135deg, #005f46 0%, #008f68 52%, #64dcae 100%);
 }
 
 :root[data-theme="dark"] {
-  --surface: #0f172a;
-  --text: #e5e7eb;
-  --panel: #111827;
-  --panel-muted: #0b1120;
-  --border: #334155;
-  --muted: #94a3b8;
+  --surface: #071713;
+  --text: #eafff7;
+  --panel: #0b1f19;
+  --panel-muted: #102a22;
+  --border: #235544;
+  --muted: #9dcbbd;
+  --brand-gradient: linear-gradient(135deg, #004d39 0%, #007d5c 52%, #4bcf9e 100%);
 }
 
 * {
@@ -37,7 +38,7 @@ body {
 }
 
 :root[data-theme="dark"] body {
-  background: #0f172a;
+  background: #071713;
 }
 
 main {
@@ -99,10 +100,15 @@ button:disabled {
 .wordmark-wrap img {
   background: transparent;
   display: block;
-  height: 30px;
-  max-width: 180px;
+  height: 34px;
+  max-width: 205px;
   object-fit: contain;
   object-position: left center;
+}
+
+:root[data-theme="dark"] .wordmark-wrap img {
+  filter: brightness(0) saturate(100%) invert(83%) sepia(24%) saturate(691%) hue-rotate(100deg) brightness(96%) contrast(93%) drop-shadow(0 0 10px rgb(100 220 174 / 0.2));
+  opacity: 0.98;
 }
 
 .wordmark-wrap span,
@@ -164,9 +170,9 @@ button:disabled {
 :root[data-theme="dark"] section.rounded-lg,
 :root[data-theme="dark"] header,
 :root[data-theme="dark"] nav {
-  background: #111827;
-  border-color: #334155;
-  color: #e5e7eb;
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--text);
 }
 
 .secondary-button {
@@ -224,6 +230,15 @@ button:disabled {
   color: var(--brand);
 }
 
+:root[data-theme="dark"] .nav-button {
+  color: color-mix(in srgb, var(--muted) 72%, transparent);
+}
+
+:root[data-theme="dark"] .nav-button-active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
 .add-nav-button {
   background: var(--brand-gradient);
   color: white;
@@ -262,7 +277,7 @@ button:disabled {
   align-content: center;
   background:
     radial-gradient(circle at top left, color-mix(in srgb, var(--brand) 16%, transparent), transparent 34%),
-    linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%);
+    linear-gradient(180deg, #f3fbf7 0%, #e5f5ed 100%);
   display: grid;
   gap: 1.4rem;
   min-height: 100vh;
@@ -272,7 +287,7 @@ button:disabled {
 :root[data-theme="dark"] .auth-screen {
   background:
     radial-gradient(circle at top left, color-mix(in srgb, var(--brand) 18%, transparent), transparent 34%),
-    linear-gradient(180deg, #0f172a 0%, #111827 100%);
+    linear-gradient(180deg, #071713 0%, #0b1f19 100%);
 }
 
 .auth-brand {
@@ -298,7 +313,7 @@ button:disabled {
 }
 
 :root[data-theme="dark"] .auth-brand h1 {
-  color: #f8fafc;
+  color: var(--text);
 }
 
 .auth-card {
@@ -314,8 +329,8 @@ button:disabled {
 }
 
 :root[data-theme="dark"] .auth-card {
-  background: rgb(17 24 39 / 92%);
-  border-color: #334155;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border-color: var(--border);
 }
 
 .auth-heading {
@@ -337,7 +352,7 @@ button:disabled {
 }
 
 :root[data-theme="dark"] .auth-heading p {
-  color: #f8fafc;
+  color: var(--text);
 }
 
 .auth-tabs {
@@ -501,9 +516,9 @@ button:disabled {
 :root[data-theme="dark"] .select-input,
 :root[data-theme="dark"] .select-field select,
 :root[data-theme="dark"] .amount-input {
-  background: #0b1120;
-  border-color: #334155;
-  color: #e5e7eb;
+  background: var(--panel-muted);
+  border-color: var(--border);
+  color: var(--text);
 }
 
 .password-wrap {
@@ -613,9 +628,9 @@ button:disabled {
 
 :root[data-theme="dark"] .picker-button,
 :root[data-theme="dark"] .picker-menu {
-  background: #0b1120;
-  border-color: #334155;
-  color: #e5e7eb;
+  background: var(--panel-muted);
+  border-color: var(--border);
+  color: var(--text);
 }
 
 :root[data-theme="dark"] .picker-option {
@@ -1343,7 +1358,12 @@ button:disabled {
 :root[data-theme="dark"] .profile-button {
   background: var(--panel-muted);
   border-color: var(--border);
-  color: #38bdf8;
+  color: var(--accent);
+}
+
+:root[data-theme="dark"] .profile-button:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 @media (max-width: 640px) {

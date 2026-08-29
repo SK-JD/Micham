@@ -75,9 +75,9 @@ const emptySnapshot: Snapshot = {
     appName: "Micham",
     tagline: "Micham evlo irukku?",
     logoText: "M",
-    primaryColor: "#0878ff",
-    accentColor: "#00a77f",
-    surfaceColor: "#f8fafc",
+    primaryColor: "#005f46",
+    accentColor: "#64dcae",
+    surfaceColor: "#f3fbf7",
     textColor: "#0f172a",
     defaultCurrency: "INR",
     adminId: "Admin",
@@ -339,8 +339,8 @@ function App() {
   useEffect(() => {
     document.documentElement.style.setProperty("--brand", snapshot.config.primaryColor);
     document.documentElement.style.setProperty("--accent", snapshot.config.accentColor);
-    document.documentElement.style.setProperty("--surface", snapshot.config.themeMode === "dark" ? "#0f172a" : snapshot.config.surfaceColor);
-    document.documentElement.style.setProperty("--text", snapshot.config.themeMode === "dark" ? "#e5e7eb" : snapshot.config.textColor);
+    document.documentElement.style.setProperty("--surface", snapshot.config.themeMode === "dark" ? "#071713" : snapshot.config.surfaceColor);
+    document.documentElement.style.setProperty("--text", snapshot.config.themeMode === "dark" ? "#eafff7" : snapshot.config.textColor);
     document.documentElement.dataset.theme = snapshot.config.themeMode;
     document.title = snapshot.config.appName;
   }, [snapshot.config]);

@@ -87,7 +87,10 @@ export async function initializeDatabase() {
   const config = await db.appConfig.get("primary");
   if (!config) {
     await db.appConfig.put(defaultConfig);
-  } else if (config.primaryColor === "#2563eb" && config.accentColor === "#16a34a") {
+  } else if (
+    (config.primaryColor === "#2563eb" && config.accentColor === "#16a34a") ||
+    (config.primaryColor === "#0878ff" && config.accentColor === "#00a77f")
+  ) {
     await db.appConfig.update("primary", {
       primaryColor: defaultConfig.primaryColor,
       accentColor: defaultConfig.accentColor,
