@@ -122,6 +122,10 @@ function createConnectionCode() {
   return `MCH-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 function belongsToProfile<T extends { ownerProfileId?: string; deletedAt?: string }>(item: T, profileId?: string, includeGlobal = false) {
   if (item.deletedAt) return false;
   if (!profileId) return includeGlobal && !item.ownerProfileId;
@@ -389,31 +393,44 @@ function AuthGate({
   onLogin: (profileId: string) => Promise<void>;
   onAdminLogin: () => Promise<void>;
 }) {
-  const [mode, setMode] = useState<"login" | "register" | "connect">("login");
+  const [mode, setMode] = useState<"login" | "register" | "connect" | "reset">("login");
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
+  const [connectionCode, setConnectionCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [currency, setCurrency] = useState(config.defaultCurrency);
   const [accounts, setAccounts] = useState([{ name: "Cash", openingBalance: 0 }]);
+  const [formError, setFormError] = useState("");
 
   const login = async () => {
-    const normalizedLoginId = loginId.trim();
+    setFormError("");
+    const normalizedLoginId = loginId.trim().toLowerCase();
     const loginLimit = checkRateLimit(`micham_login_${normalizedLoginId || "blank"}`, LOGIN_LIMIT.max, LOGIN_LIMIT.windowMs);
     if (!loginLimit.allowed) {
-      notify(`Too many login attempts. Try again in ${minutesFromMs(loginLimit.retryAfterMs)} minute(s).`, "error");
+      const message = `Too many login attempts. Try again in ${minutesFromMs(loginLimit.retryAfterMs)} minute(s).`;
+      setFormError(message);
+      notify(message, "error");
       return;
     }
 
-    if (normalizedLoginId === config.adminId && password === config.adminPassword) {
+    if (loginId.trim() === config.adminId && password === config.adminPassword) {
       resetRateLimit(`micham_login_${normalizedLoginId}`);
       await onAdminLogin();
+      return;
+    }
+
+    if (!isValidEmail(normalizedLoginId)) {
+      setFormError("Use your email address to login, or use the admin ID for admin login.");
       return;
     }
 
     const passwordHash = await hashPassword(password);
     const profile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
     if (!profile || profile.passwordHash !== passwordHash) {
-      notify("Invalid login.", "error");
+      setFormError("Invalid email or password.");
+      notify("Invalid email or password.", "error");
       return;
     }
     if (!profile.connectionCode) {
@@ -424,18 +441,22 @@ function AuthGate({
   };
 
   const register = async () => {
-    const normalizedLoginId = loginId.trim();
-    if (normalizedLoginId.length < 3) {
-      notify("Login ID must be at least 3 characters.", "error");
+    setFormError("");
+    const normalizedLoginId = loginId.trim().toLowerCase();
+    if (!isValidEmail(normalizedLoginId)) {
+      setFormError("Enter a valid email address.");
+      notify("Enter a valid email address.", "error");
       return;
     }
     if (password.length < 8) {
+      setFormError("Password must be at least 8 characters.");
       notify("Password must be at least 8 characters.", "error");
       return;
     }
 
     const existing = await db.profiles.where("loginId").equals(normalizedLoginId).first();
     if (existing) {
+      setFormError("An account already exists for this email.");
       notify("This login ID already exists.", "error");
       return;
     }
@@ -449,7 +470,7 @@ function AuthGate({
         loginId: normalizedLoginId,
         passwordHash,
         connectionCode: createConnectionCode(),
-        displayName: displayName || normalizedLoginId,
+        displayName: displayName || normalizedLoginId.split("@")[0],
         currency,
         setupComplete: true,
         createdAt: timestamp,
@@ -475,6 +496,36 @@ function AuthGate({
     await onLogin(profileId);
   };
 
+  const resetPassword = async () => {
+    setFormError("");
+    const normalizedLoginId = loginId.trim().toLowerCase();
+    if (!isValidEmail(normalizedLoginId)) {
+      setFormError("Enter the email used for this local account.");
+      return;
+    }
+    const profile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
+    if (!profile || profile.connectionCode !== connectionCode.trim().toUpperCase()) {
+      setFormError("Email and connection code do not match.");
+      notify("Email and connection code do not match.", "error");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setFormError("New password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setFormError("New password and confirmation do not match.");
+      return;
+    }
+    await db.profiles.update(profile.id, { passwordHash: await hashPassword(newPassword), updatedAt: nowIso() });
+    setPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setConnectionCode("");
+    setMode("login");
+    notify("Password reset. Login with the new password.", "success");
+  };
+
   return (
     <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-8">
       <div className="mb-8 flex items-center gap-3">
@@ -485,7 +536,8 @@ function AuthGate({
         </div>
       </div>
 
-      <Panel title={mode === "register" ? "Create Local Account" : mode === "connect" ? "Connect With Us" : "Login"}>
+      <Panel title={mode === "register" ? "Create Local Account" : mode === "connect" ? "Connect With Us" : mode === "reset" ? "Reset Password" : "Login"}>
+        {formError ? <div className="form-error">{formError}</div> : null}
         {mode === "connect" ? (
           <div className="grid gap-4">
             <TextField label="Email or phone" value={loginId} onChange={setLoginId} placeholder="you@example.com" />
@@ -494,9 +546,19 @@ function AuthGate({
               Continue with local setup
             </button>
           </div>
+        ) : mode === "reset" ? (
+          <div className="grid gap-4">
+            <TextField label="Email" value={loginId} onChange={setLoginId} placeholder="you@example.com" />
+            <TextField label="Connection code" value={connectionCode} onChange={(value) => setConnectionCode(value.toUpperCase())} placeholder="MCH-ABCD-EFGH" />
+            <TextField label="New password" value={newPassword} onChange={setNewPassword} type="password" />
+            <TextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" />
+            <button className="primary-button" onClick={resetPassword} disabled={!loginId || !connectionCode || !newPassword || !confirmPassword}>
+              Reset Password
+            </button>
+          </div>
         ) : (
           <div className="grid gap-4">
-            <TextField label="Login ID" value={loginId} onChange={setLoginId} placeholder="Your login ID" />
+            <TextField label={mode === "register" ? "Email" : "Email or Admin ID"} value={loginId} onChange={setLoginId} placeholder={mode === "register" ? "you@example.com" : "you@example.com"} />
             <TextField label="Password" value={password} onChange={setPassword} type="password" />
             {mode === "register" ? (
               <>
@@ -547,6 +609,9 @@ function AuthGate({
         <div className="mt-4 flex flex-wrap gap-2">
           <button className="secondary-button" onClick={() => setMode(mode === "register" ? "login" : "register")}>
             {mode === "register" ? "Back to login" : "Create local account"}
+          </button>
+          <button className="secondary-button" onClick={() => setMode(mode === "reset" ? "login" : "reset")}>
+            {mode === "reset" ? "Back to login" : "Reset password"}
           </button>
           <button className="secondary-button" onClick={() => setMode("connect")}>
             <RefreshCw size={18} /> Connect With Us
