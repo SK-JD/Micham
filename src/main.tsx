@@ -7,6 +7,7 @@ import {
   BarChart3,
   Bot,
   CalendarDays,
+  ChevronDown,
   CircleUserRound,
   Download,
   Eye,
@@ -2661,7 +2662,7 @@ function ReceiptViewer({ transaction, onClose }: { transaction: Transaction; onC
 
 function Panel({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="app-panel">
       <h2 className="panel-title">{icon}{title}</h2>
       {children}
     </section>
@@ -2726,6 +2727,7 @@ function SelectField({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const pickerId = useMemo(() => createId(), []);
   const options = React.Children.toArray(children)
     .filter(React.isValidElement)
     .map((child) => {
@@ -2739,23 +2741,49 @@ function SelectField({
     .filter((option, index, items) => items.findIndex((item) => item.label.toLowerCase() === option.label.toLowerCase()) === index);
   const selected = options.find((option) => option.value === value) ?? options[0];
 
+  useEffect(() => {
+    const closeOtherPickers = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== pickerId) setOpen(false);
+    };
+    window.addEventListener("micham-picker-open", closeOtherPickers);
+    return () => window.removeEventListener("micham-picker-open", closeOtherPickers);
+  }, [pickerId]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeOnOutsidePress = () => setOpen(false);
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePress);
+  }, [open]);
+
   return (
     <div className="select-field">
       <span>{label}</span>
-      <div className="picker">
-        <button type="button" className="picker-button" onClick={() => setOpen((item) => !item)}>
+      <div className="picker" onPointerDown={(event) => event.stopPropagation()}>
+        <button
+          type="button"
+          className="picker-button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen((item) => {
+              const nextOpen = !item;
+              if (nextOpen) window.dispatchEvent(new CustomEvent("micham-picker-open", { detail: pickerId }));
+              return nextOpen;
+            });
+          }}
+        >
           <span>{selected?.label || "Choose"}</span>
-          <MoreHorizontal size={18} />
+          <ChevronDown className={open ? "picker-chevron picker-chevron-open" : "picker-chevron"} size={18} />
         </button>
         {open ? (
-          <div className="picker-menu">
+          <div className="picker-menu" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
             {options.map((option) => (
               <button
                 type="button"
                 className={option.value === value ? "picker-option picker-option-active" : "picker-option"}
                 key={option.value}
-                onPointerDown={(event) => {
-                  event.preventDefault();
+                onClick={(event) => {
+                  event.stopPropagation();
                   onChange(option.value);
                   setOpen(false);
                 }}
