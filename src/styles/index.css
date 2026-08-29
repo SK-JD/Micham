@@ -24,10 +24,23 @@ body {
   color: var(--text);
   background: var(--surface);
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  padding-top: env(safe-area-inset-top);
 }
 
 :root[data-theme="dark"] body {
   background: #0f172a;
+}
+
+main {
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+}
+
+header {
+  padding-top: env(safe-area-inset-top);
+}
+
+nav {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 button,
@@ -301,12 +314,82 @@ button:disabled {
 .select-field {
   display: grid;
   gap: 0.35rem;
+  position: relative;
 }
 
 .select-field span {
   color: #64748b;
   font-size: 0.75rem;
   font-weight: 750;
+}
+
+.picker {
+  position: relative;
+}
+
+.picker-button {
+  align-items: center;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  display: flex;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0.6rem 0.75rem;
+  width: 100%;
+}
+
+.picker-button span {
+  color: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-menu {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 18px 50px rgb(15 23 42 / 18%);
+  display: grid;
+  left: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 0.35rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 50;
+}
+
+.picker-option {
+  border-radius: 6px;
+  color: #0f172a;
+  justify-content: flex-start;
+  min-height: 42px;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+}
+
+.picker-option-active {
+  background: color-mix(in srgb, var(--brand) 12%, white);
+  color: var(--brand);
+  font-weight: 750;
+}
+
+:root[data-theme="dark"] .picker-button,
+:root[data-theme="dark"] .picker-menu {
+  background: #0b1120;
+  border-color: #334155;
+  color: #e5e7eb;
+}
+
+:root[data-theme="dark"] .picker-option {
+  color: #e5e7eb;
 }
 
 .field-input:focus,
@@ -588,6 +671,27 @@ button:disabled {
 .calendar-day-mixed {
   background: color-mix(in srgb, var(--brand) 12%, white);
   border-color: color-mix(in srgb, var(--brand) 35%, white);
+}
+
+.manage-row,
+.budget-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+.manage-row {
+  align-items: center;
+  grid-template-columns: 1fr auto;
+}
+
+.manage-row p,
+.budget-card p {
+  color: #64748b;
+  font-size: 0.82rem;
+  margin: 0.15rem 0 0;
 }
 
 .friend-row {

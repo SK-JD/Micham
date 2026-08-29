@@ -217,13 +217,14 @@ function App() {
   }, [snapshot.config]);
 
   const currency = snapshot.profile?.currency ?? snapshot.config.defaultCurrency;
+  const activeAccounts = snapshot.accounts.filter((account) => account.active);
   const balances = useMemo(
     () =>
-      snapshot.accounts.map((account) => ({
+      activeAccounts.map((account) => ({
         account,
         balance: accountBalance(account, snapshot.transactions),
       })),
-    [snapshot.accounts, snapshot.transactions],
+    [activeAccounts, snapshot.transactions],
   );
   const totalBalance = balances.reduce((sum, item) => sum + item.balance, 0);
   const summary = summarize(snapshot.transactions, selectedDate);
@@ -328,7 +329,7 @@ function App() {
             <div className="mx-auto grid max-w-6xl grid-cols-2 gap-2 border-b border-slate-100 px-4 py-3 sm:grid-cols-4">
               <MoreButton icon={<CalendarDays size={18} />} label="Daily" onClick={() => { setView("daily"); setMoreOpen(false); }} />
               <MoreButton icon={<CalendarDays size={18} />} label="Calendar" onClick={() => { setView("calendar"); setMoreOpen(false); }} />
-              <MoreButton icon={<Users size={18} />} label="People" onClick={() => { setView("people"); setMoreOpen(false); }} />
+              <MoreButton icon={<Users size={18} />} label="Friends" onClick={() => { setView("people"); setMoreOpen(false); }} />
               <MoreButton icon={<Settings size={18} />} label="Settings" onClick={() => { setView("settings"); setMoreOpen(false); }} />
             </div>
           ) : null}
@@ -414,6 +415,9 @@ function AuthGate({
     if (!profile || profile.passwordHash !== passwordHash) {
       notify("Invalid login.", "error");
       return;
+    }
+    if (!profile.connectionCode) {
+      await db.profiles.update(profile.id, { connectionCode: createConnectionCode(), updatedAt: nowIso() });
     }
     resetRateLimit(`micham_login_${normalizedLoginId}`);
     await onLogin(profile.id);
@@ -889,25 +893,46 @@ function DashboardCharts({ snapshot, currency }: { snapshot: Snapshot; currency:
   );
 }
 
-function AddView({ snapshot, onDone }: { snapshot: Snapshot; notify?: (message: string, tone?: Toast["tone"]) => void; onDone: () => Promise<void> }) {
+function AddView({
+  snapshot,
+  notify,
+  onDone,
+}: {
+  snapshot: Snapshot;
+  notify: (message: string, tone?: Toast["tone"]) => void;
+  onDone: () => Promise<void>;
+}) {
   return (
     <div className="mx-auto grid max-w-3xl gap-5">
       <div>
         <h2 className="text-2xl font-semibold text-slate-950">Add Transaction</h2>
         <p className="text-sm text-slate-500">Record expense, income, or transfer quickly.</p>
       </div>
-      <QuickTransaction snapshot={snapshot} onDone={onDone} />
-      <SplitExpensePanel snapshot={snapshot} onDone={onDone} />
+      <QuickTransaction snapshot={snapshot} notify={notify} onDone={onDone} />
+      <SplitExpensePanel snapshot={snapshot} notify={notify} onDone={onDone} />
     </div>
   );
 }
 
-function SplitExpensePanel({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => Promise<void> }) {
-  const [personId, setPersonId] = useState(snapshot.people[0]?.id ?? "");
+function SplitExpensePanel({
+  snapshot,
+  notify,
+  onDone,
+}: {
+  snapshot: Snapshot;
+  notify: (message: string, tone?: Toast["tone"]) => void;
+  onDone: () => Promise<void>;
+}) {
+  const activePeople = snapshot.people.filter((person) => person.active && person.status !== "blocked");
+  const [personId, setPersonId] = useState(activePeople[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
 
   const saveSplit = async () => {
+    if (!personId) {
+      notify("Add a friend/person before saving a split.", "error");
+      return;
+    }
     const timestamp = nowIso();
     await db.settlements.put({
       id: createId(),
@@ -924,6 +949,7 @@ function SplitExpensePanel({ snapshot, onDone }: { snapshot: Snapshot; onDone: (
     });
     setAmount("");
     setNote("");
+    notify("Split saved.", "success");
     await onDone();
   };
 
@@ -931,7 +957,7 @@ function SplitExpensePanel({ snapshot, onDone }: { snapshot: Snapshot; onDone: (
     <Panel title="Split Expense">
       <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
         <SelectField label="Person" value={personId} onChange={setPersonId}>
-          {snapshot.people.map((person) => (
+          {activePeople.map((person) => (
             <option key={person.id} value={person.id}>
               {person.localDisplayName}
             </option>
@@ -947,23 +973,47 @@ function SplitExpensePanel({ snapshot, onDone }: { snapshot: Snapshot; onDone: (
   );
 }
 
-function QuickTransaction({ snapshot, onDone }: { snapshot: Snapshot; onDone: () => Promise<void> }) {
+function QuickTransaction({
+  snapshot,
+  notify,
+  onDone,
+}: {
+  snapshot: Snapshot;
+  notify?: (message: string, tone?: Toast["tone"]) => void;
+  onDone: () => Promise<void>;
+}) {
+  const activeAccounts = snapshot.accounts.filter((account) => account.active);
   const expenseCategory = snapshot.categories.find((item) => item.kind === "expense");
   const incomeCategory = snapshot.categories.find((item) => item.kind === "income");
   const [type, setType] = useState<TransactionType>("expense");
   const [amount, setAmount] = useState("");
-  const [accountId, setAccountId] = useState(snapshot.accounts[0]?.id ?? "");
-  const [toAccountId, setToAccountId] = useState(snapshot.accounts[1]?.id ?? "");
+  const [accountId, setAccountId] = useState(activeAccounts[0]?.id ?? "");
+  const [toAccountId, setToAccountId] = useState(activeAccounts[1]?.id ?? "");
   const [categoryId, setCategoryId] = useState(expenseCategory?.id ?? "");
   const [note, setNote] = useState("");
   const [receiptName, setReceiptName] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     setCategoryId(type === "income" ? incomeCategory?.id ?? "" : expenseCategory?.id ?? "");
   }, [type, expenseCategory?.id, incomeCategory?.id]);
 
+  useEffect(() => {
+    if (!activeAccounts.some((account) => account.id === accountId)) setAccountId(activeAccounts[0]?.id ?? "");
+    if (!activeAccounts.some((account) => account.id === toAccountId)) setToAccountId(activeAccounts[1]?.id ?? activeAccounts[0]?.id ?? "");
+  }, [activeAccounts, accountId, toAccountId]);
+
   const save = async () => {
+    if (!snapshot.profile?.id) {
+      notify?.("Login session is missing. Please login again.", "error");
+      return;
+    }
+    if (type === "transfer" && accountId === toAccountId) {
+      notify?.("Choose two different accounts for a transfer.", "error");
+      return;
+    }
     const timestamp = nowIso();
+    const transactionDate = `${date}T${new Date().toTimeString().slice(0, 8)}`;
     await db.transactions.put({
       id: createId(),
       ownerProfileId: snapshot.profile?.id,
@@ -972,7 +1022,7 @@ function QuickTransaction({ snapshot, onDone }: { snapshot: Snapshot; onDone: ()
       accountId,
       toAccountId: type === "transfer" ? toAccountId : undefined,
       categoryId: type === "transfer" ? undefined : categoryId,
-      date: timestamp,
+      date: transactionDate,
       note,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -981,6 +1031,7 @@ function QuickTransaction({ snapshot, onDone }: { snapshot: Snapshot; onDone: ()
     setAmount("");
     setNote("");
     setReceiptName("");
+    notify?.(`${type[0].toUpperCase() + type.slice(1)} saved.`, "success");
     await onDone();
   };
 
@@ -1001,10 +1052,11 @@ function QuickTransaction({ snapshot, onDone }: { snapshot: Snapshot; onDone: ()
             </button>
           ))}
         </div>
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+        <div className="grid gap-3 md:grid-cols-[1fr_150px_1fr_1fr_auto]">
           <input className="amount-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" />
+          <input className="field-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
           <SelectField label="Account" value={accountId} onChange={setAccountId}>
-            {snapshot.accounts.map((account) => (
+            {activeAccounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
               </option>
@@ -1012,7 +1064,7 @@ function QuickTransaction({ snapshot, onDone }: { snapshot: Snapshot; onDone: ()
           </SelectField>
         {type === "transfer" ? (
           <SelectField label="To account" value={toAccountId} onChange={setToAccountId}>
-              {snapshot.accounts.map((account) => (
+              {activeAccounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name}
                 </option>
@@ -1176,9 +1228,10 @@ function PeopleView({
   notify: (message: string, tone?: Toast["tone"]) => void;
   onDone: () => Promise<void>;
 }) {
+  const activePeople = snapshot.people.filter((person) => person.active && person.status !== "blocked");
   const [name, setName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
-  const [personId, setPersonId] = useState(snapshot.people[0]?.id ?? "");
+  const [personId, setPersonId] = useState(activePeople[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"to_me" | "by_me">("to_me");
   const [note, setNote] = useState("");
@@ -1263,11 +1316,11 @@ function PeopleView({
       </Panel>
       <Panel title="Owe / Owed">
         <div className="grid gap-3">
-          <SelectField label="Person" value={personId} onChange={setPersonId}>
-            {snapshot.people.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.localDisplayName}
-              </option>
+        <SelectField label="Person" value={personId} onChange={setPersonId}>
+          {activePeople.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.localDisplayName}
+            </option>
             ))}
           </SelectField>
           <SelectField label="Type" value={direction} onChange={(value) => setDirection(value as "to_me" | "by_me")}>
@@ -1290,6 +1343,8 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
   const [categoryKind, setCategoryKind] = useState<"expense" | "income">("expense");
   const [budgetCategoryId, setBudgetCategoryId] = useState(snapshot.categories.find((item) => item.kind === "expense")?.id ?? "");
   const [budgetAmount, setBudgetAmount] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [accountOpening, setAccountOpening] = useState("");
   const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
   const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -1297,6 +1352,10 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const addCategory = async () => {
+    if (snapshot.categories.some((category) => category.name.toLowerCase() === categoryName.trim().toLowerCase() && category.kind === categoryKind)) {
+      notify("That category already exists.", "error");
+      return;
+    }
     const timestamp = nowIso();
     await db.categories.put({
       id: createId(),
@@ -1313,8 +1372,55 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
     await onDone();
   };
 
+  const addAccount = async () => {
+    if (!snapshot.profile?.id) return;
+    if (snapshot.accounts.some((account) => account.name.toLowerCase() === accountName.trim().toLowerCase())) {
+      notify("That account already exists.", "error");
+      return;
+    }
+    const timestamp = nowIso();
+    await db.accounts.put({
+      id: createId(),
+      ownerProfileId: snapshot.profile.id,
+      name: accountName.trim(),
+      openingBalance: Number(accountOpening) || 0,
+      active: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    });
+    setAccountName("");
+    setAccountOpening("");
+    notify("Account added.", "success");
+    await onDone();
+  };
+
+  const archiveAccount = async (account: Account) => {
+    const linked = snapshot.transactions.some((item) => item.accountId === account.id || item.toAccountId === account.id);
+    await db.accounts.update(account.id, {
+      active: false,
+      deletedAt: linked ? undefined : nowIso(),
+      updatedAt: nowIso(),
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    });
+    notify(linked ? "Account hidden from active use." : "Account removed.", "success");
+    await onDone();
+  };
+
   const addBudget = async () => {
     const timestamp = nowIso();
+    const existing = snapshot.budgets.find((budget) => budget.categoryId === budgetCategoryId && budget.active);
+    if (existing) {
+      await db.budgets.update(existing.id, {
+        amount: Number(budgetAmount) || 0,
+        updatedAt: timestamp,
+        syncState: snapshot.config.syncEnabled ? "queued" : "local",
+      });
+      setBudgetAmount("");
+      notify("Budget updated.", "success");
+      await onDone();
+      return;
+    }
     await db.budgets.put({
       id: createId(),
       ownerProfileId: snapshot.profile?.id,
@@ -1544,6 +1650,34 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
         </div>
       </Panel>
 
+      <Panel title="Accounts">
+        <div className="grid gap-3">
+          <div className="grid gap-2 sm:grid-cols-[1fr_130px_auto]">
+            <input className="field-input" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="Account name" />
+            <input className="field-input" type="number" value={accountOpening} onChange={(event) => setAccountOpening(event.target.value)} placeholder="Opening" />
+            <button className="primary-button" onClick={addAccount} disabled={!accountName.trim()}>
+              Add
+            </button>
+          </div>
+          <div className="grid gap-2">
+            {snapshot.accounts.map((account) => {
+              const linked = snapshot.transactions.some((item) => item.accountId === account.id || item.toAccountId === account.id);
+              return (
+                <div className="manage-row" key={account.id}>
+                  <div>
+                    <strong>{account.name}</strong>
+                    <p>{account.active ? "Active" : "Hidden"} · Opening {formatMoney(account.openingBalance, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)}</p>
+                  </div>
+                  <button className="small-button" onClick={() => archiveAccount(account)}>
+                    {linked ? "Hide" : "Remove"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Panel>
+
       <Panel title="AI Chat">
         <div className="grid gap-3">
           <TextField label="Groq API key" value={groqApiKey} onChange={setGroqApiKey} type="password" placeholder="Paste API key" />
@@ -1561,10 +1695,10 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
         <div className="grid gap-3">
           <div className="grid grid-cols-[1fr_120px_auto] gap-2">
             <input className="field-input" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="Category name" />
-            <select className="select-input" value={categoryKind} onChange={(event) => setCategoryKind(event.target.value as "expense" | "income")}>
+            <SelectField label="Type" value={categoryKind} onChange={(value) => setCategoryKind(value as "expense" | "income")}>
               <option value="expense">Expense</option>
               <option value="income">Income</option>
-            </select>
+            </SelectField>
             <button className="primary-button" onClick={addCategory} disabled={!categoryName.trim()}>
               Add
             </button>
@@ -1580,7 +1714,7 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
 
       <Panel title="Budgets">
         <div className="grid gap-3">
-          <select className="select-input" value={budgetCategoryId} onChange={(event) => setBudgetCategoryId(event.target.value)}>
+          <SelectField label="Category" value={budgetCategoryId} onChange={setBudgetCategoryId}>
             {snapshot.categories
               .filter((category) => category.kind === "expense")
               .map((category) => (
@@ -1588,12 +1722,30 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
                   {category.name}
                 </option>
               ))}
-          </select>
+          </SelectField>
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <input className="field-input" type="number" value={budgetAmount} onChange={(event) => setBudgetAmount(event.target.value)} placeholder="Monthly amount" />
             <button className="primary-button" onClick={addBudget} disabled={!budgetCategoryId || !budgetAmount}>
               Add
             </button>
+          </div>
+          <div className="grid gap-3">
+            {snapshot.budgets.map((budget) => {
+              const category = snapshot.categories.find((item) => item.id === budget.categoryId);
+              const usage = budgetUsage(budget, snapshot.transactions);
+              return (
+                <div className="budget-card" key={budget.id}>
+                  <div className="bar-row-header">
+                    <span>{category?.name ?? "Category"}</span>
+                    <strong>{formatMoney(usage.remaining, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)} left</strong>
+                  </div>
+                  <div className="progress">
+                    <span style={{ width: `${usage.percentage}%` }} />
+                  </div>
+                  <p>{formatMoney(usage.spent, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)} spent of {formatMoney(budget.amount, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </Panel>
@@ -1925,12 +2077,45 @@ function SelectField({
   onChange: (value: string) => void;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+  const options = React.Children.toArray(children)
+    .filter(React.isValidElement)
+    .map((child) => {
+      const props = child.props as { value?: string; children?: React.ReactNode };
+      return {
+        value: String(props.value ?? ""),
+        label: String(props.children ?? props.value ?? ""),
+      };
+    })
+    .filter((option) => option.value);
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
   return (
     <label className="select-field">
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {children}
-      </select>
+      <div className="picker">
+        <button type="button" className="picker-button" onClick={() => setOpen((item) => !item)}>
+          <span>{selected?.label || "Choose"}</span>
+          <MoreHorizontal size={18} />
+        </button>
+        {open ? (
+          <div className="picker-menu">
+            {options.map((option) => (
+              <button
+                type="button"
+                className={option.value === value ? "picker-option picker-option-active" : "picker-option"}
+                key={option.value}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </label>
   );
 }
