@@ -15,7 +15,6 @@ import {
   Home,
   Image,
   LogOut,
-  MoreHorizontal,
   Moon,
   Palette,
   Plus,
@@ -302,9 +301,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("dashboard");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
-  const [sessionRole, setSessionRole] = useState<SessionRole>(() => (sessionStorage.getItem("micham_role") as SessionRole) || "guest");
-  const [currentProfileId, setCurrentProfileId] = useState(() => sessionStorage.getItem("micham_profile_id") || "");
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [sessionRole, setSessionRole] = useState<SessionRole>(() => (localStorage.getItem("micham_role") as SessionRole) || "guest");
+  const [currentProfileId, setCurrentProfileId] = useState(() => localStorage.getItem("micham_profile_id") || "");
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const notify = (message: string, tone: Toast["tone"] = "info") => {
@@ -386,8 +384,8 @@ function App() {
   const totalBalance = balances.reduce((sum, item) => sum + item.balance, 0);
   const summary = summarize(snapshot.transactions, selectedDate);
   const logoutUser = () => {
-    sessionStorage.removeItem("micham_role");
-    sessionStorage.removeItem("micham_profile_id");
+    localStorage.removeItem("micham_role");
+    localStorage.removeItem("micham_profile_id");
     setSessionRole("guest");
     setCurrentProfileId("");
   };
@@ -401,7 +399,7 @@ function App() {
           <AdminView
             snapshot={snapshot}
             onLogout={() => {
-              sessionStorage.removeItem("micham_role");
+              localStorage.removeItem("micham_role");
               setSessionRole("guest");
             }}
             onDone={refresh}
@@ -418,15 +416,15 @@ function App() {
           config={snapshot.config}
           notify={notify}
           onLogin={async (profileId) => {
-            sessionStorage.setItem("micham_role", "user");
-            sessionStorage.setItem("micham_profile_id", profileId);
+            localStorage.setItem("micham_role", "user");
+            localStorage.setItem("micham_profile_id", profileId);
             setSessionRole("user");
             setCurrentProfileId(profileId);
             await claimUnownedData(profileId);
             await refresh(profileId);
           }}
           onAdminLogin={async () => {
-            sessionStorage.setItem("micham_role", "admin");
+            localStorage.setItem("micham_role", "admin");
             setSessionRole("admin");
             await refresh("");
           }}
@@ -437,7 +435,7 @@ function App() {
 
   return (
     <Shell snapshot={snapshot}>
-      <div className="grid min-h-screen grid-rows-[auto_1fr_auto]">
+      <div className="app-shell grid grid-rows-[auto_1fr_auto]">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
             <div className="min-w-0 flex-1">
@@ -471,29 +469,20 @@ function App() {
           )}
           {view === "people" && <PeopleView snapshot={snapshot} currency={currency} notify={notify} onDone={refresh} />}
           {view === "manage" && <ManageView snapshot={snapshot} notify={notify} onDone={refresh} />}
-          {view === "settings" && <SettingsView snapshot={snapshot} notify={notify} onDone={refresh} onLogout={logoutUser} />}
+          {view === "settings" && <SettingsView snapshot={snapshot} notify={notify} onDone={refresh} onLogout={logoutUser} onNavigate={setView} />}
           {view === "ai" && <AiChatView snapshot={snapshot} currency={currency} notify={notify} />}
         </main>
 
         <nav className="bottom-nav sticky bottom-0 z-20">
-          {moreOpen ? (
-            <div className="bottom-nav-menu mx-auto grid max-w-6xl grid-cols-2 gap-2 px-4 py-3 sm:grid-cols-5">
-              <MoreButton icon={<CalendarDays size={18} />} label="Daily" onClick={() => { setView("daily"); setMoreOpen(false); }} />
-              <MoreButton icon={<CalendarDays size={18} />} label="Calendar" onClick={() => { setView("calendar"); setMoreOpen(false); }} />
-              <MoreButton icon={<Users size={18} />} label="Friends" onClick={() => { setView("people"); setMoreOpen(false); }} />
-              <MoreButton icon={<SlidersHorizontal size={18} />} label="Manage" onClick={() => { setView("manage"); setMoreOpen(false); }} />
-              <MoreButton icon={<Settings size={18} />} label="Settings" onClick={() => { setView("settings"); setMoreOpen(false); }} />
-            </div>
-          ) : null}
           <div className="bottom-nav-main mx-auto grid max-w-6xl grid-cols-5 gap-1 px-2 py-2 text-xs">
-            <NavButton icon={<Home size={18} />} label="Home" active={view === "dashboard"} onClick={() => { setView("dashboard"); setMoreOpen(false); }} />
-            <NavButton icon={<Bot size={18} />} label="Chat" active={view === "ai"} disabled={!snapshot.config.aiEnabled} onClick={() => { if (snapshot.config.aiEnabled) { setView("ai"); setMoreOpen(false); } }} />
-            <button className={`add-nav-button ${view === "add" ? "add-nav-button-active" : ""}`} onClick={() => { setView("add"); setMoreOpen(false); }}>
+            <NavButton icon={<Home size={18} />} label="Home" active={view === "dashboard"} onClick={() => setView("dashboard")} />
+            <NavButton icon={<Bot size={18} />} label="Chat" active={view === "ai"} disabled={!snapshot.config.aiEnabled} onClick={() => { if (snapshot.config.aiEnabled) setView("ai"); }} />
+            <button className={`add-nav-button ${view === "add" ? "add-nav-button-active" : ""}`} onClick={() => setView("add")}>
               <Plus size={24} />
               <span>Add</span>
             </button>
-            <NavButton icon={<BarChart3 size={18} />} label="Reports" active={view === "monthly"} onClick={() => { setView("monthly"); setMoreOpen(false); }} />
-            <NavButton icon={<MoreHorizontal size={18} />} label="More" active={moreOpen || ["daily", "calendar", "people", "manage", "settings"].includes(view)} onClick={() => setMoreOpen((value) => !value)} />
+            <NavButton icon={<BarChart3 size={18} />} label="Reports" active={view === "monthly"} onClick={() => setView("monthly")} />
+            <NavButton icon={<Users size={18} />} label="Friends" active={view === "people"} onClick={() => setView("people")} />
           </div>
         </nav>
       </div>
@@ -746,7 +735,6 @@ function AuthGate({
   return (
     <div className="auth-screen">
       <section className="auth-brand">
-        <Logo config={config} />
         <Wordmark config={config} />
       </section>
 
@@ -854,15 +842,6 @@ function NavButton({
 }) {
   return (
     <button className={`nav-button ${active ? "nav-button-active" : ""}`} disabled={disabled} onClick={onClick}>
-      {icon}
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function MoreButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
-  return (
-    <button className="more-button" onClick={onClick}>
       {icon}
       <span>{label}</span>
     </button>
@@ -2254,11 +2233,13 @@ function SettingsView({
   notify,
   onDone,
   onLogout,
+  onNavigate,
 }: {
   snapshot: Snapshot;
   notify: (message: string, tone?: Toast["tone"]) => void;
   onDone: () => Promise<void>;
   onLogout: () => void;
+  onNavigate: (view: View) => void;
 }) {
   const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
   const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
@@ -2494,6 +2475,23 @@ function SettingsView({
         </div>
       </Panel>
 
+      <Panel title="Tools">
+        <div className="settings-action-grid">
+          <button className="more-button" onClick={() => onNavigate("daily")}>
+            <CalendarDays size={18} />
+            <span>Daily</span>
+          </button>
+          <button className="more-button" onClick={() => onNavigate("calendar")}>
+            <CalendarDays size={18} />
+            <span>Calendar</span>
+          </button>
+          <button className="more-button" onClick={() => onNavigate("manage")}>
+            <SlidersHorizontal size={18} />
+            <span>Manage</span>
+          </button>
+        </div>
+      </Panel>
+
       <Panel title="Account">
         {snapshot.profile?.connectedUserId ? (
           <div className="grid gap-2">
@@ -2554,7 +2552,7 @@ function SettingsView({
       </Panel>
 
       <Panel title="Import / Export">
-        <div className="flex flex-wrap gap-3">
+        <div className="settings-action-grid">
           <button className="secondary-button" onClick={exportData}>
             <Download size={18} /> Export JSON
           </button>

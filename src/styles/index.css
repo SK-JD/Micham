@@ -34,19 +34,19 @@ body {
   color: var(--text);
   background: var(--surface);
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  padding-top: env(safe-area-inset-top);
 }
 
 :root[data-theme="dark"] body {
   background: #071713;
 }
 
-main {
-  padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+.app-shell {
+  min-height: 100vh;
+  padding-top: env(safe-area-inset-top);
 }
 
-header {
-  padding-top: env(safe-area-inset-top);
+main {
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom));
 }
 
 nav {
@@ -318,6 +318,12 @@ button:disabled {
   align-items: center;
 }
 
+.settings-action-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+
 .home-hero {
   align-items: center;
   background: var(--brand-gradient);
@@ -350,8 +356,18 @@ button:disabled {
   align-items: center;
   display: flex;
   gap: 0.9rem;
+  justify-content: center;
   margin: 0 auto;
   width: min(100%, 460px);
+}
+
+.auth-brand .wordmark-wrap {
+  max-width: min(280px, 76vw);
+}
+
+.auth-brand .wordmark-wrap img {
+  height: 58px;
+  max-width: min(280px, 76vw);
 }
 
 .auth-brand h1 {
