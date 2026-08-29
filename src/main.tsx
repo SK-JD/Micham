@@ -31,6 +31,19 @@ import {
 } from "lucide-react";
 import { StatCard } from "./components/StatCard";
 import { accountBalance, budgetUsage, categorySpend, personBalance, sameDay, summarize } from "./lib/calculations";
+import {
+  connectCloudFriend,
+  createConnectionCode,
+  isCloudConfigured,
+  mirrorCloudEntityToFriend,
+  pullCloudAppConfig,
+  pullCloudEntities,
+  sendCloudPasswordReset,
+  signInCloudProfile,
+  signUpCloudProfile,
+  subscribeToCloudChanges,
+  syncCloudSnapshot,
+} from "./lib/cloud";
 import { db, initializeDatabase } from "./lib/db";
 import { createId, nowIso } from "./lib/defaults";
 import { formatDate, formatMoney } from "./lib/format";
@@ -126,10 +139,6 @@ function resetRateLimit(key: string) {
 
 function minutesFromMs(value: number) {
   return Math.max(1, Math.ceil(value / 60000));
-}
-
-function createConnectionCode() {
-  return `MCH-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 }
 
 function isValidEmail(value: string) {
@@ -304,7 +313,7 @@ function App() {
     window.setTimeout(() => setToasts((items) => items.filter((item) => item.id !== id)), 3200);
   };
 
-  const refresh = async (profileId = currentProfileId) => {
+  const refresh = async (profileId = currentProfileId, options: { syncCloud?: boolean } = {}) => {
     const [config, profiles, accounts, categories, transactions, budgets, recurring, people, settlements, repayments] = await Promise.all([
       db.appConfig.get("primary"),
       db.profiles.toArray(),
@@ -318,7 +327,7 @@ function App() {
       db.repayments.toArray(),
     ]);
     const profile = profileId ? profiles.find((item) => item.id === profileId) : undefined;
-    setSnapshot({
+    const nextSnapshot = {
       config: config ?? emptySnapshot.config,
       profile,
       accounts: uniqueById(accounts.filter((item) => belongsToProfile(item, profile?.id))),
@@ -329,14 +338,31 @@ function App() {
       people: uniqueById(people.filter((item) => belongsToProfile(item, profile?.id))),
       settlements: uniqueById(settlements.filter((item) => belongsToProfile(item, profile?.id))),
       repayments: uniqueById(repayments.filter((item) => belongsToProfile(item, profile?.id))),
-    });
+    };
+    setSnapshot(nextSnapshot);
+
+    if (options.syncCloud !== false && isCloudConfigured && nextSnapshot.config.syncEnabled && nextSnapshot.profile?.connectedUserId) {
+      syncCloudSnapshot(nextSnapshot).catch((error: unknown) => {
+        notify(error instanceof Error ? error.message : "Cloud sync failed.", "error");
+      });
+    }
   };
 
   useEffect(() => {
     initializeDatabase()
+      .then(() => pullCloudAppConfig().catch(() => undefined))
       .then(() => refresh())
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!isCloudConfigured || !currentProfileId || !snapshot.profile?.connectedUserId) return undefined;
+    return subscribeToCloudChanges(() => {
+      pullCloudEntities(currentProfileId)
+        .then(() => refresh(currentProfileId, { syncCloud: false }))
+        .catch((error: unknown) => notify(error instanceof Error ? error.message : "Cloud refresh failed.", "error"));
+    });
+  }, [currentProfileId, snapshot.profile?.connectedUserId]);
 
   useEffect(() => {
     document.documentElement.style.setProperty("--brand", snapshot.config.primaryColor);
@@ -552,6 +578,23 @@ function AuthGate({
       return;
     }
 
+    if (isCloudConfigured) {
+      try {
+        const profileId = await signInCloudProfile(normalizedLoginId, password, config);
+        resetRateLimit(`micham_login_${normalizedLoginId}`);
+        notify("Cloud account connected.", "success");
+        await onLogin(profileId);
+        return;
+      } catch (error) {
+        const localProfile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
+        if (!localProfile) {
+          setFormError(error instanceof Error ? error.message : "Cloud login failed.");
+          notify(error instanceof Error ? error.message : "Cloud login failed.", "error");
+          return;
+        }
+      }
+    }
+
     const passwordHash = await hashPassword(password);
     const profile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
     if (!profile || profile.passwordHash !== passwordHash) {
@@ -590,35 +633,57 @@ function AuthGate({
     const timestamp = nowIso();
     const profileId = createId();
     const passwordHash = await hashPassword(password);
-    await db.transaction("rw", db.profiles, db.accounts, async () => {
-      await db.profiles.put({
-        id: profileId,
-        loginId: normalizedLoginId,
-        passwordHash,
-        connectionCode: createConnectionCode(),
-        displayName: displayName || normalizedLoginId.split("@")[0],
-        currency,
-        setupComplete: true,
+    const profile: Profile = {
+      id: profileId,
+      loginId: normalizedLoginId,
+      passwordHash,
+      connectionCode: createConnectionCode(),
+      displayName: displayName || normalizedLoginId.split("@")[0],
+      currency,
+      setupComplete: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      syncState: isCloudConfigured ? "queued" : "local",
+    };
+    const newAccounts: Account[] = accounts
+      .filter((account) => account.name.trim())
+      .map((account) => ({
+        id: createId(),
+        ownerProfileId: profileId,
+        name: account.name.trim(),
+        openingBalance: Number(account.openingBalance) || 0,
+        active: true,
         createdAt: timestamp,
         updatedAt: timestamp,
-        syncState: "local",
-      });
-      await db.accounts.bulkPut(
-        accounts
-          .filter((account) => account.name.trim())
-          .map((account) => ({
-            id: createId(),
-            ownerProfileId: profileId,
-            name: account.name.trim(),
-            openingBalance: Number(account.openingBalance) || 0,
-            active: true,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-            syncState: "local" as const,
-          })),
-      );
+        syncState: isCloudConfigured ? "queued" : "local",
+      }));
+    await db.transaction("rw", db.profiles, db.accounts, async () => {
+      await db.profiles.put(profile);
+      await db.accounts.bulkPut(newAccounts);
     });
-    notify("Local account created.", "success");
+
+    if (isCloudConfigured) {
+      try {
+        const connectedUserId = await signUpCloudProfile(normalizedLoginId, password, profile, {
+          profile,
+          accounts: newAccounts,
+          categories: [],
+          transactions: [],
+          budgets: [],
+          recurring: [],
+          people: [],
+          settlements: [],
+          repayments: [],
+        });
+        await db.profiles.update(profile.id, { connectedUserId, syncState: "synced", updatedAt: nowIso() });
+        await db.appConfig.update("primary", { syncEnabled: true, updatedAt: nowIso() });
+        notify("Cloud account created and synced.", "success");
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "Cloud account was not created. Local account is saved.", "warning");
+      }
+    } else {
+      notify("Local account created.", "success");
+    }
     await onLogin(profileId);
   };
 
@@ -635,6 +700,17 @@ function AuthGate({
     if (!isValidEmail(normalizedLoginId)) {
       setFormError("Enter the email used for this local account.");
       return;
+    }
+    if (isCloudConfigured && !connectionCode.trim()) {
+      try {
+        await sendCloudPasswordReset(normalizedLoginId);
+        notify("Password reset email sent.", "success");
+        return;
+      } catch (error) {
+        setFormError(error instanceof Error ? error.message : "Unable to send reset email.");
+        notify(error instanceof Error ? error.message : "Unable to send reset email.", "error");
+        return;
+      }
     }
     const profile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
     if (!profile || profile.connectionCode !== connectionCode.trim().toUpperCase()) {
@@ -697,11 +773,15 @@ function AuthGate({
         {mode === "reset" ? (
           <div className="grid gap-4">
             <TextField label="Email" value={loginId} onChange={setLoginId} placeholder="you@example.com" />
-            <TextField label="Connection code" value={connectionCode} onChange={(value) => setConnectionCode(value.toUpperCase())} placeholder="MCH-ABCD-EFGH" />
-            <TextField label="New password" value={newPassword} onChange={setNewPassword} type="password" />
-            <TextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" />
-            <button className="primary-button" onClick={resetPassword} disabled={!loginId || !connectionCode || !newPassword || !confirmPassword}>
-              Reset Password
+            <TextField label="Connection code" value={connectionCode} onChange={(value) => setConnectionCode(value.toUpperCase())} placeholder={isCloudConfigured ? "Optional for cloud reset" : "MCH-ABCD-EFGH"} />
+            {connectionCode || !isCloudConfigured ? (
+              <>
+                <TextField label="New password" value={newPassword} onChange={setNewPassword} type="password" />
+                <TextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" />
+              </>
+            ) : null}
+            <button className="primary-button" onClick={resetPassword} disabled={!loginId || (!isCloudConfigured && (!connectionCode || !newPassword || !confirmPassword))}>
+              {isCloudConfigured && !connectionCode ? "Send Reset Email" : "Reset Password"}
             </button>
           </div>
         ) : (
@@ -1585,21 +1665,38 @@ function PeopleView({
       return;
     }
     const timestamp = nowIso();
-    await db.people.put({
-      id: createId(),
+    const personId = createId();
+    const normalizedInviteCode = inviteCode.trim().toUpperCase();
+    const person: Person = {
+      id: personId,
       ownerProfileId: snapshot.profile?.id,
       localDisplayName: name.trim(),
-      inviteCode: inviteCode.trim() || undefined,
-      connectedUserId: inviteCode.trim() || undefined,
-      status: inviteCode.trim() ? "pending" : "local",
+      inviteCode: normalizedInviteCode || undefined,
+      connectedUserId: normalizedInviteCode || undefined,
+      status: normalizedInviteCode ? "pending" : "local",
       active: true,
       createdAt: timestamp,
       updatedAt: timestamp,
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
-    });
+    };
+    await db.people.put(person);
+    if (isCloudConfigured && snapshot.config.syncEnabled && normalizedInviteCode) {
+      try {
+        const friend = await connectCloudFriend(normalizedInviteCode, personId);
+        await db.people.update(personId, {
+          localDisplayName: friend.display_name || person.localDisplayName,
+          connectedUserId: friend.connection_code,
+          status: "connected",
+          syncState: "queued",
+          updatedAt: nowIso(),
+        });
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "Friend cloud connection failed.", "warning");
+      }
+    }
     setName("");
     setInviteCode("");
-    notify(inviteCode ? "Friend request saved as pending." : "Local person added.", "success");
+    notify(normalizedInviteCode ? "Friend connection saved." : "Local person added.", "success");
     await onDone();
   };
 
@@ -1633,6 +1730,39 @@ function PeopleView({
       settlement,
       snapshot.config.syncEnabled,
     );
+    const connectedPerson = snapshot.people.find((person) => person.id === personId);
+    if (isCloudConfigured && snapshot.config.syncEnabled && snapshot.profile?.connectionCode && connectedPerson?.connectedUserId && connectedPerson.status === "connected") {
+      const mirrorPersonId = `mirror-${snapshot.profile.id}`;
+      const mirrorSettlementId = `mirror-${settlement.id}`;
+      const mirrorPerson: Person = {
+        id: mirrorPersonId,
+        ownerProfileId: undefined,
+        localDisplayName: snapshot.profile.displayName,
+        inviteCode: snapshot.profile.connectionCode,
+        connectedUserId: snapshot.profile.connectionCode,
+        status: "connected",
+        active: true,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        syncState: "synced",
+      };
+      const mirrorSettlement: Settlement = {
+        ...settlement,
+        id: mirrorSettlementId,
+        ownerProfileId: undefined,
+        personId: mirrorPersonId,
+        direction: inverseDirection(settlement.direction),
+        linkedSettlementId: settlement.id,
+        syncState: "synced",
+      };
+      try {
+        await mirrorCloudEntityToFriend(connectedPerson.connectedUserId, "people", mirrorPerson.id, mirrorPerson as unknown as Record<string, unknown>);
+        await mirrorCloudEntityToFriend(connectedPerson.connectedUserId, "settlements", mirrorSettlement.id, mirrorSettlement as unknown as Record<string, unknown>);
+        await db.settlements.update(settlement.id, { linkedSettlementId: mirrorSettlementId, updatedAt: nowIso() });
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "Friend realtime mirror failed.", "warning");
+      }
+    }
     setAmount("");
     setNote("");
     notify("Owe/owed entry recorded.", "success");
@@ -1680,6 +1810,38 @@ function PeopleView({
       totalRepaid,
       snapshot.config.syncEnabled,
     );
+    const connectedPerson = snapshot.people.find((person) => person.id === settlement.personId);
+    if (isCloudConfigured && snapshot.config.syncEnabled && snapshot.profile?.id && connectedPerson?.connectedUserId && connectedPerson.status === "connected") {
+      const mirrorPersonId = `mirror-${snapshot.profile.id}`;
+      const mirrorSettlementId = settlement.linkedSettlementId || `mirror-${settlement.id}`;
+      const mirrorRepaymentId = `mirror-${repayment.id}`;
+      const mirrorRepayment: Repayment = {
+        ...repayment,
+        id: mirrorRepaymentId,
+        ownerProfileId: undefined,
+        settlementId: mirrorSettlementId,
+        personId: mirrorPersonId,
+        linkedRepaymentId: repayment.id,
+        syncState: "synced",
+      };
+      const mirrorSettlement: Settlement = {
+        ...settlement,
+        id: mirrorSettlementId,
+        ownerProfileId: undefined,
+        personId: mirrorPersonId,
+        direction: inverseDirection(settlement.direction),
+        repaidAmount: totalRepaid,
+        linkedSettlementId: settlement.id,
+        syncState: "synced",
+      };
+      try {
+        await mirrorCloudEntityToFriend(connectedPerson.connectedUserId, "repayments", mirrorRepayment.id, mirrorRepayment as unknown as Record<string, unknown>);
+        await mirrorCloudEntityToFriend(connectedPerson.connectedUserId, "settlements", mirrorSettlement.id, mirrorSettlement as unknown as Record<string, unknown>);
+        await db.repayments.update(repayment.id, { linkedRepaymentId: mirrorRepaymentId, updatedAt: nowIso() });
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "Friend repayment mirror failed.", "warning");
+      }
+    }
     setRepaymentAmount("");
     setRepaymentNote("");
     notify("Returned money recorded.", "success");
@@ -2201,13 +2363,42 @@ function SettingsView({
         return;
       }
     }
+    if (!isCloudConfigured) {
+      notify("Add Supabase URL and anon key in .env before enabling cloud sync.", "warning");
+      return;
+    }
+    if (syncPassword.length < 8) {
+      notify("Enter a cloud password with at least 8 characters.", "error");
+      return;
+    }
     const syncPasswordHash = isLocalProfile ? await hashPassword(syncPassword) : snapshot.profile.passwordHash;
+    const cloudEmail = isLocalProfile ? normalizedEmail : snapshot.profile.loginId;
+    const updatedProfile: Profile = {
+      ...snapshot.profile,
+      connectedUserId: snapshot.profile.connectedUserId,
+      connectionCode,
+      loginId: cloudEmail,
+      passwordHash: syncPasswordHash,
+      displayName: isLocalProfile ? normalizedEmail.split("@")[0] : snapshot.profile.displayName,
+      updatedAt: timestamp,
+      syncState: "queued",
+    };
+    let connectedUserId = snapshot.profile.connectedUserId;
+    try {
+      connectedUserId = await signUpCloudProfile(cloudEmail, syncPassword, updatedProfile, {
+        ...snapshot,
+        profile: updatedProfile,
+      });
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Cloud account could not be created.", "error");
+      return;
+    }
     await db.transaction(
       "rw",
       [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments, db.appConfig],
       async () => {
         await db.profiles.update(snapshot.profile!.id, {
-          connectedUserId: connectionCode,
+          connectedUserId,
           connectionCode,
           loginId: isLocalProfile ? normalizedEmail : snapshot.profile!.loginId,
           passwordHash: syncPasswordHash,
@@ -2228,7 +2419,7 @@ function SettingsView({
     );
     setSyncEmail("");
     setSyncPassword("");
-    notify(isLocalProfile ? "Account created. Local data is queued for sync." : "Connected locally. Your existing data is queued for cloud sync.", "success");
+    notify(isLocalProfile ? "Account created and local data synced." : "Cloud sync enabled.", "success");
     await onDone();
   };
 
@@ -2328,11 +2519,9 @@ function SettingsView({
               Create an account when you want this device data to be linked for future sync.
             </p>
             {snapshot.profile?.loginId === "local-device" ? (
-              <>
-                <TextField label="Email" value={syncEmail} onChange={setSyncEmail} placeholder="you@example.com" />
-                <TextField label="Password" value={syncPassword} onChange={setSyncPassword} type="password" />
-              </>
+              <TextField label="Email" value={syncEmail} onChange={setSyncEmail} placeholder="you@example.com" />
             ) : null}
+            <TextField label="Cloud password" value={syncPassword} onChange={setSyncPassword} type="password" />
             <button className="primary-button" onClick={connectProfile}>
               <RefreshCw size={18} /> Create Account & Sync Local Data
             </button>
