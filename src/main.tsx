@@ -18,6 +18,7 @@ import {
   Palette,
   Plus,
   RefreshCw,
+  SlidersHorizontal,
   Settings,
   Sun,
   Trash2,
@@ -46,7 +47,7 @@ import type {
 } from "./lib/types";
 import "./styles/index.css";
 
-type View = "dashboard" | "daily" | "add" | "monthly" | "calendar" | "people" | "settings" | "admin" | "ai";
+type View = "dashboard" | "daily" | "add" | "monthly" | "calendar" | "people" | "manage" | "settings" | "admin" | "ai";
 type SessionRole = "guest" | "user" | "admin";
 type Toast = { id: string; tone: "success" | "error" | "info"; message: string };
 
@@ -137,9 +138,6 @@ function uniqueById<T extends { id: string }>(items: T[]) {
 }
 
 async function claimUnownedData(profileId: string) {
-  const ownedAccounts = await db.accounts.where("ownerProfileId").equals(profileId).count();
-  if (ownedAccounts > 0) return;
-
   const timestamp = nowIso();
   const [accounts, transactions, budgets, recurring, people, settlements] = await Promise.all([
     db.accounts.toArray(),
@@ -161,6 +159,41 @@ async function claimUnownedData(profileId: string) {
       await db.settlements.bulkPut(settlements.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
     },
   );
+}
+
+async function createOrGetLocalProfile(config: AppConfig) {
+  const loginId = "local-device";
+  const existing = await db.profiles.where("loginId").equals(loginId).first();
+  if (existing) return existing.id;
+
+  const timestamp = nowIso();
+  const profileId = createId();
+  const passwordHash = await hashPassword(`local-${profileId}`);
+  await db.transaction("rw", db.profiles, db.accounts, async () => {
+    await db.profiles.put({
+      id: profileId,
+      loginId,
+      passwordHash,
+      connectionCode: createConnectionCode(),
+      displayName: "Local User",
+      currency: config.defaultCurrency,
+      setupComplete: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      syncState: "local",
+    });
+    await db.accounts.put({
+      id: createId(),
+      ownerProfileId: profileId,
+      name: "Cash",
+      openingBalance: 0,
+      active: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      syncState: "local",
+    });
+  });
+  return profileId;
 }
 
 function App() {
@@ -324,6 +357,7 @@ function App() {
             <CalendarView snapshot={snapshot} currency={currency} selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
           )}
           {view === "people" && <PeopleView snapshot={snapshot} currency={currency} notify={notify} onDone={refresh} />}
+          {view === "manage" && <ManageView snapshot={snapshot} notify={notify} onDone={refresh} />}
           {view === "settings" && <SettingsView snapshot={snapshot} notify={notify} onDone={refresh} />}
           {view === "ai" && <AiChatView snapshot={snapshot} currency={currency} notify={notify} />}
         </main>
@@ -334,6 +368,7 @@ function App() {
               <MoreButton icon={<CalendarDays size={18} />} label="Daily" onClick={() => { setView("daily"); setMoreOpen(false); }} />
               <MoreButton icon={<CalendarDays size={18} />} label="Calendar" onClick={() => { setView("calendar"); setMoreOpen(false); }} />
               <MoreButton icon={<Users size={18} />} label="Friends" onClick={() => { setView("people"); setMoreOpen(false); }} />
+              <MoreButton icon={<SlidersHorizontal size={18} />} label="Manage" onClick={() => { setView("manage"); setMoreOpen(false); }} />
               <MoreButton icon={<Settings size={18} />} label="Settings" onClick={() => { setView("settings"); setMoreOpen(false); }} />
             </div>
           ) : null}
@@ -345,7 +380,7 @@ function App() {
               <span>Add</span>
             </button>
             <NavButton icon={<BarChart3 size={18} />} label="Reports" active={view === "monthly"} onClick={() => { setView("monthly"); setMoreOpen(false); }} />
-            <NavButton icon={<MoreHorizontal size={18} />} label="More" active={moreOpen || ["calendar", "people", "settings", "ai"].includes(view)} onClick={() => setMoreOpen((value) => !value)} />
+            <NavButton icon={<MoreHorizontal size={18} />} label="More" active={moreOpen || ["calendar", "people", "manage", "settings", "ai"].includes(view)} onClick={() => setMoreOpen((value) => !value)} />
           </div>
         </nav>
       </div>
@@ -393,7 +428,7 @@ function AuthGate({
   onLogin: (profileId: string) => Promise<void>;
   onAdminLogin: () => Promise<void>;
 }) {
-  const [mode, setMode] = useState<"login" | "register" | "connect" | "reset">("login");
+  const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [connectionCode, setConnectionCode] = useState("");
@@ -496,6 +531,13 @@ function AuthGate({
     await onLogin(profileId);
   };
 
+  const useLocally = async () => {
+    setFormError("");
+    const profileId = await createOrGetLocalProfile(config);
+    notify("Using local device storage.", "success");
+    await onLogin(profileId);
+  };
+
   const resetPassword = async () => {
     setFormError("");
     const normalizedLoginId = loginId.trim().toLowerCase();
@@ -526,15 +568,13 @@ function AuthGate({
     notify("Password reset. Login with the new password.", "success");
   };
 
-  const modeTitle = mode === "register" ? "Create your account" : mode === "connect" ? "Connect With Us" : mode === "reset" ? "Reset password" : "Welcome back";
+  const modeTitle = mode === "register" ? "Create your account" : mode === "reset" ? "Reset password" : "Welcome back";
   const modeSubtitle =
     mode === "register"
       ? "Use your email so this profile can be linked and recovered later."
       : mode === "reset"
         ? "Use your email and connection code to set a new local password."
-        : mode === "connect"
-          ? "Cloud account linking will use this same email-based profile."
-          : "Login with email, or use the admin ID for app configuration.";
+        : "Use locally without signup, or login with email/admin ID.";
 
   return (
     <div className="auth-screen">
@@ -557,15 +597,16 @@ function AuthGate({
           <button className={mode === "reset" ? "auth-tab-active" : ""} onClick={() => setMode("reset")}>Reset</button>
         </div>
         {formError ? <div className="form-error">{formError}</div> : null}
-        {mode === "connect" ? (
-          <div className="grid gap-4">
-            <TextField label="Email" value={loginId} onChange={setLoginId} placeholder="you@example.com" />
-            <TextField label="Password" value={password} onChange={setPassword} type="password" />
-            <button className="primary-button" onClick={() => setMode("register")}>
-              Continue with local setup
+        {mode === "login" ? (
+          <div className="local-entry">
+            <button className="local-use-button" onClick={useLocally}>
+              <WalletCards size={19} /> Use Locally
             </button>
+            <p>Your data stays on this device until you create an account and enable sync.</p>
+            <div className="auth-divider"><span>or login</span></div>
           </div>
-        ) : mode === "reset" ? (
+        ) : null}
+        {mode === "reset" ? (
           <div className="grid gap-4">
             <TextField label="Email" value={loginId} onChange={setLoginId} placeholder="you@example.com" />
             <TextField label="Connection code" value={connectionCode} onChange={(value) => setConnectionCode(value.toUpperCase())} placeholder="MCH-ABCD-EFGH" />
@@ -625,11 +666,6 @@ function AuthGate({
             </button>
           </div>
         )}
-        <div className="auth-footer-actions">
-          <button onClick={() => setMode("connect")}>
-            <RefreshCw size={18} /> Connect With Us
-          </button>
-        </div>
       </section>
     </div>
   );
@@ -692,6 +728,7 @@ function Onboarding({ config, onDone }: { config: AppConfig; onDone: () => Promi
           .filter((account) => account.name.trim())
           .map((account) => ({
             id: createId(),
+            ownerProfileId: profileId,
             name: account.name.trim(),
             openingBalance: Number(account.openingBalance) || 0,
             active: true,
@@ -721,7 +758,7 @@ function Onboarding({ config, onDone }: { config: AppConfig; onDone: () => Promi
           </button>
           <button className="choice-button" onClick={() => setMode("connect")}>
             <RefreshCw />
-            <span>Connect With Us</span>
+            <span>Create Account Later</span>
           </button>
         </div>
       </div>
@@ -731,7 +768,7 @@ function Onboarding({ config, onDone }: { config: AppConfig; onDone: () => Promi
   if (mode === "connect") {
     return (
       <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-8">
-        <Panel title="Connect With Us">
+        <Panel title="Create Account Later">
           <p className="text-sm text-slate-600">
             Supabase authentication is prepared for the next phase. Start offline now and connect this same local profile later
             without losing accounts or transactions.
@@ -1245,7 +1282,7 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
                   </div>
                 );
               })}
-            {snapshot.budgets.length === 0 ? <Empty text="Create budgets in Settings." /> : null}
+            {snapshot.budgets.length === 0 ? <Empty text="Create budgets in Manage." /> : null}
           </div>
         </Panel>
       </div>
@@ -1315,14 +1352,26 @@ function PeopleView({
   const [note, setNote] = useState("");
 
   const addPerson = async () => {
+    if (!name.trim()) {
+      notify("Enter a friend name.", "error");
+      return;
+    }
+    if (
+      snapshot.people.some(
+        (person) => person.active && person.localDisplayName.toLowerCase() === name.trim().toLowerCase(),
+      )
+    ) {
+      notify("This friend already exists.", "error");
+      return;
+    }
     const timestamp = nowIso();
     await db.people.put({
       id: createId(),
       ownerProfileId: snapshot.profile?.id,
-      localDisplayName: name,
-      inviteCode,
-      connectedUserId: inviteCode || undefined,
-      status: inviteCode ? "pending" : "local",
+      localDisplayName: name.trim(),
+      inviteCode: inviteCode.trim() || undefined,
+      connectedUserId: inviteCode.trim() || undefined,
+      status: inviteCode.trim() ? "pending" : "local",
       active: true,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -1335,6 +1384,14 @@ function PeopleView({
   };
 
   const addSettlement = async () => {
+    if (!personId) {
+      notify("Choose a friend first.", "error");
+      return;
+    }
+    if (!Number(amount)) {
+      notify("Enter a valid amount.", "error");
+      return;
+    }
     const timestamp = nowIso();
     await db.settlements.put({
       id: createId(),
@@ -1361,76 +1418,127 @@ function PeopleView({
     await onDone();
   };
 
+  const removeOrHidePerson = async (person: Person) => {
+    const linked =
+      snapshot.settlements.some((settlement) => settlement.personId === person.id) ||
+      snapshot.transactions.some((transaction) => transaction.personIds?.includes(person.id));
+    await db.people.update(person.id, {
+      active: false,
+      deletedAt: linked ? undefined : nowIso(),
+      updatedAt: nowIso(),
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    });
+    notify(linked ? "Friend hidden because existing records use it." : "Friend removed.", "success");
+    await onDone();
+  };
+
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Panel title="People">
+    <div className="grid gap-5">
+      <Panel title="Friends List">
         <div className="grid gap-3">
-          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-            <input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Local display name" />
-            <input className="field-input" value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase())} placeholder="Friend code optional" />
+          <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+            <input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Friend name" />
+            <input className="field-input" value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase())} placeholder="Connection code optional" />
             <button className="primary-button" onClick={addPerson} disabled={!name.trim()}>
               <UserPlus size={18} /> Add
             </button>
           </div>
-          {snapshot.people.map((person) => (
-            <div className="friend-row" key={person.id}>
-              <div>
-                <strong>{person.localDisplayName}</strong>
-                <p>{person.status || "local"} {person.inviteCode ? `· ${person.inviteCode}` : ""}</p>
-              </div>
-              <strong>{formatMoney(personBalance(person, snapshot.settlements), currency)}</strong>
-              <div className="friend-actions">
-                {person.status === "pending" ? (
-                  <button className="small-button" onClick={() => updatePerson(person, { status: "connected" })}>Connect</button>
-                ) : null}
-                <button className="small-button" onClick={() => updatePerson(person, { status: "blocked", active: false })}>Block</button>
-                <button className="small-button danger-button" onClick={() => updatePerson(person, { deletedAt: nowIso(), active: false })}>
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            </div>
-          ))}
+          <div className="friends-grid">
+            {snapshot.people.length === 0 ? <Empty text="No friends added yet." /> : null}
+            {snapshot.people.map((person) => {
+              const balance = personBalance(person, snapshot.settlements);
+              const linked = snapshot.settlements.some((settlement) => settlement.personId === person.id);
+              return (
+                <div className="friend-card" key={person.id}>
+                  <div className="friend-card-main">
+                    <div>
+                      <strong>{person.localDisplayName}</strong>
+                      <p>{person.inviteCode ? person.inviteCode : "Local person"}</p>
+                    </div>
+                    <span className={`status-pill status-${person.status || "local"}`}>{person.active ? person.status || "local" : "hidden"}</span>
+                  </div>
+                  <div className="friend-balance">
+                    <span>{balance >= 0 ? "Owed to you" : "You owe"}</span>
+                    <strong>{formatMoney(Math.abs(balance), currency)}</strong>
+                  </div>
+                  <div className="friend-actions">
+                    {person.status === "pending" ? (
+                      <button className="small-button" onClick={() => updatePerson(person, { status: "connected" })}>Connect</button>
+                    ) : null}
+                    {person.status !== "blocked" ? (
+                      <button className="small-button" onClick={() => updatePerson(person, { status: "blocked", active: false })}>Block</button>
+                    ) : null}
+                    <button className="small-button danger-button" onClick={() => removeOrHidePerson(person)}>
+                      <Trash2 size={15} /> {linked ? "Hide" : "Remove"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </Panel>
       <Panel title="Owe / Owed">
-        <div className="grid gap-3">
-        <SelectField label="Person" value={personId} onChange={setPersonId}>
-          {activePeople.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.localDisplayName}
-            </option>
-            ))}
-          </SelectField>
-          <SelectField label="Type" value={direction} onChange={(value) => setDirection(value as "to_me" | "by_me")}>
-            <option value="to_me">Someone owes me</option>
-            <option value="by_me">I owe someone</option>
-          </SelectField>
-          <input className="field-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" />
-          <input className="field-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
+        <div className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
+            <SelectField label="Friend" value={personId} onChange={setPersonId}>
+              {activePeople.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.localDisplayName}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField label="Type" value={direction} onChange={(value) => setDirection(value as "to_me" | "by_me")}>
+              <option value="to_me">They owe me</option>
+              <option value="by_me">I owe them</option>
+            </SelectField>
+            <input className="field-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" />
+            <input className="field-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
+          </div>
           <button className="primary-button" onClick={addSettlement} disabled={!personId || !amount}>
-            Record
+            Record Owe / Owed
           </button>
+          <div className="grid gap-2">
+            {snapshot.settlements.slice(-8).reverse().map((settlement) => {
+              const person = snapshot.people.find((item) => item.id === settlement.personId);
+              return (
+                <div className="manage-row" key={settlement.id}>
+                  <div>
+                    <strong>{person?.localDisplayName ?? "Friend"}</strong>
+                    <p>{settlement.direction === "to_me" ? "They owe me" : "I owe them"} · {settlement.note || "No note"}</p>
+                  </div>
+                  <strong>{formatMoney(settlement.originalAmount - settlement.repaidAmount, currency)}</strong>
+                </div>
+              );
+            })}
+            {snapshot.settlements.length === 0 ? <Empty text="No owe/owed records yet." /> : null}
+          </div>
         </div>
       </Panel>
     </div>
   );
 }
 
-function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: (message: string, tone?: Toast["tone"]) => void; onDone: () => Promise<void> }) {
+function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: (message: string, tone?: Toast["tone"]) => void; onDone: () => Promise<void> }) {
   const [categoryName, setCategoryName] = useState("");
   const [categoryKind, setCategoryKind] = useState<"expense" | "income">("expense");
   const [budgetCategoryId, setBudgetCategoryId] = useState(snapshot.categories.find((item) => item.kind === "expense")?.id ?? "");
   const [budgetAmount, setBudgetAmount] = useState("");
   const [accountName, setAccountName] = useState("");
   const [accountOpening, setAccountOpening] = useState("");
-  const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
-  const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const currency = snapshot.profile?.currency ?? snapshot.config.defaultCurrency;
+
+  useEffect(() => {
+    if (!budgetCategoryId) setBudgetCategoryId(snapshot.categories.find((item) => item.kind === "expense" && item.active)?.id ?? "");
+  }, [budgetCategoryId, snapshot.categories]);
 
   const addCategory = async () => {
-    if (snapshot.categories.some((category) => category.name.toLowerCase() === categoryName.trim().toLowerCase() && category.kind === categoryKind)) {
+    const trimmedName = categoryName.trim();
+    if (!trimmedName) {
+      notify("Enter a category name.", "error");
+      return;
+    }
+    if (snapshot.categories.some((category) => category.name.toLowerCase() === trimmedName.toLowerCase() && category.kind === categoryKind)) {
       notify("That category already exists.", "error");
       return;
     }
@@ -1438,7 +1546,7 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
     await db.categories.put({
       id: createId(),
       ownerProfileId: snapshot.profile?.id,
-      name: categoryName,
+      name: trimmedName,
       kind: categoryKind,
       active: true,
       createdAt: timestamp,
@@ -1451,8 +1559,13 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
   };
 
   const addAccount = async () => {
+    const trimmedName = accountName.trim();
     if (!snapshot.profile?.id) return;
-    if (snapshot.accounts.some((account) => account.name.toLowerCase() === accountName.trim().toLowerCase())) {
+    if (!trimmedName) {
+      notify("Enter an account name.", "error");
+      return;
+    }
+    if (snapshot.accounts.some((account) => account.name.toLowerCase() === trimmedName.toLowerCase())) {
       notify("That account already exists.", "error");
       return;
     }
@@ -1460,7 +1573,7 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
     await db.accounts.put({
       id: createId(),
       ownerProfileId: snapshot.profile.id,
-      name: accountName.trim(),
+      name: trimmedName,
       openingBalance: Number(accountOpening) || 0,
       active: true,
       createdAt: timestamp,
@@ -1485,7 +1598,23 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
     await onDone();
   };
 
+  const archiveCategory = async (category: Category) => {
+    const linked = snapshot.transactions.some((item) => item.categoryId === category.id) || snapshot.budgets.some((item) => item.categoryId === category.id);
+    await db.categories.update(category.id, {
+      active: false,
+      deletedAt: linked ? undefined : nowIso(),
+      updatedAt: nowIso(),
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    });
+    notify(linked ? "Category hidden because existing records use it." : "Category removed.", "success");
+    await onDone();
+  };
+
   const addBudget = async () => {
+    if (!budgetCategoryId || !Number(budgetAmount)) {
+      notify("Choose category and enter budget amount.", "error");
+      return;
+    }
     const timestamp = nowIso();
     const existing = snapshot.budgets.find((budget) => budget.categoryId === budgetCategoryId && budget.active);
     if (existing) {
@@ -1514,6 +1643,119 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
     notify("Budget added.", "success");
     await onDone();
   };
+
+  return (
+    <div className="grid gap-5">
+      <Panel title="Accounts">
+        <div className="grid gap-3">
+          <div className="grid gap-2 md:grid-cols-[1fr_140px_auto]">
+            <input className="field-input" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="Cash, Bank, UPI wallet" />
+            <input className="field-input" type="number" value={accountOpening} onChange={(event) => setAccountOpening(event.target.value)} placeholder="Opening" />
+            <button className="primary-button" onClick={addAccount} disabled={!accountName.trim()}>
+              <Plus size={18} /> Add
+            </button>
+          </div>
+          <div className="manage-list">
+            {snapshot.accounts.map((account) => {
+              const linked = snapshot.transactions.some((item) => item.accountId === account.id || item.toAccountId === account.id);
+              return (
+                <div className="manage-row" key={account.id}>
+                  <div>
+                    <strong>{account.name}</strong>
+                    <p>{account.active ? "Active" : "Hidden"} · Opening {formatMoney(account.openingBalance, currency)}</p>
+                  </div>
+                  {account.active ? (
+                    <button className="small-button" onClick={() => archiveAccount(account)}>
+                      {linked ? "Hide" : "Remove"}
+                    </button>
+                  ) : <span className="status-pill status-blocked">Hidden</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Panel>
+
+      <Panel title="Categories">
+        <div className="grid gap-3">
+          <div className="grid gap-2 md:grid-cols-[1fr_150px_auto]">
+            <input className="field-input" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="Category name" />
+            <SelectField label="Type" value={categoryKind} onChange={(value) => setCategoryKind(value as "expense" | "income")}>
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </SelectField>
+            <button className="primary-button" onClick={addCategory} disabled={!categoryName.trim()}>
+              <Plus size={18} /> Add
+            </button>
+          </div>
+          <div className="manage-list">
+            {snapshot.categories.map((category) => (
+              <div className="manage-row" key={category.id}>
+                <div>
+                  <strong>{category.name}</strong>
+                  <p>{category.active ? "Active" : "Hidden"} · {category.kind}</p>
+                </div>
+                {category.active ? (
+                  <button className="small-button" onClick={() => archiveCategory(category)}>
+                    {snapshot.transactions.some((item) => item.categoryId === category.id) ? "Hide" : "Remove"}
+                  </button>
+                ) : <span className="status-pill status-blocked">Hidden</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </Panel>
+
+      <Panel title="Budgets">
+        <div className="grid gap-3">
+          <div className="grid gap-2 md:grid-cols-[1fr_160px_auto]">
+            <SelectField label="Category" value={budgetCategoryId} onChange={setBudgetCategoryId}>
+              {snapshot.categories
+                .filter((category) => category.kind === "expense" && category.active)
+                .map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+            </SelectField>
+            <input className="field-input" type="number" value={budgetAmount} onChange={(event) => setBudgetAmount(event.target.value)} placeholder="Monthly" />
+            <button className="primary-button" onClick={addBudget} disabled={!budgetCategoryId || !budgetAmount}>
+              Save
+            </button>
+          </div>
+          <div className="grid gap-3">
+            {snapshot.budgets.filter((budget) => budget.active).map((budget) => {
+              const category = snapshot.categories.find((item) => item.id === budget.categoryId);
+              const usage = budgetUsage(budget, snapshot.transactions);
+              return (
+                <div className="budget-card" key={budget.id}>
+                  <div className="bar-row-header">
+                    <span>{category?.name ?? "Category"}</span>
+                    <strong>{formatMoney(usage.remaining, currency)} left</strong>
+                  </div>
+                  <div className="progress">
+                    <span className={usage.remaining < 0 ? "danger-bar" : ""} style={{ width: `${Math.min(100, usage.percentage)}%` }} />
+                  </div>
+                  <p>{formatMoney(usage.spent, currency)} spent of {formatMoney(budget.amount, currency)}</p>
+                </div>
+              );
+            })}
+            {snapshot.budgets.filter((budget) => budget.active).length === 0 ? <Empty text="No budgets created yet." /> : null}
+          </div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: (message: string, tone?: Toast["tone"]) => void; onDone: () => Promise<void> }) {
+  const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
+  const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
+  const [syncEmail, setSyncEmail] = useState("");
+  const [syncPassword, setSyncPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const exportData = async () => {
     const { groqApiKey: _groqApiKey, ...exportableConfig } = snapshot.config;
@@ -1591,6 +1833,24 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
     if (!snapshot.profile) return;
     const timestamp = nowIso();
     const connectionCode = snapshot.profile.connectionCode || createConnectionCode();
+    const isLocalProfile = snapshot.profile.loginId === "local-device";
+    const normalizedEmail = syncEmail.trim().toLowerCase();
+    if (isLocalProfile) {
+      if (!isValidEmail(normalizedEmail)) {
+        notify("Enter a valid email to create the account.", "error");
+        return;
+      }
+      if (syncPassword.length < 8) {
+        notify("Password must be at least 8 characters.", "error");
+        return;
+      }
+      const existing = await db.profiles.where("loginId").equals(normalizedEmail).first();
+      if (existing && existing.id !== snapshot.profile.id) {
+        notify("An account already exists for this email.", "error");
+        return;
+      }
+    }
+    const syncPasswordHash = isLocalProfile ? await hashPassword(syncPassword) : snapshot.profile.passwordHash;
     await db.transaction(
       "rw",
       [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.appConfig],
@@ -1598,6 +1858,9 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
         await db.profiles.update(snapshot.profile!.id, {
           connectedUserId: connectionCode,
           connectionCode,
+          loginId: isLocalProfile ? normalizedEmail : snapshot.profile!.loginId,
+          passwordHash: syncPasswordHash,
+          displayName: isLocalProfile ? normalizedEmail.split("@")[0] : snapshot.profile!.displayName,
           updatedAt: timestamp,
           syncState: "queued",
         });
@@ -1611,7 +1874,9 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
         await db.appConfig.update("primary", { syncEnabled: true, updatedAt: timestamp });
       },
     );
-    notify("Connected locally. Your existing data is queued for cloud sync.", "success");
+    setSyncEmail("");
+    setSyncPassword("");
+    notify(isLocalProfile ? "Account created. Local data is queued for sync." : "Connected locally. Your existing data is queued for cloud sync.", "success");
     await onDone();
   };
 
@@ -1708,10 +1973,16 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
         ) : (
           <div className="grid gap-3">
             <p className="text-sm text-slate-600">
-              This creates your unique local connection code and marks all existing device data ready for cloud sync.
+              Create an account when you want this device data to be linked for future sync.
             </p>
+            {snapshot.profile?.loginId === "local-device" ? (
+              <>
+                <TextField label="Email" value={syncEmail} onChange={setSyncEmail} placeholder="you@example.com" />
+                <TextField label="Password" value={syncPassword} onChange={setSyncPassword} type="password" />
+              </>
+            ) : null}
             <button className="primary-button" onClick={connectProfile}>
-              <RefreshCw size={18} /> Connect With Us
+              <RefreshCw size={18} /> Create Account & Sync Local Data
             </button>
           </div>
         )}
@@ -1728,34 +1999,6 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
         </div>
       </Panel>
 
-      <Panel title="Accounts">
-        <div className="grid gap-3">
-          <div className="grid gap-2 sm:grid-cols-[1fr_130px_auto]">
-            <input className="field-input" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="Account name" />
-            <input className="field-input" type="number" value={accountOpening} onChange={(event) => setAccountOpening(event.target.value)} placeholder="Opening" />
-            <button className="primary-button" onClick={addAccount} disabled={!accountName.trim()}>
-              Add
-            </button>
-          </div>
-          <div className="grid gap-2">
-            {snapshot.accounts.map((account) => {
-              const linked = snapshot.transactions.some((item) => item.accountId === account.id || item.toAccountId === account.id);
-              return (
-                <div className="manage-row" key={account.id}>
-                  <div>
-                    <strong>{account.name}</strong>
-                    <p>{account.active ? "Active" : "Hidden"} · Opening {formatMoney(account.openingBalance, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)}</p>
-                  </div>
-                  <button className="small-button" onClick={() => archiveAccount(account)}>
-                    {linked ? "Hide" : "Remove"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </Panel>
-
       <Panel title="AI Chat">
         <div className="grid gap-3">
           <TextField label="Groq API key" value={groqApiKey} onChange={setGroqApiKey} type="password" placeholder="Paste API key" />
@@ -1766,65 +2009,6 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
           <button className="primary-button" onClick={saveAiConfig}>
             <Bot size={18} /> Save AI Settings
           </button>
-        </div>
-      </Panel>
-
-      <Panel title="Categories">
-        <div className="grid gap-3">
-          <div className="grid grid-cols-[1fr_120px_auto] gap-2">
-            <input className="field-input" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="Category name" />
-            <SelectField label="Type" value={categoryKind} onChange={(value) => setCategoryKind(value as "expense" | "income")}>
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-            </SelectField>
-            <button className="primary-button" onClick={addCategory} disabled={!categoryName.trim()}>
-              Add
-            </button>
-          </div>
-          {snapshot.categories.map((category) => (
-            <div className="row" key={category.id}>
-              <span>{category.name}</span>
-              <strong>{category.kind}</strong>
-            </div>
-          ))}
-        </div>
-      </Panel>
-
-      <Panel title="Budgets">
-        <div className="grid gap-3">
-          <SelectField label="Category" value={budgetCategoryId} onChange={setBudgetCategoryId}>
-            {snapshot.categories
-              .filter((category) => category.kind === "expense")
-              .map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-          </SelectField>
-          <div className="grid grid-cols-[1fr_auto] gap-2">
-            <input className="field-input" type="number" value={budgetAmount} onChange={(event) => setBudgetAmount(event.target.value)} placeholder="Monthly amount" />
-            <button className="primary-button" onClick={addBudget} disabled={!budgetCategoryId || !budgetAmount}>
-              Add
-            </button>
-          </div>
-          <div className="grid gap-3">
-            {snapshot.budgets.map((budget) => {
-              const category = snapshot.categories.find((item) => item.id === budget.categoryId);
-              const usage = budgetUsage(budget, snapshot.transactions);
-              return (
-                <div className="budget-card" key={budget.id}>
-                  <div className="bar-row-header">
-                    <span>{category?.name ?? "Category"}</span>
-                    <strong>{formatMoney(usage.remaining, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)} left</strong>
-                  </div>
-                  <div className="progress">
-                    <span style={{ width: `${usage.percentage}%` }} />
-                  </div>
-                  <p>{formatMoney(usage.spent, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)} spent of {formatMoney(budget.amount, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)}</p>
-                </div>
-              );
-            })}
-          </div>
         </div>
       </Panel>
 
@@ -2165,7 +2349,8 @@ function SelectField({
         label: String(props.children ?? props.value ?? ""),
       };
     })
-    .filter((option) => option.value);
+    .filter((option) => option.value)
+    .filter((option, index, items) => items.findIndex((item) => item.label.toLowerCase() === option.label.toLowerCase()) === index);
   const selected = options.find((option) => option.value === value) ?? options[0];
 
   return (
