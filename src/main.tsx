@@ -51,6 +51,7 @@ import "./styles/index.css";
 
 const defaultAppLogoUrl = new URL("../Logos/Micham_app_logo.svg", import.meta.url).href;
 const defaultWordmarkUrl = new URL("../Logos/Micham_bottom_wordmark_tagline.svg", import.meta.url).href;
+const defaultDarkWordmarkUrl = new URL("../Logos/Micham_bottom_wordmark_tagline_dark.svg", import.meta.url).href;
 
 type View = "dashboard" | "daily" | "add" | "monthly" | "calendar" | "people" | "manage" | "settings" | "admin" | "ai";
 type SessionRole = "guest" | "user" | "admin";
@@ -447,9 +448,9 @@ function App() {
           {view === "ai" && <AiChatView snapshot={snapshot} currency={currency} notify={notify} />}
         </main>
 
-        <nav className="sticky bottom-0 z-20 border-t border-slate-200 bg-white">
+        <nav className="bottom-nav sticky bottom-0 z-20">
           {moreOpen ? (
-            <div className="mx-auto grid max-w-6xl grid-cols-2 gap-2 border-b border-slate-100 px-4 py-3 sm:grid-cols-4">
+            <div className="bottom-nav-menu mx-auto grid max-w-6xl grid-cols-2 gap-2 px-4 py-3 sm:grid-cols-5">
               <MoreButton icon={<CalendarDays size={18} />} label="Daily" onClick={() => { setView("daily"); setMoreOpen(false); }} />
               <MoreButton icon={<CalendarDays size={18} />} label="Calendar" onClick={() => { setView("calendar"); setMoreOpen(false); }} />
               <MoreButton icon={<Users size={18} />} label="Friends" onClick={() => { setView("people"); setMoreOpen(false); }} />
@@ -457,7 +458,7 @@ function App() {
               <MoreButton icon={<Settings size={18} />} label="Settings" onClick={() => { setView("settings"); setMoreOpen(false); }} />
             </div>
           ) : null}
-          <div className="mx-auto grid max-w-6xl grid-cols-5 gap-1 px-2 py-2 text-xs">
+          <div className="bottom-nav-main mx-auto grid max-w-6xl grid-cols-5 gap-1 px-2 py-2 text-xs">
             <NavButton icon={<Home size={18} />} label="Home" active={view === "dashboard"} onClick={() => { setView("dashboard"); setMoreOpen(false); }} />
             <NavButton icon={<Bot size={18} />} label="Chat" active={view === "ai"} disabled={!snapshot.config.aiEnabled} onClick={() => { if (snapshot.config.aiEnabled) { setView("ai"); setMoreOpen(false); } }} />
             <button className={`add-nav-button ${view === "add" ? "add-nav-button-active" : ""}`} onClick={() => { setView("add"); setMoreOpen(false); }}>
@@ -465,7 +466,7 @@ function App() {
               <span>Add</span>
             </button>
             <NavButton icon={<BarChart3 size={18} />} label="Reports" active={view === "monthly"} onClick={() => { setView("monthly"); setMoreOpen(false); }} />
-            <NavButton icon={<MoreHorizontal size={18} />} label="More" active={moreOpen || ["calendar", "people", "manage", "settings", "ai"].includes(view)} onClick={() => setMoreOpen((value) => !value)} />
+            <NavButton icon={<MoreHorizontal size={18} />} label="More" active={moreOpen || ["daily", "calendar", "people", "manage", "settings"].includes(view)} onClick={() => setMoreOpen((value) => !value)} />
           </div>
         </nav>
       </div>
@@ -487,9 +488,11 @@ function Logo({ config }: { config: AppConfig }) {
 }
 
 function Wordmark({ config }: { config: AppConfig }) {
+  const wordmarkUrl = config.themeMode === "dark" ? defaultDarkWordmarkUrl : defaultWordmarkUrl;
+
   return (
     <div className="wordmark-wrap">
-      <img src={defaultWordmarkUrl} alt={`${config.appName} wordmark`} />
+      <img src={wordmarkUrl} alt={`${config.appName} wordmark`} />
       <span>{config.appName}</span>
       <small>{config.tagline}</small>
     </div>
