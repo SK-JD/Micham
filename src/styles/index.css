@@ -202,6 +202,125 @@ button:disabled {
   padding: clamp(1rem, 4vw, 1.6rem);
 }
 
+.auth-screen {
+  align-content: center;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--brand) 16%, transparent), transparent 34%),
+    linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%);
+  display: grid;
+  gap: 1.4rem;
+  min-height: 100vh;
+  padding: clamp(1.25rem, 5vw, 2rem);
+}
+
+:root[data-theme="dark"] .auth-screen {
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--brand) 18%, transparent), transparent 34%),
+    linear-gradient(180deg, #0f172a 0%, #111827 100%);
+}
+
+.auth-brand {
+  align-items: center;
+  display: flex;
+  gap: 0.9rem;
+  margin: 0 auto;
+  width: min(100%, 460px);
+}
+
+.auth-brand h1 {
+  color: #0f172a;
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.auth-brand p {
+  color: #64748b;
+  margin: 0.25rem 0 0;
+}
+
+:root[data-theme="dark"] .auth-brand h1 {
+  color: #f8fafc;
+}
+
+.auth-card {
+  background: rgb(255 255 255 / 92%);
+  border: 1px solid #dbe3ef;
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 12%);
+  display: grid;
+  gap: 1.1rem;
+  margin: 0 auto;
+  padding: clamp(1rem, 4vw, 1.35rem);
+  width: min(100%, 460px);
+}
+
+:root[data-theme="dark"] .auth-card {
+  background: rgb(17 24 39 / 92%);
+  border-color: #334155;
+}
+
+.auth-heading {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.auth-heading p {
+  color: #0f172a;
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.auth-heading span {
+  color: #64748b;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+:root[data-theme="dark"] .auth-heading p {
+  color: #f8fafc;
+}
+
+.auth-tabs {
+  background: #eef2f7;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0.25rem;
+}
+
+.auth-tabs button {
+  border-radius: 8px;
+  color: #64748b;
+  font-weight: 750;
+  min-height: 40px;
+}
+
+.auth-tabs .auth-tab-active {
+  background: white;
+  color: var(--brand);
+  box-shadow: 0 1px 6px rgb(15 23 42 / 12%);
+}
+
+.auth-footer-actions {
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  padding-top: 1rem;
+}
+
+.auth-footer-actions button {
+  align-items: center;
+  color: var(--brand);
+  display: inline-flex;
+  font-weight: 750;
+  gap: 0.45rem;
+}
+
 .home-hero h2 {
   font-size: clamp(2rem, 8vw, 3.25rem);
   font-weight: 800;

@@ -526,21 +526,40 @@ function AuthGate({
     notify("Password reset. Login with the new password.", "success");
   };
 
+  const modeTitle = mode === "register" ? "Create your account" : mode === "connect" ? "Connect With Us" : mode === "reset" ? "Reset password" : "Welcome back";
+  const modeSubtitle =
+    mode === "register"
+      ? "Use your email so this profile can be linked and recovered later."
+      : mode === "reset"
+        ? "Use your email and connection code to set a new local password."
+        : mode === "connect"
+          ? "Cloud account linking will use this same email-based profile."
+          : "Login with email, or use the admin ID for app configuration.";
+
   return (
-    <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-8">
-      <div className="mb-8 flex items-center gap-3">
+    <div className="auth-screen">
+      <section className="auth-brand">
         <Logo config={config} />
         <div>
-          <h1 className="text-2xl font-semibold">{config.appName}</h1>
-          <p className="text-slate-500">{config.tagline}</p>
+          <h1>{config.appName}</h1>
+          <p>{config.tagline}</p>
         </div>
-      </div>
+      </section>
 
-      <Panel title={mode === "register" ? "Create Local Account" : mode === "connect" ? "Connect With Us" : mode === "reset" ? "Reset Password" : "Login"}>
+      <section className="auth-card">
+        <div className="auth-heading">
+          <p>{modeTitle}</p>
+          <span>{modeSubtitle}</span>
+        </div>
+        <div className="auth-tabs">
+          <button className={mode === "login" ? "auth-tab-active" : ""} onClick={() => setMode("login")}>Login</button>
+          <button className={mode === "register" ? "auth-tab-active" : ""} onClick={() => setMode("register")}>Create</button>
+          <button className={mode === "reset" ? "auth-tab-active" : ""} onClick={() => setMode("reset")}>Reset</button>
+        </div>
         {formError ? <div className="form-error">{formError}</div> : null}
         {mode === "connect" ? (
           <div className="grid gap-4">
-            <TextField label="Email or phone" value={loginId} onChange={setLoginId} placeholder="you@example.com" />
+            <TextField label="Email" value={loginId} onChange={setLoginId} placeholder="you@example.com" />
             <TextField label="Password" value={password} onChange={setPassword} type="password" />
             <button className="primary-button" onClick={() => setMode("register")}>
               Continue with local setup
@@ -606,18 +625,12 @@ function AuthGate({
             </button>
           </div>
         )}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button className="secondary-button" onClick={() => setMode(mode === "register" ? "login" : "register")}>
-            {mode === "register" ? "Back to login" : "Create local account"}
-          </button>
-          <button className="secondary-button" onClick={() => setMode(mode === "reset" ? "login" : "reset")}>
-            {mode === "reset" ? "Back to login" : "Reset password"}
-          </button>
-          <button className="secondary-button" onClick={() => setMode("connect")}>
+        <div className="auth-footer-actions">
+          <button onClick={() => setMode("connect")}>
             <RefreshCw size={18} /> Connect With Us
           </button>
         </div>
-      </Panel>
+      </section>
     </div>
   );
 }
