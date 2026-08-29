@@ -7,6 +7,7 @@ import {
   BarChart3,
   Bot,
   CalendarDays,
+  CircleUserRound,
   Download,
   Eye,
   EyeOff,
@@ -74,8 +75,8 @@ const emptySnapshot: Snapshot = {
     appName: "Micham",
     tagline: "Micham evlo irukku?",
     logoText: "M",
-    primaryColor: "#2563eb",
-    accentColor: "#16a34a",
+    primaryColor: "#0878ff",
+    accentColor: "#00a77f",
     surfaceColor: "#f8fafc",
     textColor: "#0f172a",
     defaultCurrency: "INR",
@@ -411,12 +412,12 @@ function App() {
       <div className="grid min-h-screen grid-rows-[auto_1fr_auto]">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-            <button className="logo-button" title="Settings" onClick={() => setView("settings")}>
-              <Logo config={snapshot.config} />
-            </button>
             <div className="min-w-0 flex-1">
               <Wordmark config={snapshot.config} />
             </div>
+            <button className="profile-button" title="Settings" onClick={() => setView("settings")}>
+              <CircleUserRound size={22} />
+            </button>
           </div>
         </header>
 

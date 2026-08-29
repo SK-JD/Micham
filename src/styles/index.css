@@ -3,14 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --brand: #2563eb;
-  --accent: #16a34a;
+  --brand: #0878ff;
+  --accent: #00a77f;
   --surface: #f8fafc;
   --text: #0f172a;
   --panel: #ffffff;
   --panel-muted: #f8fafc;
   --border: #e2e8f0;
   --muted: #64748b;
+  --brand-gradient: linear-gradient(135deg, var(--brand) 0%, #0797d9 48%, var(--accent) 100%);
 }
 
 :root[data-theme="dark"] {
@@ -65,6 +66,18 @@ button:disabled {
 .logo-button {
   border-radius: 8px;
   display: inline-flex;
+}
+
+.profile-button {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--brand);
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
 }
 
 .app-logo-image {
@@ -125,11 +138,12 @@ button:disabled {
 }
 
 .primary-button {
-  background: var(--brand);
+  background: var(--brand-gradient);
   color: white;
   gap: 0.5rem;
   min-height: 44px;
   padding: 0.65rem 1rem;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 
 .secondary-button,
@@ -211,7 +225,7 @@ button:disabled {
 }
 
 .add-nav-button {
-  background: var(--brand);
+  background: var(--brand-gradient);
   color: white;
   flex-direction: column;
   gap: 0.15rem;
@@ -221,7 +235,7 @@ button:disabled {
 }
 
 .add-nav-button-active {
-  background: color-mix(in srgb, var(--brand) 84%, black);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 84%, black), color-mix(in srgb, var(--accent) 84%, black));
 }
 
 .more-button {
@@ -235,8 +249,7 @@ button:disabled {
 
 .home-hero {
   align-items: center;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--brand) 88%, #0f172a), color-mix(in srgb, var(--accent) 70%, #0f172a));
+  background: var(--brand-gradient);
   border-radius: 12px;
   color: white;
   display: flex;
@@ -378,7 +391,7 @@ button:disabled {
 
 .local-use-button {
   align-items: center;
-  background: #0f172a;
+  background: var(--brand-gradient);
   border-radius: 8px;
   color: white;
   display: inline-flex;
@@ -1325,6 +1338,12 @@ button:disabled {
 
 :root[data-theme="dark"] .app-logo-image {
   background: white;
+}
+
+:root[data-theme="dark"] .profile-button {
+  background: var(--panel-muted);
+  border-color: var(--border);
+  color: #38bdf8;
 }
 
 @media (max-width: 640px) {

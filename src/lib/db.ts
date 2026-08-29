@@ -85,7 +85,15 @@ export const db = new MichamDatabase();
 
 export async function initializeDatabase() {
   const config = await db.appConfig.get("primary");
-  if (!config) await db.appConfig.put(defaultConfig);
+  if (!config) {
+    await db.appConfig.put(defaultConfig);
+  } else if (config.primaryColor === "#2563eb" && config.accentColor === "#16a34a") {
+    await db.appConfig.update("primary", {
+      primaryColor: defaultConfig.primaryColor,
+      accentColor: defaultConfig.accentColor,
+      updatedAt: defaultConfig.updatedAt,
+    });
+  }
 
   const categoryCount = await db.categories.count();
   if (categoryCount === 0) await db.categories.bulkPut(seedCategories());
