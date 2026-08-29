@@ -587,6 +587,73 @@ button:disabled {
   width: 100%;
 }
 
+.page-title,
+.panel-title {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  letter-spacing: 0;
+}
+
+.page-title {
+  color: #0f172a;
+  font-size: 1.5rem;
+  font-weight: 750;
+  margin: 0;
+}
+
+.panel-title {
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+}
+
+.panel-title svg,
+.page-title svg {
+  color: var(--brand);
+  flex: 0 0 auto;
+}
+
+:root[data-theme="dark"] .page-title,
+:root[data-theme="dark"] .panel-title {
+  color: #f8fafc;
+}
+
+.transaction-extra-grid {
+  align-items: start;
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+}
+
+.receipt-control {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.receipt-preview {
+  aspect-ratio: 16 / 9;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.receipt-link {
+  align-items: center;
+  color: var(--brand);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 700;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .segmented-control {
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
@@ -1004,21 +1071,52 @@ button:disabled {
 }
 
 .toast {
-  background: #0f172a;
+  align-items: center;
+  background: white;
+  border: 1px solid #dbe3ef;
   border-radius: 8px;
-  color: white;
+  color: #0f172a;
+  display: flex;
   font-size: 0.9rem;
   font-weight: 650;
-  padding: 0.75rem 0.9rem;
-  box-shadow: 0 16px 40px rgb(15 23 42 / 25%);
+  gap: 0.7rem;
+  padding: 0.85rem 0.95rem;
+  box-shadow: 0 18px 45px rgb(15 23 42 / 18%);
+}
+
+.toast::before {
+  border-radius: 999px;
+  content: "";
+  height: 10px;
+  width: 10px;
 }
 
 .toast-success {
-  background: #166534;
+  border-color: #bbf7d0;
+}
+
+.toast-success::before {
+  background: #16a34a;
 }
 
 .toast-error {
-  background: #b91c1c;
+  border-color: #fecaca;
+}
+
+.toast-error::before {
+  background: #dc2626;
+}
+
+.toast-warning {
+  border-color: #fde68a;
+}
+
+.toast-warning::before {
+  background: #f59e0b;
+}
+
+.toast-info::before {
+  background: var(--brand);
 }
 
 @media (max-width: 640px) {
@@ -1029,6 +1127,10 @@ button:disabled {
 
   .hero-add-button {
     width: 100%;
+  }
+
+  .transaction-extra-grid {
+    grid-template-columns: 1fr;
   }
 
   .segmented-control button {

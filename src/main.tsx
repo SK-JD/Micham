@@ -49,7 +49,7 @@ import "./styles/index.css";
 
 type View = "dashboard" | "daily" | "add" | "monthly" | "calendar" | "people" | "manage" | "settings" | "admin" | "ai";
 type SessionRole = "guest" | "user" | "admin";
-type Toast = { id: string; tone: "success" | "error" | "info"; message: string };
+type Toast = { id: string; tone: "success" | "error" | "warning" | "info"; message: string };
 
 interface Snapshot {
   config: AppConfig;
@@ -67,7 +67,7 @@ const emptySnapshot: Snapshot = {
   config: {
     id: "primary",
     appName: "Micham",
-    tagline: "Micham la evlo irukku?",
+    tagline: "Micham evlo irukku?",
     logoText: "M",
     primaryColor: "#2563eb",
     accentColor: "#16a34a",
@@ -1020,7 +1020,7 @@ function AddView({
   return (
     <div className="mx-auto grid max-w-3xl gap-5">
       <div>
-        <h2 className="text-2xl font-semibold text-slate-950">Add Transaction</h2>
+        <h2 className="page-title"><Plus size={24} /> Add Transaction</h2>
         <p className="text-sm text-slate-500">Record expense, income, or transfer quickly.</p>
       </div>
       <QuickTransaction snapshot={snapshot} notify={notify} onDone={onDone} />
@@ -1069,7 +1069,7 @@ function SplitExpensePanel({
   };
 
   return (
-    <Panel title="Split Expense">
+    <Panel title="Split Expense" icon={<Users size={18} />}>
       <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
         <SelectField label="Person" value={personId} onChange={setPersonId}>
           {activePeople.map((person) => (
@@ -1107,6 +1107,7 @@ function QuickTransaction({
   const [categoryId, setCategoryId] = useState(expenseCategory?.id ?? "");
   const [note, setNote] = useState("");
   const [receiptName, setReceiptName] = useState("");
+  const [receiptData, setReceiptData] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
@@ -1127,18 +1128,41 @@ function QuickTransaction({
       notify?.("Choose two different accounts for a transfer.", "error");
       return;
     }
+    const numericAmount = Number(amount) || 0;
+    let overBudget = false;
+    if (type === "expense" && categoryId) {
+      const activeBudget = snapshot.budgets.find((budget) => budget.active && budget.categoryId === categoryId);
+      const category = snapshot.categories.find((item) => item.id === categoryId);
+      if (activeBudget) {
+        const usage = budgetUsage(activeBudget, snapshot.transactions);
+        const projected = usage.spent + numericAmount;
+        if (projected > activeBudget.amount) {
+          const overBy = projected - activeBudget.amount;
+          const shouldContinue = confirm(
+            `${category?.name ?? "This category"} budget will exceed by ${formatMoney(overBy, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)}. Save anyway?`,
+          );
+          if (!shouldContinue) {
+            notify?.("Expense not saved.", "warning");
+            return;
+          }
+          overBudget = true;
+        }
+      }
+    }
     const timestamp = nowIso();
     const transactionDate = `${date}T${new Date().toTimeString().slice(0, 8)}`;
     await db.transactions.put({
       id: createId(),
       ownerProfileId: snapshot.profile?.id,
       type,
-      amount: Number(amount) || 0,
+      amount: numericAmount,
       accountId,
       toAccountId: type === "transfer" ? toAccountId : undefined,
       categoryId: type === "transfer" ? undefined : categoryId,
       date: transactionDate,
       note,
+      receiptName: receiptName || undefined,
+      receiptData: receiptData || undefined,
       createdAt: timestamp,
       updatedAt: timestamp,
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
@@ -1146,18 +1170,21 @@ function QuickTransaction({
     setAmount("");
     setNote("");
     setReceiptName("");
-    notify?.(`${type[0].toUpperCase() + type.slice(1)} saved.`, "success");
+    setReceiptData("");
+    notify?.(overBudget ? "Expense saved over budget." : `${type[0].toUpperCase() + type.slice(1)} saved.`, overBudget ? "warning" : "success");
     await onDone();
   };
 
   const attachReceipt = (file?: File) => {
     if (!file) return;
     setReceiptName(file.name);
-    setNote((value) => value || `Receipt image: ${file.name}`);
+    const reader = new FileReader();
+    reader.onload = () => setReceiptData(String(reader.result));
+    reader.readAsDataURL(file);
   };
 
   return (
-    <Panel title="Quick Add">
+    <Panel title="Quick Add" icon={<Plus size={18} />}>
       <div className="grid gap-4">
         <div className="segmented-control">
           {(["expense", "income", "transfer"] as TransactionType[]).map((item) => (
@@ -1200,14 +1227,20 @@ function QuickTransaction({
             Save
           </button>
         </div>
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-          <input className="field-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
-          <label className="secondary-button cursor-pointer">
-            <Image size={18} /> Receipt
-            <input className="hidden" type="file" accept="image/*" onChange={(event) => attachReceipt(event.target.files?.[0])} />
+        <div className="transaction-extra-grid">
+          <label className="grid gap-1">
+            <span className="field-label">Note</span>
+            <input className="field-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Tea, fuel, rent..." />
           </label>
+          <div className="receipt-control">
+            <span className="field-label">Receipt</span>
+            <label className="secondary-button cursor-pointer">
+              <Image size={18} /> {receiptName ? "Change Receipt" : "Add Receipt"}
+              <input className="hidden" type="file" accept="image/*" onChange={(event) => attachReceipt(event.target.files?.[0])} />
+            </label>
+            {receiptData ? <img className="receipt-preview" src={receiptData} alt={receiptName || "Receipt preview"} /> : null}
+          </div>
         </div>
-        {receiptName ? <p className="text-sm text-slate-500">Attached: {receiptName}</p> : null}
       </div>
     </Panel>
   );
@@ -1242,8 +1275,48 @@ function DailyView({
 }
 
 function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: string }) {
-  const summary = summarize(snapshot.transactions);
-  const spending = categorySpend(snapshot.categories, snapshot.transactions);
+  const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [accountFilter, setAccountFilter] = useState("all");
+  const filteredTransactions = snapshot.transactions.filter((transaction) => {
+    const typeMatch = typeFilter === "all" || transaction.type === typeFilter;
+    const categoryMatch = categoryFilter === "all" || transaction.categoryId === categoryFilter;
+    const accountMatch = accountFilter === "all" || transaction.accountId === accountFilter || transaction.toAccountId === accountFilter;
+    return typeMatch && categoryMatch && accountMatch;
+  });
+  const summary = summarize(filteredTransactions);
+  const spending = categorySpend(snapshot.categories, filteredTransactions);
+  const accountRows = snapshot.accounts.map((account) => ({
+    account,
+    balance: accountBalance(account, filteredTransactions),
+  }));
+
+  const downloadReport = () => {
+    const escapeCsv = (value: string | number | undefined) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const rows = filteredTransactions.map((transaction) => {
+      const account = snapshot.accounts.find((item) => item.id === transaction.accountId);
+      const toAccount = snapshot.accounts.find((item) => item.id === transaction.toAccountId);
+      const category = snapshot.categories.find((item) => item.id === transaction.categoryId);
+      return [
+        transaction.date,
+        transaction.type,
+        transaction.amount,
+        account?.name,
+        toAccount?.name,
+        category?.name,
+        transaction.note,
+        transaction.receiptName,
+      ].map(escapeCsv).join(",");
+    });
+    const csv = ["Date,Type,Amount,Account,To Account,Category,Note,Receipt", ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${snapshot.config.appName.toLowerCase()}-report.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
   return (
     <div className="grid gap-5">
       <div className="grid gap-3 sm:grid-cols-3">
@@ -1251,8 +1324,37 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
         <StatCard label="Expenses" value={formatMoney(summary.monthlyExpenses, currency)} />
         <StatCard label="Savings" value={formatMoney(summary.monthlySavings, currency)} />
       </div>
+      <Panel title="Report Filters" icon={<SlidersHorizontal size={18} />}>
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <SelectField label="Type" value={typeFilter} onChange={(value) => setTypeFilter(value as "all" | TransactionType)}>
+            <option value="all">All types</option>
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+            <option value="transfer">Transfer</option>
+          </SelectField>
+          <SelectField label="Category" value={categoryFilter} onChange={setCategoryFilter}>
+            <option value="all">All categories</option>
+            {snapshot.categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Account" value={accountFilter} onChange={setAccountFilter}>
+            <option value="all">All accounts</option>
+            {snapshot.accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </SelectField>
+          <button className="primary-button" onClick={downloadReport} disabled={filteredTransactions.length === 0}>
+            <Download size={18} /> Download
+          </button>
+        </div>
+      </Panel>
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="Category Spending">
+        <Panel title="Category Spending" icon={<BarChart3 size={18} />}>
           <div className="grid gap-2">
             {spending.map(({ category, amount }) => (
               <div className="row" key={category.id}>
@@ -1263,7 +1365,25 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
             {spending.length === 0 ? <Empty text="No spending this month." /> : null}
           </div>
         </Panel>
-        <Panel title="Budgets">
+        <Panel title="Account Usage" icon={<WalletCards size={18} />}>
+          <div className="chart-list">
+            {accountRows.map(({ account, balance }) => {
+              const maxBalance = Math.max(...accountRows.map((item) => Math.abs(item.balance)), 1);
+              return (
+                <div className="bar-row" key={account.id}>
+                  <div className="bar-row-header">
+                    <span>{account.name}</span>
+                    <strong>{formatMoney(balance, currency)}</strong>
+                  </div>
+                  <div className="bar-track">
+                    <span className={balance < 0 ? "danger-bar" : ""} style={{ width: `${Math.max(6, (Math.abs(balance) / maxBalance) * 100)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+        <Panel title="Budgets" icon={<WalletCards size={18} />}>
           <div className="grid gap-3">
             {snapshot.budgets
               .filter((budget) => budget.active)
@@ -1277,13 +1397,16 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
                       <strong>{formatMoney(usage.remaining, currency)} left</strong>
                     </div>
                     <div className="progress">
-                      <span style={{ width: `${usage.percentage}%` }} />
+                      <span className={usage.remaining < 0 ? "danger-bar" : ""} style={{ width: `${Math.min(100, usage.percentage)}%` }} />
                     </div>
                   </div>
                 );
               })}
             {snapshot.budgets.length === 0 ? <Empty text="Create budgets in Manage." /> : null}
           </div>
+        </Panel>
+        <Panel title="Transactions" icon={<Download size={18} />}>
+          <TransactionList snapshot={snapshot} currency={currency} transactions={filteredTransactions.slice().reverse()} />
         </Panel>
       </div>
     </div>
@@ -1428,7 +1551,7 @@ function PeopleView({
       updatedAt: nowIso(),
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     });
-    notify(linked ? "Friend hidden because existing records use it." : "Friend removed.", "success");
+    notify(linked ? "Friend hidden because existing records use it." : "Friend removed.", "warning");
     await onDone();
   };
 
@@ -1594,7 +1717,7 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
       updatedAt: nowIso(),
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     });
-    notify(linked ? "Account hidden from active use." : "Account removed.", "success");
+    notify(linked ? "Account hidden from active use." : "Account removed.", "warning");
     await onDone();
   };
 
@@ -1606,7 +1729,7 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
       updatedAt: nowIso(),
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     });
-    notify(linked ? "Category hidden because existing records use it." : "Category removed.", "success");
+    notify(linked ? "Category hidden because existing records use it." : "Category removed.", "warning");
     await onDone();
   };
 
@@ -2262,6 +2385,11 @@ function TransactionList({ snapshot, currency, transactions }: { snapshot: Snaps
               <p className="truncate text-xs text-slate-500">
                 {transaction.type === "transfer" ? `${account?.name} to ${toAccount?.name}` : `${account?.name ?? ""} ${category?.name ? `- ${category.name}` : ""}`} · {formatDate(transaction.date)}
               </p>
+              {transaction.receiptName ? (
+                <a className="receipt-link" href={transaction.receiptData} target="_blank" rel="noreferrer">
+                  <Image size={14} /> {transaction.receiptName}
+                </a>
+              ) : null}
             </div>
             <strong className={transaction.type === "income" ? "text-emerald-700" : transaction.type === "expense" ? "text-rose-700" : "text-slate-800"}>
               {formatMoney(transaction.amount, currency)}
@@ -2273,10 +2401,10 @@ function TransactionList({ snapshot, currency, transactions }: { snapshot: Snaps
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="mb-4 text-base font-semibold text-slate-950">{title}</h2>
+      <h2 className="panel-title">{icon}{title}</h2>
       {children}
     </section>
   );

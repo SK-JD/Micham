@@ -10,7 +10,7 @@ export const createId = () => {
 export const defaultConfig: AppConfig = {
   id: "primary",
   appName: "Micham",
-  tagline: "Micham la evlo irukku?",
+  tagline: "Micham evlo irukku?",
   logoText: "M",
   primaryColor: "#2563eb",
   accentColor: "#16a34a",

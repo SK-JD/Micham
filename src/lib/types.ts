@@ -67,6 +67,8 @@ export interface Transaction extends BaseEntity {
   categoryId?: string;
   date: string;
   note: string;
+  receiptName?: string;
+  receiptData?: string;
   personIds?: string[];
 }
 
