@@ -7,11 +7,19 @@
   --accent: #16a34a;
   --surface: #f8fafc;
   --text: #0f172a;
+  --panel: #ffffff;
+  --panel-muted: #f8fafc;
+  --border: #e2e8f0;
+  --muted: #64748b;
 }
 
 :root[data-theme="dark"] {
   --surface: #0f172a;
   --text: #e5e7eb;
+  --panel: #111827;
+  --panel-muted: #0b1120;
+  --border: #334155;
+  --muted: #94a3b8;
 }
 
 * {
@@ -57,6 +65,41 @@ button:disabled {
 .logo-button {
   border-radius: 8px;
   display: inline-flex;
+}
+
+.app-logo-image {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  height: 44px;
+  object-fit: contain;
+  padding: 0.18rem;
+  width: 44px;
+}
+
+.wordmark-wrap {
+  display: grid;
+  gap: 0.05rem;
+  max-width: 230px;
+}
+
+.wordmark-wrap img {
+  background: transparent;
+  display: block;
+  height: 30px;
+  max-width: 180px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.wordmark-wrap span,
+.wordmark-wrap small {
+  display: none;
+}
+
+.auth-brand .wordmark-wrap img {
+  height: 42px;
+  max-width: 240px;
 }
 
 .primary-button,
@@ -642,6 +685,7 @@ button:disabled {
 
 .receipt-link {
   align-items: center;
+  background: transparent;
   color: var(--brand);
   display: inline-flex;
   font-size: 0.78rem;
@@ -652,6 +696,79 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.modal-backdrop {
+  align-items: center;
+  background: rgb(15 23 42 / 70%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 90;
+}
+
+.receipt-viewer {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 28px 80px rgb(15 23 42 / 38%);
+  display: grid;
+  gap: 0.9rem;
+  max-height: min(760px, 92vh);
+  overflow: hidden;
+  padding: 1rem;
+  width: min(920px, 96vw);
+}
+
+.receipt-viewer-head {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.receipt-viewer-head p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0.15rem 0 0;
+}
+
+.receipt-viewer img {
+  border-radius: 8px;
+  max-height: 68vh;
+  object-fit: contain;
+  width: 100%;
+}
+
+.history-table {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  overflow: auto;
+}
+
+.history-row {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 110px minmax(170px, 1fr) 100px 100px 110px;
+  min-width: 620px;
+  padding: 0.7rem 0.8rem;
+}
+
+.history-row:last-child {
+  border-bottom: 0;
+}
+
+.history-head {
+  background: var(--panel-muted);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .segmented-control {
@@ -1117,6 +1234,97 @@ button:disabled {
 
 .toast-info::before {
   background: var(--brand);
+}
+
+:root[data-theme="dark"] header,
+:root[data-theme="dark"] nav,
+:root[data-theme="dark"] section.rounded-lg,
+:root[data-theme="dark"] .auth-card,
+:root[data-theme="dark"] .transaction-row,
+:root[data-theme="dark"] .manage-row,
+:root[data-theme="dark"] .budget-card,
+:root[data-theme="dark"] .friend-card,
+:root[data-theme="dark"] .friend-row,
+:root[data-theme="dark"] .toast {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .field-input,
+:root[data-theme="dark"] .amount-input,
+:root[data-theme="dark"] .picker-button,
+:root[data-theme="dark"] .picker-menu,
+:root[data-theme="dark"] .friend-balance,
+:root[data-theme="dark"] .transaction-icon,
+:root[data-theme="dark"] .chat-message,
+:root[data-theme="dark"] .more-button,
+:root[data-theme="dark"] .action-tile,
+:root[data-theme="dark"] .choice-button,
+:root[data-theme="dark"] .segmented-control,
+:root[data-theme="dark"] .daily-bar,
+:root[data-theme="dark"] .history-head {
+  background: var(--panel-muted);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .calendar-day {
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .text-slate-950,
+:root[data-theme="dark"] .text-slate-900,
+:root[data-theme="dark"] .text-slate-800 {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .text-slate-700,
+:root[data-theme="dark"] .text-slate-600,
+:root[data-theme="dark"] .text-slate-500,
+:root[data-theme="dark"] .field-label,
+:root[data-theme="dark"] .select-field span,
+:root[data-theme="dark"] .bar-row-header span,
+:root[data-theme="dark"] .manage-row p,
+:root[data-theme="dark"] .budget-card p,
+:root[data-theme="dark"] .friend-card p,
+:root[data-theme="dark"] .friend-row p,
+:root[data-theme="dark"] .friend-balance span {
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .border-slate-100,
+:root[data-theme="dark"] .border-slate-200,
+:root[data-theme="dark"] .border-slate-300,
+:root[data-theme="dark"] .row,
+:root[data-theme="dark"] .history-row,
+:root[data-theme="dark"] .history-table {
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .bg-white\/95 {
+  background-color: var(--panel);
+}
+
+:root[data-theme="dark"] .bg-slate-50,
+:root[data-theme="dark"] .bg-slate-100,
+:root[data-theme="dark"] .bar-track,
+:root[data-theme="dark"] .progress {
+  background-color: var(--panel-muted);
+}
+
+:root[data-theme="dark"] .flow-ring::after {
+  background: var(--panel);
+}
+
+:root[data-theme="dark"] .flow-ring span {
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .app-logo-image {
+  background: white;
 }
 
 @media (max-width: 640px) {

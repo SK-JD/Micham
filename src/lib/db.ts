@@ -6,6 +6,7 @@ import type {
   Category,
   Person,
   Profile,
+  Repayment,
   RecurringTransaction,
   Settlement,
   SyncOperation,
@@ -23,6 +24,7 @@ class MichamDatabase extends Dexie {
   recurringTransactions!: Table<RecurringTransaction, string>;
   people!: Table<Person, string>;
   settlements!: Table<Settlement, string>;
+  repayments!: Table<Repayment, string>;
   syncQueue!: Table<SyncOperation, string>;
 
   constructor() {
@@ -61,6 +63,19 @@ class MichamDatabase extends Dexie {
       recurringTransactions: "id, ownerProfileId, accountId, categoryId, active, nextDate, updatedAt",
       people: "id, ownerProfileId, connectedUserId, active, updatedAt",
       settlements: "id, ownerProfileId, personId, direction, date, updatedAt",
+      syncQueue: "id, entity, entityId, action, updatedAt",
+    });
+    this.version(4).stores({
+      appConfig: "id, updatedAt",
+      profiles: "id, loginId, connectedUserId, setupComplete, updatedAt",
+      accounts: "id, ownerProfileId, active, updatedAt",
+      categories: "id, ownerProfileId, kind, parentId, active, updatedAt",
+      transactions: "id, ownerProfileId, type, accountId, toAccountId, categoryId, date, updatedAt",
+      budgets: "id, ownerProfileId, categoryId, active, updatedAt",
+      recurringTransactions: "id, ownerProfileId, accountId, categoryId, active, nextDate, updatedAt",
+      people: "id, ownerProfileId, connectedUserId, active, updatedAt",
+      settlements: "id, ownerProfileId, personId, direction, linkedSettlementId, date, updatedAt",
+      repayments: "id, ownerProfileId, settlementId, personId, linkedRepaymentId, date, updatedAt",
       syncQueue: "id, entity, entityId, action, updatedAt",
     });
   }

@@ -108,8 +108,19 @@ export interface Settlement extends BaseEntity {
   originalAmount: number;
   repaidAmount: number;
   transactionId?: string;
+  linkedSettlementId?: string;
   date: string;
   note: string;
+}
+
+export interface Repayment extends BaseEntity {
+  ownerProfileId?: string;
+  settlementId: string;
+  personId: string;
+  amount: number;
+  date: string;
+  note: string;
+  linkedRepaymentId?: string;
 }
 
 export interface SyncOperation extends BaseEntity {
@@ -130,5 +141,6 @@ export interface ImportPayload {
   recurringTransactions: RecurringTransaction[];
   people: Person[];
   settlements: Settlement[];
+  repayments?: Repayment[];
   config: AppConfig;
 }

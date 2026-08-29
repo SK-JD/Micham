@@ -40,12 +40,16 @@ import type {
   ImportPayload,
   Person,
   Profile,
+  Repayment,
   RecurringTransaction,
   Settlement,
   Transaction,
   TransactionType,
 } from "./lib/types";
 import "./styles/index.css";
+
+const defaultAppLogoUrl = new URL("../Logos/Micham_app_logo.svg", import.meta.url).href;
+const defaultWordmarkUrl = new URL("../Logos/Micham_bottom_wordmark_tagline.svg", import.meta.url).href;
 
 type View = "dashboard" | "daily" | "add" | "monthly" | "calendar" | "people" | "manage" | "settings" | "admin" | "ai";
 type SessionRole = "guest" | "user" | "admin";
@@ -61,6 +65,7 @@ interface Snapshot {
   recurring: RecurringTransaction[];
   people: Person[];
   settlements: Settlement[];
+  repayments: Repayment[];
 }
 
 const emptySnapshot: Snapshot = {
@@ -90,6 +95,7 @@ const emptySnapshot: Snapshot = {
   recurring: [],
   people: [],
   settlements: [],
+  repayments: [],
 };
 
 const LOGIN_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
@@ -139,17 +145,18 @@ function uniqueById<T extends { id: string }>(items: T[]) {
 
 async function claimUnownedData(profileId: string) {
   const timestamp = nowIso();
-  const [accounts, transactions, budgets, recurring, people, settlements] = await Promise.all([
+  const [accounts, transactions, budgets, recurring, people, settlements, repayments] = await Promise.all([
     db.accounts.toArray(),
     db.transactions.toArray(),
     db.budgets.toArray(),
     db.recurringTransactions.toArray(),
     db.people.toArray(),
     db.settlements.toArray(),
+    db.repayments.toArray(),
   ]);
   await db.transaction(
     "rw",
-    [db.accounts, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements],
+    [db.accounts, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
     async () => {
       await db.accounts.bulkPut(accounts.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
       await db.transactions.bulkPut(transactions.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
@@ -157,6 +164,7 @@ async function claimUnownedData(profileId: string) {
       await db.recurringTransactions.bulkPut(recurring.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
       await db.people.bulkPut(people.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
       await db.settlements.bulkPut(settlements.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
+      await db.repayments.bulkPut(repayments.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
     },
   );
 }
@@ -196,6 +204,87 @@ async function createOrGetLocalProfile(config: AppConfig) {
   return profileId;
 }
 
+function inverseDirection(direction: "to_me" | "by_me") {
+  return direction === "to_me" ? "by_me" : "to_me";
+}
+
+async function ensureMirrorPerson(ownerProfile: Profile, connectedProfile: Profile, syncEnabled: boolean) {
+  const existingPeople = await db.people.toArray();
+  const existing = existingPeople.find(
+    (person) => person.ownerProfileId === ownerProfile.id && person.connectedUserId === connectedProfile.connectionCode && !person.deletedAt,
+  );
+  if (existing) return existing;
+
+  const timestamp = nowIso();
+  const person: Person = {
+    id: createId(),
+    ownerProfileId: ownerProfile.id,
+    localDisplayName: connectedProfile.displayName,
+    inviteCode: connectedProfile.connectionCode,
+    connectedUserId: connectedProfile.connectionCode,
+    status: "connected",
+    active: true,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    syncState: syncEnabled ? "queued" : "local",
+  };
+  await db.people.put(person);
+  return person;
+}
+
+async function mirrorConnectedSettlement(profile: Profile | undefined, person: Person | undefined, settlement: Settlement, syncEnabled: boolean) {
+  if (!profile?.connectionCode || !person?.connectedUserId || person.status !== "connected") return;
+  const profiles = await db.profiles.toArray();
+  const connectedProfile = profiles.find((item) => item.connectionCode === person.connectedUserId);
+  if (!connectedProfile) return;
+
+  const mirrorPerson = await ensureMirrorPerson(connectedProfile, profile, syncEnabled);
+  const timestamp = nowIso();
+  const mirrorSettlement: Settlement = {
+    id: createId(),
+    ownerProfileId: connectedProfile.id,
+    personId: mirrorPerson.id,
+    direction: inverseDirection(settlement.direction),
+    originalAmount: settlement.originalAmount,
+    repaidAmount: settlement.repaidAmount,
+    linkedSettlementId: settlement.id,
+    date: settlement.date,
+    note: settlement.note,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    syncState: syncEnabled ? "queued" : "local",
+  };
+  await db.transaction("rw", db.settlements, async () => {
+    await db.settlements.put(mirrorSettlement);
+    await db.settlements.update(settlement.id, { linkedSettlementId: mirrorSettlement.id, updatedAt: timestamp });
+  });
+}
+
+async function mirrorConnectedRepayment(settlement: Settlement, person: Person | undefined, repayment: Repayment, totalRepaid: number, syncEnabled: boolean) {
+  if (!settlement.linkedSettlementId || !person?.connectedUserId || person.status !== "connected") return;
+  const linkedSettlement = await db.settlements.get(settlement.linkedSettlementId);
+  if (!linkedSettlement) return;
+  const timestamp = nowIso();
+  const mirrorRepayment: Repayment = {
+    id: createId(),
+    ownerProfileId: linkedSettlement.ownerProfileId,
+    settlementId: linkedSettlement.id,
+    personId: linkedSettlement.personId,
+    amount: repayment.amount,
+    date: repayment.date,
+    note: repayment.note,
+    linkedRepaymentId: repayment.id,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    syncState: syncEnabled ? "queued" : "local",
+  };
+  await db.transaction("rw", db.settlements, db.repayments, async () => {
+    await db.repayments.put(mirrorRepayment);
+    await db.repayments.update(repayment.id, { linkedRepaymentId: mirrorRepayment.id, updatedAt: timestamp });
+    await db.settlements.update(linkedSettlement.id, { repaidAmount: totalRepaid, updatedAt: timestamp, syncState: syncEnabled ? "queued" : "local" });
+  });
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [loading, setLoading] = useState(true);
@@ -213,7 +302,7 @@ function App() {
   };
 
   const refresh = async (profileId = currentProfileId) => {
-    const [config, profiles, accounts, categories, transactions, budgets, recurring, people, settlements] = await Promise.all([
+    const [config, profiles, accounts, categories, transactions, budgets, recurring, people, settlements, repayments] = await Promise.all([
       db.appConfig.get("primary"),
       db.profiles.toArray(),
       db.accounts.toArray(),
@@ -223,6 +312,7 @@ function App() {
       db.recurringTransactions.toArray(),
       db.people.toArray(),
       db.settlements.toArray(),
+      db.repayments.toArray(),
     ]);
     const profile = profileId ? profiles.find((item) => item.id === profileId) : undefined;
     setSnapshot({
@@ -235,6 +325,7 @@ function App() {
       recurring: uniqueById(recurring.filter((item) => belongsToProfile(item, profile?.id))),
       people: uniqueById(people.filter((item) => belongsToProfile(item, profile?.id))),
       settlements: uniqueById(settlements.filter((item) => belongsToProfile(item, profile?.id))),
+      repayments: uniqueById(repayments.filter((item) => belongsToProfile(item, profile?.id))),
     });
   };
 
@@ -247,8 +338,8 @@ function App() {
   useEffect(() => {
     document.documentElement.style.setProperty("--brand", snapshot.config.primaryColor);
     document.documentElement.style.setProperty("--accent", snapshot.config.accentColor);
-    document.documentElement.style.setProperty("--surface", snapshot.config.surfaceColor);
-    document.documentElement.style.setProperty("--text", snapshot.config.textColor);
+    document.documentElement.style.setProperty("--surface", snapshot.config.themeMode === "dark" ? "#0f172a" : snapshot.config.surfaceColor);
+    document.documentElement.style.setProperty("--text", snapshot.config.themeMode === "dark" ? "#e5e7eb" : snapshot.config.textColor);
     document.documentElement.dataset.theme = snapshot.config.themeMode;
     document.title = snapshot.config.appName;
   }, [snapshot.config]);
@@ -265,6 +356,12 @@ function App() {
   );
   const totalBalance = balances.reduce((sum, item) => sum + item.balance, 0);
   const summary = summarize(snapshot.transactions, selectedDate);
+  const logoutUser = () => {
+    sessionStorage.removeItem("micham_role");
+    sessionStorage.removeItem("micham_profile_id");
+    setSessionRole("guest");
+    setCurrentProfileId("");
+  };
 
   if (loading) return <Shell snapshot={snapshot}>Loading...</Shell>;
 
@@ -318,21 +415,8 @@ function App() {
               <Logo config={snapshot.config} />
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-lg font-semibold text-slate-950">{snapshot.config.appName}</h1>
-              <p className="truncate text-xs text-slate-500">{snapshot.config.tagline}</p>
+              <Wordmark config={snapshot.config} />
             </div>
-            <button
-              className="icon-button"
-              title="Logout"
-              onClick={() => {
-                sessionStorage.removeItem("micham_role");
-                sessionStorage.removeItem("micham_profile_id");
-                setSessionRole("guest");
-                setCurrentProfileId("");
-              }}
-            >
-              <LogOut size={18} />
-            </button>
           </div>
         </header>
 
@@ -358,7 +442,7 @@ function App() {
           )}
           {view === "people" && <PeopleView snapshot={snapshot} currency={currency} notify={notify} onDone={refresh} />}
           {view === "manage" && <ManageView snapshot={snapshot} notify={notify} onDone={refresh} />}
-          {view === "settings" && <SettingsView snapshot={snapshot} notify={notify} onDone={refresh} />}
+          {view === "settings" && <SettingsView snapshot={snapshot} notify={notify} onDone={refresh} onLogout={logoutUser} />}
           {view === "ai" && <AiChatView snapshot={snapshot} currency={currency} notify={notify} />}
         </main>
 
@@ -391,20 +475,22 @@ function App() {
 
 function Shell({ snapshot, children }: { snapshot: Snapshot; children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[var(--surface)] text-[var(--text)]" style={{ background: snapshot.config.surfaceColor }}>
+    <div className="min-h-screen bg-[var(--surface)] text-[var(--text)]">
       {children}
     </div>
   );
 }
 
 function Logo({ config }: { config: AppConfig }) {
-  if (config.logoImage) {
-    return <img className="h-10 w-10 shrink-0 rounded-lg object-cover" src={config.logoImage} alt={`${config.appName} logo`} />;
-  }
+  return <img className="app-logo-image" src={config.logoImage || defaultAppLogoUrl} alt={`${config.appName} logo`} />;
+}
 
+function Wordmark({ config }: { config: AppConfig }) {
   return (
-    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg font-bold text-white" style={{ background: config.primaryColor }}>
-      {config.logoText.slice(0, 3)}
+    <div className="wordmark-wrap">
+      <img src={defaultWordmarkUrl} alt={`${config.appName} wordmark`} />
+      <span>{config.appName}</span>
+      <small>{config.tagline}</small>
     </div>
   );
 }
@@ -580,10 +666,7 @@ function AuthGate({
     <div className="auth-screen">
       <section className="auth-brand">
         <Logo config={config} />
-        <div>
-          <h1>{config.appName}</h1>
-          <p>{config.tagline}</p>
-        </div>
+        <Wordmark config={config} />
       </section>
 
       <section className="auth-card">
@@ -746,10 +829,7 @@ function Onboarding({ config, onDone }: { config: AppConfig; onDone: () => Promi
       <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-8">
         <div className="mb-8 flex items-center gap-3">
           <Logo config={config} />
-          <div>
-            <h1 className="text-2xl font-semibold">{config.appName}</h1>
-            <p className="text-slate-500">{config.tagline}</p>
-          </div>
+          <Wordmark config={config} />
         </div>
         <div className="grid gap-3">
           <button className="choice-button" onClick={() => setMode("offline")}>
@@ -1473,6 +1553,18 @@ function PeopleView({
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"to_me" | "by_me">("to_me");
   const [note, setNote] = useState("");
+  const openSettlements = snapshot.settlements.filter((settlement) => !settlement.deletedAt && settlement.repaidAmount < settlement.originalAmount);
+  const [repaymentSettlementId, setRepaymentSettlementId] = useState(openSettlements[0]?.id ?? "");
+  const [repaymentAmount, setRepaymentAmount] = useState("");
+  const [repaymentNote, setRepaymentNote] = useState("");
+
+  useEffect(() => {
+    if (!activePeople.some((person) => person.id === personId)) setPersonId(activePeople[0]?.id ?? "");
+  }, [activePeople, personId]);
+
+  useEffect(() => {
+    if (!openSettlements.some((settlement) => settlement.id === repaymentSettlementId)) setRepaymentSettlementId(openSettlements[0]?.id ?? "");
+  }, [openSettlements, repaymentSettlementId]);
 
   const addPerson = async () => {
     if (!name.trim()) {
@@ -1516,7 +1608,7 @@ function PeopleView({
       return;
     }
     const timestamp = nowIso();
-    await db.settlements.put({
+    const settlement: Settlement = {
       id: createId(),
       ownerProfileId: snapshot.profile?.id,
       personId,
@@ -1528,10 +1620,64 @@ function PeopleView({
       createdAt: timestamp,
       updatedAt: timestamp,
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
-    });
+    };
+    await db.settlements.put(settlement);
+    await mirrorConnectedSettlement(
+      snapshot.profile,
+      snapshot.people.find((person) => person.id === personId),
+      settlement,
+      snapshot.config.syncEnabled,
+    );
     setAmount("");
     setNote("");
     notify("Owe/owed entry recorded.", "success");
+    await onDone();
+  };
+
+  const addRepayment = async () => {
+    const settlement = snapshot.settlements.find((item) => item.id === repaymentSettlementId);
+    if (!settlement) {
+      notify("Choose an owe/owed record.", "error");
+      return;
+    }
+    const numericAmount = Number(repaymentAmount) || 0;
+    const remaining = settlement.originalAmount - settlement.repaidAmount;
+    if (!numericAmount || numericAmount > remaining) {
+      notify(`Enter a returned amount up to ${formatMoney(remaining, currency)}.`, "error");
+      return;
+    }
+    const timestamp = nowIso();
+    const repayment: Repayment = {
+      id: createId(),
+      ownerProfileId: snapshot.profile?.id,
+      settlementId: settlement.id,
+      personId: settlement.personId,
+      amount: numericAmount,
+      date: timestamp,
+      note: repaymentNote || "Returned money",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    };
+    const totalRepaid = settlement.repaidAmount + numericAmount;
+    await db.transaction("rw", db.settlements, db.repayments, async () => {
+      await db.repayments.put(repayment);
+      await db.settlements.update(settlement.id, {
+        repaidAmount: totalRepaid,
+        updatedAt: timestamp,
+        syncState: snapshot.config.syncEnabled ? "queued" : "local",
+      });
+    });
+    await mirrorConnectedRepayment(
+      settlement,
+      snapshot.people.find((person) => person.id === settlement.personId),
+      repayment,
+      totalRepaid,
+      snapshot.config.syncEnabled,
+    );
+    setRepaymentAmount("");
+    setRepaymentNote("");
+    notify("Returned money recorded.", "success");
     await onDone();
   };
 
@@ -1635,6 +1781,71 @@ function PeopleView({
               );
             })}
             {snapshot.settlements.length === 0 ? <Empty text="No owe/owed records yet." /> : null}
+          </div>
+        </div>
+      </Panel>
+      <Panel title="Returned Money" icon={<RefreshCw size={18} />}>
+        <div className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_140px_1fr_auto]">
+            <SelectField label="Open record" value={repaymentSettlementId} onChange={setRepaymentSettlementId}>
+              {openSettlements.map((settlement) => {
+                const person = snapshot.people.find((item) => item.id === settlement.personId);
+                const remaining = settlement.originalAmount - settlement.repaidAmount;
+                return (
+                  <option key={settlement.id} value={settlement.id}>
+                    {person?.localDisplayName ?? "Friend"} - {formatMoney(remaining, currency)}
+                  </option>
+                );
+              })}
+            </SelectField>
+            <input className="field-input" type="number" value={repaymentAmount} onChange={(event) => setRepaymentAmount(event.target.value)} placeholder="Returned" />
+            <input className="field-input" value={repaymentNote} onChange={(event) => setRepaymentNote(event.target.value)} placeholder="Cash returned, UPI paid..." />
+            <button className="primary-button" onClick={addRepayment} disabled={!repaymentSettlementId || !repaymentAmount}>
+              Update
+            </button>
+          </div>
+          <div className="history-table">
+            <div className="history-row history-head">
+              <span>Date</span>
+              <span>Description</span>
+              <span>Owed</span>
+              <span>Returned</span>
+              <span>Remaining</span>
+            </div>
+            {snapshot.settlements.slice().reverse().map((settlement) => {
+              const person = snapshot.people.find((item) => item.id === settlement.personId);
+              const repayments = snapshot.repayments.filter((repayment) => repayment.settlementId === settlement.id && !repayment.deletedAt);
+              const rows = [
+                {
+                  id: settlement.id,
+                  date: settlement.date,
+                  description: `${person?.localDisplayName ?? "Friend"} - ${settlement.note || (settlement.direction === "to_me" ? "They owe me" : "I owe them")}`,
+                  owed: settlement.originalAmount,
+                  returned: 0,
+                  remaining: settlement.originalAmount - settlement.repaidAmount,
+                },
+                ...repayments.map((repayment) => ({
+                  id: repayment.id,
+                  date: repayment.date,
+                  description: repayment.note,
+                  owed: 0,
+                  returned: repayment.amount,
+                  remaining: Math.max(0, settlement.originalAmount - repayments
+                    .filter((item) => item.date <= repayment.date)
+                    .reduce((sum, item) => sum + item.amount, 0)),
+                })),
+              ];
+              return rows.map((row) => (
+                <div className="history-row" key={row.id}>
+                  <span>{formatDate(row.date)}</span>
+                  <span>{row.description}</span>
+                  <strong>{row.owed ? formatMoney(row.owed, currency) : "-"}</strong>
+                  <strong>{row.returned ? formatMoney(row.returned, currency) : "-"}</strong>
+                  <strong>{formatMoney(row.remaining, currency)}</strong>
+                </div>
+              ));
+            })}
+            {snapshot.settlements.length === 0 ? <Empty text="No owe/owed history yet." /> : null}
           </div>
         </div>
       </Panel>
@@ -1871,7 +2082,17 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
   );
 }
 
-function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: (message: string, tone?: Toast["tone"]) => void; onDone: () => Promise<void> }) {
+function SettingsView({
+  snapshot,
+  notify,
+  onDone,
+  onLogout,
+}: {
+  snapshot: Snapshot;
+  notify: (message: string, tone?: Toast["tone"]) => void;
+  onDone: () => Promise<void>;
+  onLogout: () => void;
+}) {
   const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
   const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
   const [syncEmail, setSyncEmail] = useState("");
@@ -1893,6 +2114,7 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
       recurringTransactions: snapshot.recurring,
       people: snapshot.people,
       settlements: snapshot.settlements,
+      repayments: snapshot.repayments,
       config: exportableConfig,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -1925,7 +2147,7 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
     if (!shouldImport) return;
     await db.transaction(
       "rw",
-      [db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements],
+      [db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
       async () => {
         await db.accounts.bulkPut(payload.accounts);
         await db.categories.bulkPut(payload.categories);
@@ -1934,6 +2156,7 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
         await db.recurringTransactions.bulkPut(payload.recurringTransactions ?? []);
         await db.people.bulkPut(payload.people ?? []);
         await db.settlements.bulkPut(payload.settlements ?? []);
+        await db.repayments.bulkPut(payload.repayments ?? []);
       },
     );
     notify("Import completed.", "success");
@@ -1976,7 +2199,7 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
     const syncPasswordHash = isLocalProfile ? await hashPassword(syncPassword) : snapshot.profile.passwordHash;
     await db.transaction(
       "rw",
-      [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.appConfig],
+      [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments, db.appConfig],
       async () => {
         await db.profiles.update(snapshot.profile!.id, {
           connectedUserId: connectionCode,
@@ -1994,6 +2217,7 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
         await db.recurringTransactions.bulkPut(snapshot.recurring.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
         await db.people.bulkPut(snapshot.people.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
         await db.settlements.bulkPut(snapshot.settlements.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
+        await db.repayments.bulkPut(snapshot.repayments.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
         await db.appConfig.update("primary", { syncEnabled: true, updatedAt: timestamp });
       },
     );
@@ -2144,6 +2368,9 @@ function SettingsView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify
             <Upload size={18} /> Import JSON
             <input className="hidden" type="file" accept="application/json" onChange={(event) => importData(event.target.files?.[0])} />
           </label>
+          <button className="secondary-button danger-button" onClick={onLogout}>
+            <LogOut size={18} /> Logout
+          </button>
         </div>
       </Panel>
     </div>
@@ -2368,35 +2595,62 @@ function AiChatView({ snapshot, currency, notify }: { snapshot: Snapshot; curren
 }
 
 function TransactionList({ snapshot, currency, transactions }: { snapshot: Snapshot; currency: string; transactions: Transaction[] }) {
+  const [receipt, setReceipt] = useState<Transaction | null>(null);
   if (transactions.length === 0) return <Empty text="No transactions yet." />;
   return (
-    <div className="grid gap-2">
-      {transactions.map((transaction) => {
-        const account = snapshot.accounts.find((item) => item.id === transaction.accountId);
-        const toAccount = snapshot.accounts.find((item) => item.id === transaction.toAccountId);
-        const category = snapshot.categories.find((item) => item.id === transaction.categoryId);
-        return (
-          <div className="transaction-row" key={transaction.id}>
-            <div className="transaction-icon">
-              {transaction.type === "transfer" ? <ArrowRightLeft size={16} /> : transaction.type === "income" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
+    <>
+      <div className="grid gap-2">
+        {transactions.map((transaction) => {
+          const account = snapshot.accounts.find((item) => item.id === transaction.accountId);
+          const toAccount = snapshot.accounts.find((item) => item.id === transaction.toAccountId);
+          const category = snapshot.categories.find((item) => item.id === transaction.categoryId);
+          return (
+            <div className="transaction-row" key={transaction.id}>
+              <div className="transaction-icon">
+                {transaction.type === "transfer" ? <ArrowRightLeft size={16} /> : transaction.type === "income" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{transaction.note || category?.name || transaction.type}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {transaction.type === "transfer" ? `${account?.name} to ${toAccount?.name}` : `${account?.name ?? ""} ${category?.name ? `- ${category.name}` : ""}`} · {formatDate(transaction.date)}
+                </p>
+                {transaction.receiptName ? (
+                  <button className="receipt-link" type="button" onClick={() => setReceipt(transaction)}>
+                    <Image size={14} /> {transaction.receiptName}
+                  </button>
+                ) : null}
+              </div>
+              <strong className={transaction.type === "income" ? "text-emerald-700" : transaction.type === "expense" ? "text-rose-700" : "text-slate-800"}>
+                {formatMoney(transaction.amount, currency)}
+              </strong>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{transaction.note || category?.name || transaction.type}</p>
-              <p className="truncate text-xs text-slate-500">
-                {transaction.type === "transfer" ? `${account?.name} to ${toAccount?.name}` : `${account?.name ?? ""} ${category?.name ? `- ${category.name}` : ""}`} · {formatDate(transaction.date)}
-              </p>
-              {transaction.receiptName ? (
-                <a className="receipt-link" href={transaction.receiptData} target="_blank" rel="noreferrer">
-                  <Image size={14} /> {transaction.receiptName}
-                </a>
-              ) : null}
-            </div>
-            <strong className={transaction.type === "income" ? "text-emerald-700" : transaction.type === "expense" ? "text-rose-700" : "text-slate-800"}>
-              {formatMoney(transaction.amount, currency)}
-            </strong>
+          );
+        })}
+      </div>
+      {receipt ? <ReceiptViewer transaction={receipt} onClose={() => setReceipt(null)} /> : null}
+    </>
+  );
+}
+
+function ReceiptViewer({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="receipt-viewer">
+        <div className="receipt-viewer-head">
+          <div>
+            <strong>{transaction.receiptName || "Receipt"}</strong>
+            <p>{formatDate(transaction.date)}</p>
           </div>
-        );
-      })}
+          <button className="icon-button" onClick={onClose} title="Close">
+            ×
+          </button>
+        </div>
+        {transaction.receiptData ? (
+          <img src={transaction.receiptData} alt={transaction.receiptName || "Receipt"} />
+        ) : (
+          <Empty text="Receipt image data is not available for this older transaction." />
+        )}
+      </div>
     </div>
   );
 }
@@ -2482,7 +2736,7 @@ function SelectField({
   const selected = options.find((option) => option.value === value) ?? options[0];
 
   return (
-    <label className="select-field">
+    <div className="select-field">
       <span>{label}</span>
       <div className="picker">
         <button type="button" className="picker-button" onClick={() => setOpen((item) => !item)}>
@@ -2496,7 +2750,8 @@ function SelectField({
                 type="button"
                 className={option.value === value ? "picker-option picker-option-active" : "picker-option"}
                 key={option.value}
-                onClick={() => {
+                onPointerDown={(event) => {
+                  event.preventDefault();
                   onChange(option.value);
                   setOpen(false);
                 }}
@@ -2507,7 +2762,7 @@ function SelectField({
           </div>
         ) : null}
       </div>
-    </label>
+    </div>
   );
 }
 
