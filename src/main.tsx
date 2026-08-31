@@ -730,28 +730,7 @@ function AuthGate({
       await db.accounts.bulkPut(newAccounts);
     });
 
-    if (isCloudConfigured()) {
-      try {
-        const connectedUserId = await createOrAppendCloudProfile(normalizedLoginId, password, profile, {
-          profile,
-          accounts: newAccounts,
-          categories: [],
-          transactions: [],
-          budgets: [],
-          recurring: [],
-          people: [],
-          settlements: [],
-          repayments: [],
-        });
-        await db.profiles.update(profile.id, { connectedUserId, syncState: "synced", updatedAt: nowIso() });
-        await db.appConfig.update("primary", { syncEnabled: true, updatedAt: nowIso() });
-        notify("Cloud account created and synced.", "success");
-      } catch (error) {
-        notify(error instanceof Error ? error.message : "Cloud account was not created. Local account is saved.", "warning");
-      }
-    } else {
-      notify("Local account created.", "success");
-    }
+    notify("Local account created. Verify and sync from Settings when you want server backup.", "success");
     await onLogin(profileId);
   };
 
@@ -2556,6 +2535,10 @@ function SettingsView({
           <div className="row">
             <span>Name</span>
             <strong>{snapshot.profile?.displayName}</strong>
+          </div>
+          <div className="row">
+            <span>Email</span>
+            <strong>{snapshot.profile?.loginId === "local-device" ? "Local only" : snapshot.profile?.loginId}</strong>
           </div>
           <div className="row">
             <span>Currency</span>

@@ -179,6 +179,13 @@ async function putEntity(type: EntityType, payloads: Record<string, unknown>[]) 
 export async function ensureCloudProfile(profile: Profile) {
   const client = requireClient();
   const userId = await currentUserId(client);
+  const connectionCode = profile.connectionCode || createConnectionCode();
+  const { error: appUserError } = await client.rpc("micham_ensure_auth_app_user", {
+    profile_display_name: profile.displayName,
+    profile_currency: profile.currency,
+    profile_connection_code: connectionCode,
+  });
+  if (appUserError) throw appUserError;
   const email = profile.loginId === "local-device" ? `${userId}@local.micham` : profile.loginId;
   const { error } = await client.from("micham_profiles").upsert(
     {
@@ -187,7 +194,7 @@ export async function ensureCloudProfile(profile: Profile) {
       email,
       display_name: profile.displayName,
       currency: profile.currency,
-      connection_code: profile.connectionCode || createConnectionCode(),
+      connection_code: connectionCode,
     },
     { onConflict: "id" },
   );
@@ -288,8 +295,20 @@ export async function signInAndPushCloudProfile(email: string, password: string,
 export async function createOrAppendCloudProfile(email: string, password: string, profile: Profile, snapshot: CloudSnapshot) {
   try {
     return await signInAndPushCloudProfile(email, password, profile, snapshot);
-  } catch {
-    return signUpCloudProfile(email, password, profile, snapshot);
+  } catch (signInError) {
+    const message = signInError instanceof Error ? signInError.message.toLowerCase() : "";
+    if (!message.includes("invalid login credentials") && !message.includes("email not confirmed")) {
+      throw signInError;
+    }
+    try {
+      return await signUpCloudProfile(email, password, profile, snapshot);
+    } catch (signUpError) {
+      const signUpMessage = signUpError instanceof Error ? signUpError.message : "";
+      if (signUpMessage.toLowerCase().includes("already registered") || signUpMessage.toLowerCase().includes("already exists")) {
+        throw new Error("This email is already registered. Enter the correct cloud password to sync this local data.");
+      }
+      throw signUpError;
+    }
   }
 }
 
