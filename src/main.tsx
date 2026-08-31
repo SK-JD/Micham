@@ -21,6 +21,7 @@ import {
   RefreshCw,
   SlidersHorizontal,
   Settings,
+  Star,
   Sun,
   Trash2,
   Upload,
@@ -1746,6 +1747,7 @@ function PeopleView({
           localDisplayName: friend.display_name || person.localDisplayName,
           connectedUserId: friend.connection_code,
           status: "connected",
+          verified: true,
           syncState: "queued",
           updatedAt: nowIso(),
         });
@@ -1908,6 +1910,7 @@ function PeopleView({
   };
 
   const updatePerson = async (person: Person, patch: Partial<Person>) => {
+    if (patch.status === "blocked" && !confirm(`Block ${person.localDisplayName}? Shared updates from this friend will stop.`)) return;
     await db.people.update(person.id, { ...patch, updatedAt: nowIso() });
     notify("Friend updated.", "success");
     await onDone();
@@ -1917,6 +1920,7 @@ function PeopleView({
     const linked =
       snapshot.settlements.some((settlement) => settlement.personId === person.id) ||
       snapshot.transactions.some((transaction) => transaction.personIds?.includes(person.id));
+    if (!confirm(`${linked ? "Hide" : "Remove"} ${person.localDisplayName}?`)) return;
     await db.people.update(person.id, {
       active: false,
       deletedAt: linked ? undefined : nowIso(),
@@ -1947,7 +1951,10 @@ function PeopleView({
                 <div className="friend-card" key={person.id}>
                   <div className="friend-card-main">
                     <div>
-                      <strong>{person.localDisplayName}</strong>
+                      <strong className="inline-flex items-center gap-1">
+                        {person.verified || person.status === "connected" ? <Star className="verified-star" size={15} fill="currentColor" /> : null}
+                        {person.localDisplayName}
+                      </strong>
                       <p>{person.inviteCode ? person.inviteCode : "Local person"}</p>
                     </div>
                     <span className={`status-pill status-${person.status || "local"}`}>{person.active ? person.status || "local" : "hidden"}</span>
@@ -2911,6 +2918,13 @@ function TransactionList({ snapshot, currency, transactions }: { snapshot: Snaps
                 <p className="truncate text-xs text-slate-500">
                   {transaction.type === "transfer" ? `${account?.name} to ${toAccount?.name}` : `${account?.name ?? ""} ${category?.name ? `- ${category.name}` : ""}`} · {formatDate(transaction.date)}
                 </p>
+                {transaction.edited && transaction.previousVersion ? (
+                  <p className="transaction-edit-note">
+                    Edited · before {formatMoney(transaction.previousVersion.amount, currency)} on {formatDate(transaction.previousVersion.date)}
+                  </p>
+                ) : transaction.edited ? (
+                  <p className="transaction-edit-note">Edited</p>
+                ) : null}
                 {transaction.receiptName ? (
                   <button className="receipt-link" type="button" onClick={() => setReceipt(transaction)}>
                     <Image size={14} /> {transaction.receiptName}

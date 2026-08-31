@@ -21,15 +21,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (friendError) throw friendError;
     if (!friend) throw new ApiError(404, "Friend connection code was not found.");
 
+    const timestamp = new Date().toISOString();
     const { error } = await db.from("micham_friend_links").upsert(
       [
-        { owner_id: user.id, friend_id: friend.id, owner_person_id: ownerPersonId || null, status: "connected" },
-        { owner_id: friend.id, friend_id: user.id, status: "connected" },
+        { owner_id: user.id, friend_id: friend.id, owner_person_id: ownerPersonId || null, status: "pending", requested_by: user.id, requested_at: timestamp },
+        { owner_id: friend.id, friend_id: user.id, status: "pending", requested_by: user.id, requested_at: timestamp },
       ],
       { onConflict: "owner_id,friend_id" },
     );
     if (error) throw error;
-    jsonOk(res, { friend });
+    jsonOk(res, { friend, status: "pending" });
   } catch (error) {
     handleError(res, error);
   }

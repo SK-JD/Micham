@@ -61,8 +61,17 @@ API endpoints:
 - `POST /api/export/email`
 - `POST /api/sync/push`
 - `GET /api/sync/pull`
+- `POST /api/friends/verify`
+- `POST /api/friends/request`
 - `POST /api/friends/connect`
+- `POST /api/friends/respond`
+- `POST /api/friends/block`
+- `GET /api/friends/list`
 - `POST /api/friends/mirror`
+- `POST /api/settlements/request-repayment`
+- `POST /api/settlements/respond-repayment`
+- `GET /api/settlements/list`
+- `POST /api/transactions/update`
 
 Email templates are kept separately in `api/email-templates/`.
 

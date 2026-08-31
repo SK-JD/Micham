@@ -3,6 +3,19 @@ export type CategoryKind = "expense" | "income";
 export type BudgetPeriod = "monthly";
 export type RecurringFrequency = "weekly" | "monthly" | "yearly";
 export type OweDirection = "to_me" | "by_me";
+export type FriendStatus = "local" | "pending" | "requested" | "connected" | "blocked";
+export type SettlementStatus = "open" | "pending_settlement" | "settled" | "rejected";
+
+export interface TransactionVersion {
+  type: TransactionType;
+  amount: number;
+  accountId?: string;
+  toAccountId?: string;
+  categoryId?: string;
+  date: string;
+  note: string;
+  editedAt: string;
+}
 
 export interface BaseEntity {
   id: string;
@@ -70,6 +83,10 @@ export interface Transaction extends BaseEntity {
   receiptName?: string;
   receiptData?: string;
   personIds?: string[];
+  edited?: boolean;
+  editCount?: number;
+  lastEditedAt?: string;
+  previousVersion?: TransactionVersion;
 }
 
 export interface Budget extends BaseEntity {
@@ -97,7 +114,10 @@ export interface Person extends BaseEntity {
   localDisplayName: string;
   inviteCode?: string;
   connectedUserId?: string;
-  status: "local" | "pending" | "connected" | "blocked";
+  status: FriendStatus;
+  verified?: boolean;
+  requestDirection?: "incoming" | "outgoing";
+  friendUserId?: string;
   active: boolean;
 }
 
@@ -109,6 +129,11 @@ export interface Settlement extends BaseEntity {
   repaidAmount: number;
   transactionId?: string;
   linkedSettlementId?: string;
+  status?: SettlementStatus;
+  pendingRepaymentAmount?: number;
+  parentSettlementId?: string;
+  confirmedAt?: string;
+  confirmedBy?: string;
   date: string;
   note: string;
 }
@@ -121,6 +146,10 @@ export interface Repayment extends BaseEntity {
   date: string;
   note: string;
   linkedRepaymentId?: string;
+  status?: "pending" | "confirmed" | "rejected";
+  parentRepaymentId?: string;
+  confirmedAt?: string;
+  confirmedBy?: string;
 }
 
 export interface SyncOperation extends BaseEntity {
