@@ -56,6 +56,37 @@ alter table public.micham_entities enable row level security;
 alter table public.micham_friend_links enable row level security;
 alter table public.micham_app_config enable row level security;
 
+alter table public.micham_entities replica identity full;
+alter table public.micham_friend_links replica identity full;
+alter table public.micham_app_config replica identity full;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.micham_entities;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end;
+$$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.micham_friend_links;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end;
+$$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.micham_app_config;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end;
+$$;
+
 drop policy if exists "profiles_select_authenticated" on public.micham_profiles;
 create policy "profiles_select_authenticated"
 on public.micham_profiles for select

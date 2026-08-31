@@ -54,14 +54,53 @@ type CloudEntityRow = {
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const CLOUD_SETTINGS_KEY = "micham_supabase_settings";
 
 let supabaseClient: SupabaseClient | undefined;
+let supabaseClientKey = "";
 
-export const isCloudConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+type CloudSettings = {
+  url: string;
+  anonKey: string;
+};
+
+function readStoredCloudSettings(): CloudSettings {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CLOUD_SETTINGS_KEY) || "{}") as Partial<CloudSettings>;
+    return {
+      url: parsed.url?.trim() || supabaseUrl?.trim() || "",
+      anonKey: parsed.anonKey?.trim() || supabaseAnonKey?.trim() || "",
+    };
+  } catch {
+    return {
+      url: supabaseUrl?.trim() || "",
+      anonKey: supabaseAnonKey?.trim() || "",
+    };
+  }
+}
+
+export function getCloudSettings() {
+  return readStoredCloudSettings();
+}
+
+export function saveCloudSettings(settings: CloudSettings) {
+  localStorage.setItem(CLOUD_SETTINGS_KEY, JSON.stringify({ url: settings.url.trim(), anonKey: settings.anonKey.trim() }));
+  supabaseClient = undefined;
+  supabaseClientKey = "";
+}
+
+export function isCloudConfigured() {
+  const settings = readStoredCloudSettings();
+  return Boolean(settings.url && settings.anonKey);
+}
 
 export function getSupabaseClient() {
-  if (!isCloudConfigured) return undefined;
-  supabaseClient ??= createClient(supabaseUrl!, supabaseAnonKey!, {
+  const settings = readStoredCloudSettings();
+  if (!settings.url || !settings.anonKey) return undefined;
+  const nextClientKey = `${settings.url}|${settings.anonKey}`;
+  if (supabaseClient && supabaseClientKey === nextClientKey) return supabaseClient;
+  supabaseClientKey = nextClientKey;
+  supabaseClient = createClient(settings.url, settings.anonKey, {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
@@ -203,7 +242,7 @@ export async function pullCloudEntities(localProfileId: string) {
 }
 
 export async function syncCloudSnapshot(snapshot: CloudSnapshot) {
-  if (!isCloudConfigured || !snapshot.profile) return;
+  if (!isCloudConfigured() || !snapshot.profile) return;
   await pushCloudSnapshot(snapshot);
   await pullCloudEntities(snapshot.profile.id);
   await db.transaction(

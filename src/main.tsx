@@ -33,11 +33,13 @@ import { accountBalance, budgetUsage, categorySpend, personBalance, sameDay, sum
 import {
   connectCloudFriend,
   createConnectionCode,
+  getCloudSettings,
   isCloudConfigured,
   mirrorCloudEntityToFriend,
   pullCloudAppConfig,
   pullCloudEntities,
   sendCloudPasswordReset,
+  saveCloudSettings,
   signInCloudProfile,
   signUpCloudProfile,
   subscribeToCloudChanges,
@@ -339,7 +341,7 @@ function App() {
     };
     setSnapshot(nextSnapshot);
 
-    if (options.syncCloud !== false && isCloudConfigured && nextSnapshot.config.syncEnabled && nextSnapshot.profile?.connectedUserId) {
+    if (options.syncCloud !== false && isCloudConfigured() && nextSnapshot.config.syncEnabled && nextSnapshot.profile?.connectedUserId) {
       syncCloudSnapshot(nextSnapshot).catch((error: unknown) => {
         notify(error instanceof Error ? error.message : "Cloud sync failed.", "error");
       });
@@ -354,7 +356,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!isCloudConfigured || !currentProfileId || !snapshot.profile?.connectedUserId) return undefined;
+    if (!isCloudConfigured() || !currentProfileId || !snapshot.profile?.connectedUserId) return undefined;
     return subscribeToCloudChanges(() => {
       pullCloudEntities(currentProfileId)
         .then(() => refresh(currentProfileId, { syncCloud: false }))
@@ -567,7 +569,7 @@ function AuthGate({
       return;
     }
 
-    if (isCloudConfigured) {
+    if (isCloudConfigured()) {
       try {
         const profileId = await signInCloudProfile(normalizedLoginId, password, config);
         resetRateLimit(`micham_login_${normalizedLoginId}`);
@@ -632,7 +634,7 @@ function AuthGate({
       setupComplete: true,
       createdAt: timestamp,
       updatedAt: timestamp,
-      syncState: isCloudConfigured ? "queued" : "local",
+      syncState: isCloudConfigured() ? "queued" : "local",
     };
     const newAccounts: Account[] = accounts
       .filter((account) => account.name.trim())
@@ -644,14 +646,14 @@ function AuthGate({
         active: true,
         createdAt: timestamp,
         updatedAt: timestamp,
-        syncState: isCloudConfigured ? "queued" : "local",
+        syncState: isCloudConfigured() ? "queued" : "local",
       }));
     await db.transaction("rw", db.profiles, db.accounts, async () => {
       await db.profiles.put(profile);
       await db.accounts.bulkPut(newAccounts);
     });
 
-    if (isCloudConfigured) {
+    if (isCloudConfigured()) {
       try {
         const connectedUserId = await signUpCloudProfile(normalizedLoginId, password, profile, {
           profile,
@@ -690,7 +692,7 @@ function AuthGate({
       setFormError("Enter the email used for this local account.");
       return;
     }
-    if (isCloudConfigured && !connectionCode.trim()) {
+    if (isCloudConfigured() && !connectionCode.trim()) {
       try {
         await sendCloudPasswordReset(normalizedLoginId);
         notify("Password reset email sent.", "success");
@@ -761,15 +763,15 @@ function AuthGate({
         {mode === "reset" ? (
           <div className="grid gap-4">
             <TextField label="Email" value={loginId} onChange={setLoginId} placeholder="you@example.com" />
-            <TextField label="Connection code" value={connectionCode} onChange={(value) => setConnectionCode(value.toUpperCase())} placeholder={isCloudConfigured ? "Optional for cloud reset" : "MCH-ABCD-EFGH"} />
-            {connectionCode || !isCloudConfigured ? (
+            <TextField label="Connection code" value={connectionCode} onChange={(value) => setConnectionCode(value.toUpperCase())} placeholder={isCloudConfigured() ? "Optional for cloud reset" : "MCH-ABCD-EFGH"} />
+            {connectionCode || !isCloudConfigured() ? (
               <>
                 <TextField label="New password" value={newPassword} onChange={setNewPassword} type="password" />
                 <TextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" />
               </>
             ) : null}
-            <button className="primary-button" onClick={resetPassword} disabled={!loginId || (!isCloudConfigured && (!connectionCode || !newPassword || !confirmPassword))}>
-              {isCloudConfigured && !connectionCode ? "Send Reset Email" : "Reset Password"}
+            <button className="primary-button" onClick={resetPassword} disabled={!loginId || (!isCloudConfigured() && (!connectionCode || !newPassword || !confirmPassword))}>
+              {isCloudConfigured() && !connectionCode ? "Send Reset Email" : "Reset Password"}
             </button>
           </div>
         ) : (
@@ -1659,7 +1661,7 @@ function PeopleView({
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     };
     await db.people.put(person);
-    if (isCloudConfigured && snapshot.config.syncEnabled && normalizedInviteCode) {
+    if (isCloudConfigured() && snapshot.config.syncEnabled && normalizedInviteCode) {
       try {
         const friend = await connectCloudFriend(normalizedInviteCode, personId);
         await db.people.update(personId, {
@@ -1710,7 +1712,7 @@ function PeopleView({
       snapshot.config.syncEnabled,
     );
     const connectedPerson = snapshot.people.find((person) => person.id === personId);
-    if (isCloudConfigured && snapshot.config.syncEnabled && snapshot.profile?.connectionCode && connectedPerson?.connectedUserId && connectedPerson.status === "connected") {
+    if (isCloudConfigured() && snapshot.config.syncEnabled && snapshot.profile?.connectionCode && connectedPerson?.connectedUserId && connectedPerson.status === "connected") {
       const mirrorPersonId = `mirror-${snapshot.profile.id}`;
       const mirrorSettlementId = `mirror-${settlement.id}`;
       const mirrorPerson: Person = {
@@ -1790,7 +1792,7 @@ function PeopleView({
       snapshot.config.syncEnabled,
     );
     const connectedPerson = snapshot.people.find((person) => person.id === settlement.personId);
-    if (isCloudConfigured && snapshot.config.syncEnabled && snapshot.profile?.id && connectedPerson?.connectedUserId && connectedPerson.status === "connected") {
+    if (isCloudConfigured() && snapshot.config.syncEnabled && snapshot.profile?.id && connectedPerson?.connectedUserId && connectedPerson.status === "connected") {
       const mirrorPersonId = `mirror-${snapshot.profile.id}`;
       const mirrorSettlementId = settlement.linkedSettlementId || `mirror-${settlement.id}`;
       const mirrorRepaymentId = `mirror-${repayment.id}`;
@@ -2243,6 +2245,8 @@ function SettingsView({
 }) {
   const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
   const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
+  const [cloudUrl, setCloudUrl] = useState(() => getCloudSettings().url);
+  const [cloudAnonKey, setCloudAnonKey] = useState(() => getCloudSettings().anonKey);
   const [syncEmail, setSyncEmail] = useState("");
   const [syncPassword, setSyncPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -2323,6 +2327,19 @@ function SettingsView({
     await onDone();
   };
 
+  const saveCloudConnection = async () => {
+    if (!cloudUrl.trim() || !cloudAnonKey.trim()) {
+      notify("Enter Supabase URL and anon key.", "error");
+      return;
+    }
+    if (!cloudUrl.trim().startsWith("https://")) {
+      notify("Supabase URL must start with https://", "error");
+      return;
+    }
+    saveCloudSettings({ url: cloudUrl, anonKey: cloudAnonKey });
+    notify("Supabase connection saved.", "success");
+  };
+
   const connectProfile = async () => {
     if (!snapshot.profile) return;
     const timestamp = nowIso();
@@ -2344,8 +2361,11 @@ function SettingsView({
         return;
       }
     }
-    if (!isCloudConfigured) {
-      notify("Add Supabase URL and anon key in .env before enabling cloud sync.", "warning");
+    if (!isCloudConfigured() && cloudUrl.trim() && cloudAnonKey.trim()) {
+      saveCloudSettings({ url: cloudUrl, anonKey: cloudAnonKey });
+    }
+    if (!isCloudConfigured()) {
+      notify("Add Supabase URL and anon key in Settings before enabling cloud sync.", "warning");
       return;
     }
     if (syncPassword.length < 8) {
@@ -2516,6 +2536,13 @@ function SettingsView({
             <p className="text-sm text-slate-600">
               Create an account when you want this device data to be linked for future sync.
             </p>
+            <div className="cloud-settings-box">
+              <TextField label="Supabase URL" value={cloudUrl} onChange={setCloudUrl} placeholder="https://your-project.supabase.co" />
+              <TextField label="Supabase anon key" value={cloudAnonKey} onChange={setCloudAnonKey} type="password" placeholder="Paste anon public key" />
+              <button className="secondary-button" onClick={saveCloudConnection}>
+                <RefreshCw size={18} /> Save Supabase Connection
+              </button>
+            </div>
             {snapshot.profile?.loginId === "local-device" ? (
               <TextField label="Email" value={syncEmail} onChange={setSyncEmail} placeholder="you@example.com" />
             ) : null}
