@@ -44,7 +44,6 @@ import {
   signUpCloudProfile,
   subscribeToCloudChanges,
   syncCloudSnapshot,
-  testCloudConnection,
 } from "./lib/cloud";
 import { db, initializeDatabase } from "./lib/db";
 import { createId, nowIso } from "./lib/defaults";
@@ -2341,16 +2340,6 @@ function SettingsView({
     notify("Supabase connection saved.", "success");
   };
 
-  const checkCloudConnection = async () => {
-    if (cloudUrl.trim() && cloudAnonKey.trim()) saveCloudSettings({ url: cloudUrl, anonKey: cloudAnonKey });
-    try {
-      await testCloudConnection();
-      notify("Supabase database and realtime are connected.", "success");
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Supabase connection failed.", "error");
-    }
-  };
-
   const connectProfile = async () => {
     if (!snapshot.profile) return;
     const timestamp = nowIso();
@@ -2552,9 +2541,6 @@ function SettingsView({
               <TextField label="Supabase publishable key" value={cloudAnonKey} onChange={setCloudAnonKey} type="password" placeholder="Paste publishable key" />
               <button className="secondary-button" onClick={saveCloudConnection}>
                 <RefreshCw size={18} /> Save Supabase Connection
-              </button>
-              <button className="secondary-button" onClick={checkCloudConnection}>
-                <RefreshCw size={18} /> Test Connection
               </button>
             </div>
             {snapshot.profile?.loginId === "local-device" ? (

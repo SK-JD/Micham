@@ -334,25 +334,6 @@ export async function pullCloudAppConfig() {
   });
 }
 
-export async function testCloudConnection() {
-  const client = requireClient();
-  const { error } = await client.from("micham_app_config").select("id").limit(1);
-  if (error) throw error;
-
-  const channel = client.channel("micham-connection-test");
-  const status = await new Promise<string>((resolve) => {
-    const timeout = window.setTimeout(() => resolve("TIMED_OUT"), 8000);
-    channel.subscribe((state) => {
-      if (["SUBSCRIBED", "CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(state)) {
-        window.clearTimeout(timeout);
-        resolve(state);
-      }
-    });
-  });
-  void client.removeChannel(channel);
-  if (status !== "SUBSCRIBED") throw new Error(`Realtime test failed: ${status}`);
-}
-
 export async function connectCloudFriend(friendConnectionCode: string, ownerPersonId: string) {
   const client = requireClient();
   const { data, error } = await client.rpc("micham_connect_friend", {
