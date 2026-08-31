@@ -282,6 +282,26 @@ export async function signUpCloudProfile(email: string, password: string, profil
   return data.user.id;
 }
 
+export async function createCloudAccountForVerification(email: string, password: string, displayName: string, currency: string) {
+  const client = requireClient();
+  const { data, error } = await client.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        displayName,
+        currency,
+      },
+    },
+  });
+  if (error) throw error;
+  await client.auth.signOut();
+  return {
+    userId: data.user?.id,
+    needsEmailVerification: !data.session,
+  };
+}
+
 export async function signInAndPushCloudProfile(email: string, password: string, profile: Profile, snapshot: CloudSnapshot) {
   const client = requireClient();
   const { data, error } = await client.auth.signInWithPassword({ email, password });
@@ -297,7 +317,10 @@ export async function createOrAppendCloudProfile(email: string, password: string
     return await signInAndPushCloudProfile(email, password, profile, snapshot);
   } catch (signInError) {
     const message = signInError instanceof Error ? signInError.message.toLowerCase() : "";
-    if (!message.includes("invalid login credentials") && !message.includes("email not confirmed")) {
+    if (message.includes("email not confirmed")) {
+      throw new Error("Verify your email, then login again to sync this device.");
+    }
+    if (!message.includes("invalid login credentials")) {
       throw signInError;
     }
     try {
@@ -333,8 +356,8 @@ export async function signInCloudProfile(email: string, password: string, config
     loginId: email,
     passwordHash: "",
     connectionCode: cloudProfile?.connection_code ?? createConnectionCode(),
-    displayName: cloudProfile?.display_name ?? email.split("@")[0],
-    currency: cloudProfile?.currency ?? config.defaultCurrency,
+    displayName: cloudProfile?.display_name ?? String(data.user.user_metadata?.displayName || email.split("@")[0]),
+    currency: cloudProfile?.currency ?? String(data.user.user_metadata?.currency || config.defaultCurrency),
     connectedUserId: data.user.id,
     setupComplete: true,
     createdAt: existing?.createdAt ?? timestamp,
@@ -344,6 +367,19 @@ export async function signInCloudProfile(email: string, password: string, config
   await db.profiles.put(localProfile);
   await ensureCloudProfile(localProfile);
   await pullCloudEntities(profileId);
+  const accountCount = await db.accounts.where("ownerProfileId").equals(profileId).count();
+  if (accountCount === 0) {
+    await db.accounts.put({
+      id: createId(),
+      ownerProfileId: profileId,
+      name: "Cash",
+      openingBalance: 0,
+      active: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      syncState: "queued",
+    });
+  }
   return profileId;
 }
 
@@ -379,6 +415,17 @@ export async function connectCloudFriend(friendConnectionCode: string, ownerPers
   });
   if (error) throw error;
   return data as CloudProfileRow;
+}
+
+export async function verifyCloudFriend(friendConnectionCode: string) {
+  const client = requireClient();
+  const { data, error } = await client.rpc("micham_verify_friend_code", {
+    friend_connection_code: friendConnectionCode,
+  });
+  if (error) throw error;
+  const [friend] = (data ?? []) as CloudProfileRow[];
+  if (!friend) throw new Error("No verified user found for this connection code.");
+  return friend;
 }
 
 export async function mirrorCloudEntityToFriend(friendConnectionCode: string, entityType: EntityType, entityId: string, payload: Record<string, unknown>) {

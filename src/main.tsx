@@ -33,6 +33,7 @@ import { StatCard } from "./components/StatCard";
 import { accountBalance, budgetUsage, categorySpend, personBalance, sameDay, summarize } from "./lib/calculations";
 import {
   connectCloudFriend,
+  createCloudAccountForVerification,
   createOrAppendCloudProfile,
   createConnectionCode,
   isCloudConfigured,
@@ -43,6 +44,7 @@ import {
   signInCloudProfile,
   subscribeToCloudChanges,
   syncCloudSnapshot,
+  verifyCloudFriend,
 } from "./lib/cloud";
 import { db, initializeDatabase } from "./lib/db";
 import { createId, nowIso } from "./lib/defaults";
@@ -181,8 +183,8 @@ async function claimUnownedData(profileId: string) {
   );
 }
 
-async function createOrGetLocalProfile(config: AppConfig) {
-  const loginId = "local-device";
+async function createOrGetLocalProfile(config: AppConfig, email: string, displayName: string) {
+  const loginId = `local:${email.trim().toLowerCase()}`;
   const existing = await db.profiles.where("loginId").equals(loginId).first();
   if (existing) return existing.id;
 
@@ -195,7 +197,7 @@ async function createOrGetLocalProfile(config: AppConfig) {
       loginId,
       passwordHash,
       connectionCode: createConnectionCode(),
-      displayName: "Local User",
+      displayName: displayName.trim() || email.split("@")[0],
       currency: config.defaultCurrency,
       setupComplete: true,
       createdAt: timestamp,
@@ -620,8 +622,9 @@ function AuthGate({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [localName, setLocalName] = useState("");
+  const [localEmail, setLocalEmail] = useState("");
   const [currency, setCurrency] = useState(config.defaultCurrency);
-  const [accounts, setAccounts] = useState([{ name: "Cash", openingBalance: 0 }]);
   const [formError, setFormError] = useState("");
 
   const login = async () => {
@@ -691,52 +694,33 @@ function AuthGate({
       return;
     }
 
-    const existing = await db.profiles.where("loginId").equals(normalizedLoginId).first();
-    if (existing) {
-      setFormError("An account already exists for this email.");
-      notify("This login ID already exists.", "error");
+    if (!isCloudConfigured()) {
+      notify("Server registration is not configured in this build.", "error");
       return;
     }
-
-    const timestamp = nowIso();
-    const profileId = createId();
-    const passwordHash = await hashPassword(password);
-    const profile: Profile = {
-      id: profileId,
-      loginId: normalizedLoginId,
-      passwordHash,
-      connectionCode: createConnectionCode(),
-      displayName: displayName || normalizedLoginId.split("@")[0],
-      currency,
-      setupComplete: true,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      syncState: isCloudConfigured() ? "queued" : "local",
-    };
-    const newAccounts: Account[] = accounts
-      .filter((account) => account.name.trim())
-      .map((account) => ({
-        id: createId(),
-        ownerProfileId: profileId,
-        name: account.name.trim(),
-        openingBalance: Number(account.openingBalance) || 0,
-        active: true,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        syncState: isCloudConfigured() ? "queued" : "local",
-      }));
-    await db.transaction("rw", db.profiles, db.accounts, async () => {
-      await db.profiles.put(profile);
-      await db.accounts.bulkPut(newAccounts);
-    });
-
-    notify("Local account created. Verify and sync from Settings when you want server backup.", "success");
-    await onLogin(profileId);
+    try {
+      const result = await createCloudAccountForVerification(normalizedLoginId, password, displayName || normalizedLoginId.split("@")[0], currency);
+      notify(result.needsEmailVerification ? "Verification email sent. Verify your account, then login." : "Account created. Login to continue.", "success");
+      setMode("login");
+      setPassword("");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Account could not be created.");
+      notify(error instanceof Error ? error.message : "Account could not be created.", "error");
+    }
   };
 
   const useLocally = async () => {
     setFormError("");
-    const profileId = await createOrGetLocalProfile(config);
+    const normalizedEmail = localEmail.trim().toLowerCase();
+    if (!localName.trim()) {
+      setFormError("Enter your name for local usage.");
+      return;
+    }
+    if (!isValidEmail(normalizedEmail)) {
+      setFormError("Enter a valid email for local usage.");
+      return;
+    }
+    const profileId = await createOrGetLocalProfile(config, normalizedEmail, localName);
     notify("Using local device storage.", "success");
     await onLogin(profileId);
   };
@@ -809,6 +793,10 @@ function AuthGate({
         {formError ? <div className="form-error">{formError}</div> : null}
         {mode === "login" ? (
           <div className="local-entry">
+            <div className="grid gap-3">
+              <TextField label="Local name" value={localName} onChange={setLocalName} placeholder="Your name" />
+              <TextField label="Local email" value={localEmail} onChange={setLocalEmail} placeholder="you@example.com" />
+            </div>
             <button className="local-use-button" onClick={useLocally}>
               <WalletCards size={19} /> Use Locally
             </button>
@@ -838,41 +826,6 @@ function AuthGate({
               <>
                 <TextField label="Display name" value={displayName} onChange={setDisplayName} placeholder="Your name" />
                 <TextField label="Currency" value={currency} onChange={setCurrency} placeholder="INR" />
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <label className="field-label">Accounts</label>
-                    <button className="small-button" onClick={() => setAccounts((items) => [...items, { name: "", openingBalance: 0 }])}>
-                      <Plus size={16} /> Add
-                    </button>
-                  </div>
-                  {accounts.map((account, index) => (
-                    <div className="grid grid-cols-[1fr_120px] gap-2" key={index}>
-                      <input
-                        className="field-input"
-                        value={account.name}
-                        onChange={(event) =>
-                          setAccounts((items) =>
-                            items.map((item, itemIndex) => (itemIndex === index ? { ...item, name: event.target.value } : item)),
-                          )
-                        }
-                        placeholder="SBI Bank"
-                      />
-                      <input
-                        className="field-input"
-                        value={account.openingBalance}
-                        type="number"
-                        onChange={(event) =>
-                          setAccounts((items) =>
-                            items.map((item, itemIndex) =>
-                              itemIndex === index ? { ...item, openingBalance: Number(event.target.value) } : item,
-                            ),
-                          )
-                        }
-                        placeholder="18000"
-                      />
-                    </div>
-                  ))}
-                </div>
               </>
             ) : null}
             <button className="primary-button" onClick={mode === "register" ? register : login} disabled={!loginId || !password}>
@@ -1671,6 +1624,7 @@ function PeopleView({
   const activePeople = snapshot.people.filter((person) => person.active && (person.status === "local" || person.status === "connected"));
   const [name, setName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [verifiedFriend, setVerifiedFriend] = useState<{ displayName: string; connectionCode: string } | null>(null);
   const [personId, setPersonId] = useState(activePeople[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"to_me" | "by_me">("to_me");
@@ -1689,6 +1643,27 @@ function PeopleView({
     if (!openSettlements.some((settlement) => settlement.id === repaymentSettlementId)) setRepaymentSettlementId(openSettlements[0]?.id ?? "");
   }, [openSettlements, repaymentSettlementId]);
 
+  const verifyFriendCode = async () => {
+    const normalizedInviteCode = inviteCode.trim().toUpperCase();
+    if (!normalizedInviteCode) {
+      notify("Enter a connection code.", "error");
+      return;
+    }
+    if (!isCloudConfigured() || !snapshot.config.syncEnabled || !snapshot.profile?.connectedUserId) {
+      notify("Sync this profile to the server before sending friend requests.", "warning");
+      return;
+    }
+    try {
+      const friend = await verifyCloudFriend(normalizedInviteCode);
+      setVerifiedFriend({ displayName: friend.display_name, connectionCode: friend.connection_code });
+      setName(friend.display_name);
+      notify(`Found ${friend.display_name}. Confirm to send request.`, "success");
+    } catch (error) {
+      setVerifiedFriend(null);
+      notify(error instanceof Error ? error.message : "Friend code could not be verified.", "error");
+    }
+  };
+
   const addPerson = async () => {
     if (!name.trim()) {
       notify("Enter a friend name.", "error");
@@ -1705,13 +1680,18 @@ function PeopleView({
     const timestamp = nowIso();
     const personId = createId();
     const normalizedInviteCode = inviteCode.trim().toUpperCase();
+    if (normalizedInviteCode && verifiedFriend?.connectionCode !== normalizedInviteCode) {
+      notify("Verify the connection code before sending the request.", "warning");
+      return;
+    }
     const person: Person = {
       id: personId,
       ownerProfileId: snapshot.profile?.id,
-      localDisplayName: name.trim(),
+      localDisplayName: verifiedFriend?.displayName || name.trim(),
       inviteCode: normalizedInviteCode || undefined,
       connectedUserId: normalizedInviteCode || undefined,
-      status: normalizedInviteCode ? "pending" : "local",
+      status: normalizedInviteCode ? "requested" : "local",
+      requestDirection: normalizedInviteCode ? "outgoing" : undefined,
       active: true,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -1736,6 +1716,7 @@ function PeopleView({
     }
     setName("");
     setInviteCode("");
+    setVerifiedFriend(null);
     notify(normalizedInviteCode ? "Friend request sent. Waiting for acceptance." : "Local person added.", "success");
     await onDone();
   };
@@ -1925,11 +1906,39 @@ function PeopleView({
         <div className="grid gap-3">
           <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
             <input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Friend name" />
-            <input className="field-input" value={inviteCode} onChange={(event) => setInviteCode(event.target.value.toUpperCase())} placeholder="Connection code optional" />
-            <button className="primary-button" onClick={addPerson} disabled={!name.trim()}>
-              <UserPlus size={18} /> Add
-            </button>
+            <input
+              className="field-input"
+              value={inviteCode}
+              onChange={(event) => {
+                setInviteCode(event.target.value.toUpperCase());
+                setVerifiedFriend(null);
+              }}
+              placeholder="Connection code optional"
+            />
+            {inviteCode.trim() ? (
+              <button className="secondary-button" onClick={verifyFriendCode}>
+                Verify
+              </button>
+            ) : (
+              <button className="primary-button" onClick={addPerson} disabled={!name.trim()}>
+                <UserPlus size={18} /> Add
+              </button>
+            )}
           </div>
+          {verifiedFriend ? (
+            <div className="verified-friend-banner">
+              <span>Verified user</span>
+              <strong>{verifiedFriend.displayName}</strong>
+              <button className="primary-button" onClick={addPerson}>
+                <UserPlus size={18} /> Send Request
+              </button>
+            </div>
+          ) : null}
+          {inviteCode.trim() && !verifiedFriend ? (
+            <button className="primary-button" onClick={addPerson} disabled>
+              <UserPlus size={18} /> Verify First
+            </button>
+          ) : null}
           <div className="friends-grid">
             {snapshot.people.length === 0 ? <Empty text="No friends added yet." /> : null}
             {snapshot.people.map((person) => {
@@ -1952,9 +1961,7 @@ function PeopleView({
                     <strong>{formatMoney(Math.abs(balance), currency)}</strong>
                   </div>
                   <div className="friend-actions">
-                    {person.status === "pending" ? (
-                      <button className="small-button" onClick={() => updatePerson(person, { status: "connected" })}>Connect</button>
-                    ) : null}
+                    {person.status === "requested" ? <span className="status-hint">Waiting for acceptance</span> : null}
                     {person.status !== "blocked" ? (
                       <button className="small-button" onClick={() => setFriendConfirm({ type: "block", person })}>Block</button>
                     ) : null}
@@ -2338,7 +2345,8 @@ function SettingsView({
 }) {
   const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
   const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
-  const [syncEmail, setSyncEmail] = useState("");
+  const savedLocalEmail = snapshot.profile?.loginId.startsWith("local:") ? snapshot.profile.loginId.slice("local:".length) : "";
+  const [syncEmail, setSyncEmail] = useState(savedLocalEmail);
   const [syncPassword, setSyncPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -2422,8 +2430,8 @@ function SettingsView({
     if (!snapshot.profile) return;
     const timestamp = nowIso();
     const connectionCode = snapshot.profile.connectionCode || createConnectionCode();
-    const isLocalProfile = snapshot.profile.loginId === "local-device";
-    const normalizedEmail = syncEmail.trim().toLowerCase();
+    const isLocalProfile = snapshot.profile.loginId === "local-device" || snapshot.profile.loginId.startsWith("local:");
+    const normalizedEmail = (syncEmail || savedLocalEmail).trim().toLowerCase();
     if (isLocalProfile) {
       if (!isValidEmail(normalizedEmail)) {
         notify("Enter a valid email to create the account.", "error");
@@ -2466,7 +2474,7 @@ function SettingsView({
         profile: updatedProfile,
       });
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Cloud account could not be created.", "error");
+      notify(error instanceof Error ? error.message : "Cloud account could not be created.", error instanceof Error && error.message.toLowerCase().includes("verify") ? "warning" : "error");
       return;
     }
     await db.transaction(
@@ -2538,7 +2546,7 @@ function SettingsView({
           </div>
           <div className="row">
             <span>Email</span>
-            <strong>{snapshot.profile?.loginId === "local-device" ? "Local only" : snapshot.profile?.loginId}</strong>
+            <strong>{snapshot.profile?.loginId.startsWith("local:") ? snapshot.profile.loginId.slice("local:".length) : snapshot.profile?.loginId === "local-device" ? "Local only" : snapshot.profile?.loginId}</strong>
           </div>
           <div className="row">
             <span>Currency</span>
@@ -2617,8 +2625,13 @@ function SettingsView({
             </p>
             {snapshot.profile?.loginId === "local-device" ? (
               <TextField label="Email" value={syncEmail} onChange={setSyncEmail} placeholder="you@example.com" />
+            ) : snapshot.profile?.loginId.startsWith("local:") ? (
+              <div className="row">
+                <span>Email</span>
+                <strong>{snapshot.profile.loginId.slice("local:".length)}</strong>
+              </div>
             ) : null}
-            <TextField label="Cloud password" value={syncPassword} onChange={setSyncPassword} type="password" />
+            <TextField label="Create cloud password" value={syncPassword} onChange={setSyncPassword} type="password" />
             <button className="primary-button" onClick={connectProfile}>
               <RefreshCw size={18} /> Sync To Server
             </button>
