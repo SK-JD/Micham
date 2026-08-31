@@ -32,23 +32,29 @@ import {
 import { StatCard } from "./components/StatCard";
 import { accountBalance, budgetUsage, categorySpend, personBalance, sameDay, summarize } from "./lib/calculations";
 import {
-  connectCloudFriend,
-  createCloudAccountForVerification,
-  createOrAppendCloudProfile,
   createConnectionCode,
-  isCloudConfigured,
-  mirrorCloudEntityToFriend,
   pullCloudAppConfig,
-  pullCloudEntities,
-  sendCloudPasswordReset,
-  signInCloudProfile,
-  subscribeToCloudChanges,
-  syncCloudSnapshot,
-  verifyCloudFriend,
 } from "./lib/cloud";
 import { db, initializeDatabase } from "./lib/db";
 import { createId, nowIso } from "./lib/defaults";
 import { formatDate, formatMoney } from "./lib/format";
+import {
+  ApiClientError,
+  blockServerFriend,
+  clearServerToken,
+  ensureLocalProfileForServerUser,
+  getServerToken,
+  listServerFriends,
+  loginServerAccount,
+  pullServerSnapshot,
+  pushServerSnapshot,
+  registerServerAccount,
+  requestServerFriend,
+  requestServerPasswordReset,
+  respondServerFriend,
+  syncServerSnapshot,
+  verifyServerFriend,
+} from "./lib/serverApi";
 import type {
   Account,
   AppConfig,
@@ -218,85 +224,39 @@ async function createOrGetLocalProfile(config: AppConfig, email: string, display
   return profileId;
 }
 
-function inverseDirection(direction: "to_me" | "by_me") {
-  return direction === "to_me" ? "by_me" : "to_me";
-}
-
-async function ensureMirrorPerson(ownerProfile: Profile, connectedProfile: Profile, syncEnabled: boolean) {
-  const existingPeople = await db.people.toArray();
-  const existing = existingPeople.find(
-    (person) => person.ownerProfileId === ownerProfile.id && person.connectedUserId === connectedProfile.connectionCode && !person.deletedAt,
-  );
-  if (existing) return existing;
-
+async function syncServerFriendsToLocal(profile: Profile) {
+  if (!getServerToken() || !profile.connectedUserId) return;
+  const result = await listServerFriends();
+  const existingPeople = await db.people.where("ownerProfileId").equals(profile.id).toArray();
   const timestamp = nowIso();
-  const person: Person = {
-    id: createId(),
-    ownerProfileId: ownerProfile.id,
-    localDisplayName: connectedProfile.displayName,
-    inviteCode: connectedProfile.connectionCode,
-    connectedUserId: connectedProfile.connectionCode,
-    status: "connected",
-    active: true,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    syncState: syncEnabled ? "queued" : "local",
-  };
-  await db.people.put(person);
-  return person;
-}
+  const rows: Person[] = [];
 
-async function mirrorConnectedSettlement(profile: Profile | undefined, person: Person | undefined, settlement: Settlement, syncEnabled: boolean) {
-  if (!profile?.connectionCode || !person?.connectedUserId || person.status !== "connected") return;
-  const profiles = await db.profiles.toArray();
-  const connectedProfile = profiles.find((item) => item.connectionCode === person.connectedUserId);
-  if (!connectedProfile) return;
+  for (const link of result.friends) {
+    const friend = link.friend;
+    if (!friend) continue;
+    const existing =
+      existingPeople.find((person) => person.friendUserId === link.friend_id) ||
+      existingPeople.find((person) => person.inviteCode === friend.connection_code);
+    if (existing && !existing.active && existing.status !== "blocked" && link.status !== "connected") continue;
+    const requestDirection = link.status === "pending" ? (link.requested_by === profile.connectedUserId ? "outgoing" : "incoming") : undefined;
+    rows.push({
+      id: existing?.id ?? link.owner_person_id ?? createId(),
+      ownerProfileId: profile.id,
+      localDisplayName: friend.display_name,
+      inviteCode: friend.connection_code,
+      connectedUserId: friend.connection_code,
+      friendUserId: link.friend_id,
+      status: link.status === "pending" ? (requestDirection === "outgoing" ? "requested" : "pending") : link.status,
+      verified: link.status === "connected",
+      requestDirection,
+      active: link.status !== "blocked",
+      createdAt: existing?.createdAt ?? link.requested_at ?? timestamp,
+      updatedAt: timestamp,
+      syncState: "synced",
+    });
+  }
 
-  const mirrorPerson = await ensureMirrorPerson(connectedProfile, profile, syncEnabled);
-  const timestamp = nowIso();
-  const mirrorSettlement: Settlement = {
-    id: createId(),
-    ownerProfileId: connectedProfile.id,
-    personId: mirrorPerson.id,
-    direction: inverseDirection(settlement.direction),
-    originalAmount: settlement.originalAmount,
-    repaidAmount: settlement.repaidAmount,
-    linkedSettlementId: settlement.id,
-    date: settlement.date,
-    note: settlement.note,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    syncState: syncEnabled ? "queued" : "local",
-  };
-  await db.transaction("rw", db.settlements, async () => {
-    await db.settlements.put(mirrorSettlement);
-    await db.settlements.update(settlement.id, { linkedSettlementId: mirrorSettlement.id, updatedAt: timestamp });
-  });
-}
-
-async function mirrorConnectedRepayment(settlement: Settlement, person: Person | undefined, repayment: Repayment, totalRepaid: number, syncEnabled: boolean) {
-  if (!settlement.linkedSettlementId || !person?.connectedUserId || person.status !== "connected") return;
-  const linkedSettlement = await db.settlements.get(settlement.linkedSettlementId);
-  if (!linkedSettlement) return;
-  const timestamp = nowIso();
-  const mirrorRepayment: Repayment = {
-    id: createId(),
-    ownerProfileId: linkedSettlement.ownerProfileId,
-    settlementId: linkedSettlement.id,
-    personId: linkedSettlement.personId,
-    amount: repayment.amount,
-    date: repayment.date,
-    note: repayment.note,
-    linkedRepaymentId: repayment.id,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    syncState: syncEnabled ? "queued" : "local",
-  };
-  await db.transaction("rw", db.settlements, db.repayments, async () => {
-    await db.repayments.put(mirrorRepayment);
-    await db.repayments.update(repayment.id, { linkedRepaymentId: mirrorRepayment.id, updatedAt: timestamp });
-    await db.settlements.update(linkedSettlement.id, { repaidAmount: totalRepaid, updatedAt: timestamp, syncState: syncEnabled ? "queued" : "local" });
-  });
+  if (rows.length) await db.people.bulkPut(rows);
 }
 
 function App() {
@@ -342,9 +302,15 @@ function App() {
     };
     setSnapshot(nextSnapshot);
 
-    if (options.syncCloud !== false && isCloudConfigured() && nextSnapshot.config.syncEnabled && nextSnapshot.profile?.connectedUserId) {
-      syncCloudSnapshot(nextSnapshot).catch((error: unknown) => {
-        notify(error instanceof Error ? error.message : "Cloud sync failed.", "error");
+    if (options.syncCloud !== false && getServerToken() && nextSnapshot.config.syncEnabled && nextSnapshot.profile?.connectedUserId) {
+      syncServerSnapshot(nextSnapshot)
+        .then(() => syncServerFriendsToLocal(nextSnapshot.profile!))
+        .catch((error: unknown) => {
+          notify(error instanceof Error ? error.message : "Server sync failed.", "error");
+        });
+    } else if (options.syncCloud !== false && getServerToken() && nextSnapshot.profile?.connectedUserId) {
+      syncServerFriendsToLocal(nextSnapshot.profile).catch((error: unknown) => {
+        notify(error instanceof Error ? error.message : "Friend refresh failed.", "error");
       });
     }
   };
@@ -357,12 +323,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!isCloudConfigured() || !currentProfileId || !snapshot.profile?.connectedUserId) return undefined;
-    return subscribeToCloudChanges(() => {
-      pullCloudEntities(currentProfileId)
+    if (!getServerToken() || !currentProfileId || !snapshot.profile?.connectedUserId) return undefined;
+    const timer = window.setInterval(() => {
+      pullServerSnapshot(currentProfileId)
+        .then(() => syncServerFriendsToLocal(snapshot.profile!))
         .then(() => refresh(currentProfileId, { syncCloud: false }))
-        .catch((error: unknown) => notify(error instanceof Error ? error.message : "Cloud refresh failed.", "error"));
-    });
+        .catch(() => undefined);
+    }, 12000);
+    return () => window.clearInterval(timer);
   }, [currentProfileId, snapshot.profile?.connectedUserId]);
 
   useEffect(() => {
@@ -389,6 +357,7 @@ function App() {
   const logoutUser = () => {
     localStorage.removeItem("micham_role");
     localStorage.removeItem("micham_profile_id");
+    clearServerToken();
     setSessionRole("guest");
     setCurrentProfileId("");
   };
@@ -649,20 +618,22 @@ function AuthGate({
       return;
     }
 
-    if (isCloudConfigured()) {
-      try {
-        const profileId = await signInCloudProfile(normalizedLoginId, password, config);
-        resetRateLimit(`micham_login_${normalizedLoginId}`);
-        notify("Cloud account connected.", "success");
-        await onLogin(profileId);
+    try {
+      const { user } = await loginServerAccount(normalizedLoginId, password);
+      const profile = await ensureLocalProfileForServerUser(user, config);
+      await pullServerSnapshot(profile.id);
+      await syncServerFriendsToLocal(profile);
+      resetRateLimit(`micham_login_${normalizedLoginId}`);
+      notify("Account connected.", "success");
+      await onLogin(profile.id);
+      return;
+    } catch (error) {
+      const localProfile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
+      if (!localProfile) {
+        const message = error instanceof Error ? error.message : "Login failed.";
+        setFormError(message);
+        notify(message, error instanceof ApiClientError && error.status === 403 ? "warning" : "error");
         return;
-      } catch (error) {
-        const localProfile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
-        if (!localProfile) {
-          setFormError(error instanceof Error ? error.message : "Cloud login failed.");
-          notify(error instanceof Error ? error.message : "Cloud login failed.", "error");
-          return;
-        }
       }
     }
 
@@ -694,13 +665,9 @@ function AuthGate({
       return;
     }
 
-    if (!isCloudConfigured()) {
-      notify("Server registration is not configured in this build.", "error");
-      return;
-    }
     try {
-      const result = await createCloudAccountForVerification(normalizedLoginId, password, displayName || normalizedLoginId.split("@")[0], currency);
-      notify(result.needsEmailVerification ? "Verification email sent. Verify your account, then login." : "Account created. Login to continue.", "success");
+      await registerServerAccount(normalizedLoginId, password, displayName || normalizedLoginId.split("@")[0], currency);
+      notify("Verification email sent. Verify your account, then login.", "success");
       setMode("login");
       setPassword("");
     } catch (error) {
@@ -732,9 +699,9 @@ function AuthGate({
       setFormError("Enter the email used for this local account.");
       return;
     }
-    if (isCloudConfigured() && !connectionCode.trim()) {
+    if (!connectionCode.trim()) {
       try {
-        await sendCloudPasswordReset(normalizedLoginId);
+        await requestServerPasswordReset(normalizedLoginId);
         notify("Password reset email sent.", "success");
         return;
       } catch (error) {
@@ -807,15 +774,15 @@ function AuthGate({
         {mode === "reset" ? (
           <div className="grid gap-4">
             <TextField label="Email" value={loginId} onChange={setLoginId} placeholder="you@example.com" />
-            <TextField label="Connection code" value={connectionCode} onChange={(value) => setConnectionCode(value.toUpperCase())} placeholder={isCloudConfigured() ? "Optional for cloud reset" : "MCH-ABCD-EFGH"} />
-            {connectionCode || !isCloudConfigured() ? (
+            <TextField label="Connection code" value={connectionCode} onChange={(value) => setConnectionCode(value.toUpperCase())} placeholder="Optional for local reset" />
+            {connectionCode ? (
               <>
                 <TextField label="New password" value={newPassword} onChange={setNewPassword} type="password" />
                 <TextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" />
               </>
             ) : null}
-            <button className="primary-button" onClick={resetPassword} disabled={!loginId || (!isCloudConfigured() && (!connectionCode || !newPassword || !confirmPassword))}>
-              {isCloudConfigured() && !connectionCode ? "Send Reset Email" : "Reset Password"}
+            <button className="primary-button" onClick={resetPassword} disabled={!loginId || Boolean(connectionCode && (!newPassword || !confirmPassword))}>
+              {!connectionCode ? "Send Reset Email" : "Reset Password"}
             </button>
           </div>
         ) : (
@@ -1636,6 +1603,13 @@ function PeopleView({
   const [friendConfirm, setFriendConfirm] = useState<{ type: "block" | "remove"; person: Person; linked?: boolean } | null>(null);
 
   useEffect(() => {
+    if (!snapshot.profile?.connectedUserId || !getServerToken()) return;
+    syncServerFriendsToLocal(snapshot.profile)
+      .then(onDone)
+      .catch(() => undefined);
+  }, [snapshot.profile?.connectedUserId]);
+
+  useEffect(() => {
     if (!activePeople.some((person) => person.id === personId)) setPersonId(activePeople[0]?.id ?? "");
   }, [activePeople, personId]);
 
@@ -1649,15 +1623,15 @@ function PeopleView({
       notify("Enter a connection code.", "error");
       return;
     }
-    if (!isCloudConfigured() || !snapshot.config.syncEnabled || !snapshot.profile?.connectedUserId) {
+    if (!getServerToken() || !snapshot.profile?.connectedUserId) {
       notify("Sync this profile to the server before sending friend requests.", "warning");
       return;
     }
     try {
-      const friend = await verifyCloudFriend(normalizedInviteCode);
-      setVerifiedFriend({ displayName: friend.display_name, connectionCode: friend.connection_code });
-      setName(friend.display_name);
-      notify(`Found ${friend.display_name}. Confirm to send request.`, "success");
+      const friend = await verifyServerFriend(normalizedInviteCode);
+      setVerifiedFriend({ displayName: friend.displayName, connectionCode: friend.connectionCode });
+      setName(friend.displayName);
+      notify(`Found ${friend.displayName}. Confirm to send request.`, "success");
     } catch (error) {
       setVerifiedFriend(null);
       notify(error instanceof Error ? error.message : "Friend code could not be verified.", "error");
@@ -1698,16 +1672,17 @@ function PeopleView({
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     };
     await db.people.put(person);
-    if (isCloudConfigured() && snapshot.config.syncEnabled && normalizedInviteCode) {
+    if (getServerToken() && snapshot.profile?.connectedUserId && normalizedInviteCode) {
       try {
-        const friend = await connectCloudFriend(normalizedInviteCode, personId);
+        const friend = await requestServerFriend(normalizedInviteCode, personId);
         await db.people.update(personId, {
-          localDisplayName: friend.display_name || person.localDisplayName,
-          connectedUserId: friend.connection_code,
+          localDisplayName: friend.friend.display_name || person.localDisplayName,
+          connectedUserId: friend.friend.connection_code,
+          friendUserId: friend.friend.id,
           status: "requested",
           verified: false,
           requestDirection: "outgoing",
-          syncState: "queued",
+          syncState: "synced",
           updatedAt: nowIso(),
         });
       } catch (error) {
@@ -1745,45 +1720,6 @@ function PeopleView({
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     };
     await db.settlements.put(settlement);
-    await mirrorConnectedSettlement(
-      snapshot.profile,
-      snapshot.people.find((person) => person.id === personId),
-      settlement,
-      snapshot.config.syncEnabled,
-    );
-    const connectedPerson = snapshot.people.find((person) => person.id === personId);
-    if (isCloudConfigured() && snapshot.config.syncEnabled && snapshot.profile?.connectionCode && connectedPerson?.connectedUserId && connectedPerson.status === "connected") {
-      const mirrorPersonId = `mirror-${snapshot.profile.id}`;
-      const mirrorSettlementId = `mirror-${settlement.id}`;
-      const mirrorPerson: Person = {
-        id: mirrorPersonId,
-        ownerProfileId: undefined,
-        localDisplayName: snapshot.profile.displayName,
-        inviteCode: snapshot.profile.connectionCode,
-        connectedUserId: snapshot.profile.connectionCode,
-        status: "connected",
-        active: true,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        syncState: "synced",
-      };
-      const mirrorSettlement: Settlement = {
-        ...settlement,
-        id: mirrorSettlementId,
-        ownerProfileId: undefined,
-        personId: mirrorPersonId,
-        direction: inverseDirection(settlement.direction),
-        linkedSettlementId: settlement.id,
-        syncState: "synced",
-      };
-      try {
-        await mirrorCloudEntityToFriend(connectedPerson.connectedUserId, "people", mirrorPerson.id, mirrorPerson as unknown as Record<string, unknown>);
-        await mirrorCloudEntityToFriend(connectedPerson.connectedUserId, "settlements", mirrorSettlement.id, mirrorSettlement as unknown as Record<string, unknown>);
-        await db.settlements.update(settlement.id, { linkedSettlementId: mirrorSettlementId, updatedAt: nowIso() });
-      } catch (error) {
-        notify(error instanceof Error ? error.message : "Friend realtime mirror failed.", "warning");
-      }
-    }
     setAmount("");
     setNote("");
     notify("Owe/owed entry recorded.", "success");
@@ -1824,45 +1760,6 @@ function PeopleView({
         syncState: snapshot.config.syncEnabled ? "queued" : "local",
       });
     });
-    await mirrorConnectedRepayment(
-      settlement,
-      snapshot.people.find((person) => person.id === settlement.personId),
-      repayment,
-      totalRepaid,
-      snapshot.config.syncEnabled,
-    );
-    const connectedPerson = snapshot.people.find((person) => person.id === settlement.personId);
-    if (isCloudConfigured() && snapshot.config.syncEnabled && snapshot.profile?.id && connectedPerson?.connectedUserId && connectedPerson.status === "connected") {
-      const mirrorPersonId = `mirror-${snapshot.profile.id}`;
-      const mirrorSettlementId = settlement.linkedSettlementId || `mirror-${settlement.id}`;
-      const mirrorRepaymentId = `mirror-${repayment.id}`;
-      const mirrorRepayment: Repayment = {
-        ...repayment,
-        id: mirrorRepaymentId,
-        ownerProfileId: undefined,
-        settlementId: mirrorSettlementId,
-        personId: mirrorPersonId,
-        linkedRepaymentId: repayment.id,
-        syncState: "synced",
-      };
-      const mirrorSettlement: Settlement = {
-        ...settlement,
-        id: mirrorSettlementId,
-        ownerProfileId: undefined,
-        personId: mirrorPersonId,
-        direction: inverseDirection(settlement.direction),
-        repaidAmount: totalRepaid,
-        linkedSettlementId: settlement.id,
-        syncState: "synced",
-      };
-      try {
-        await mirrorCloudEntityToFriend(connectedPerson.connectedUserId, "repayments", mirrorRepayment.id, mirrorRepayment as unknown as Record<string, unknown>);
-        await mirrorCloudEntityToFriend(connectedPerson.connectedUserId, "settlements", mirrorSettlement.id, mirrorSettlement as unknown as Record<string, unknown>);
-        await db.repayments.update(repayment.id, { linkedRepaymentId: mirrorRepaymentId, updatedAt: nowIso() });
-      } catch (error) {
-        notify(error instanceof Error ? error.message : "Friend repayment mirror failed.", "warning");
-      }
-    }
     setRepaymentAmount("");
     setRepaymentNote("");
     notify("Returned money recorded.", "success");
@@ -1873,6 +1770,25 @@ function PeopleView({
     await db.people.update(person.id, { ...patch, updatedAt: nowIso() });
     notify("Friend updated.", "success");
     await onDone();
+  };
+
+  const respondFriend = async (person: Person, action: "accept" | "reject") => {
+    if (!person.friendUserId) return;
+    try {
+      const result = await respondServerFriend(person.friendUserId, action);
+      await db.people.update(person.id, {
+        status: result.status === "connected" ? "connected" : "blocked",
+        verified: result.status === "connected",
+        active: result.status === "connected",
+        requestDirection: undefined,
+        updatedAt: nowIso(),
+        syncState: "synced",
+      });
+      notify(action === "accept" ? "Friend request accepted." : "Friend request rejected.", action === "accept" ? "success" : "warning");
+      await onDone();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not update friend request.", "error");
+    }
   };
 
   const removeOrHidePerson = async (person: Person) => {
@@ -1894,7 +1810,15 @@ function PeopleView({
     const current = friendConfirm;
     setFriendConfirm(null);
     if (current.type === "block") {
-      await updatePerson(current.person, { status: "blocked", active: false });
+      if (current.person.friendUserId && getServerToken()) {
+        try {
+          await blockServerFriend(current.person.friendUserId);
+        } catch (error) {
+          notify(error instanceof Error ? error.message : "Could not block this friend on server.", "error");
+          return;
+        }
+      }
+      await updatePerson(current.person, { status: "blocked", active: false, verified: false, syncState: "synced" });
       return;
     }
     await removeOrHidePerson(current.person);
@@ -1962,6 +1886,12 @@ function PeopleView({
                   </div>
                   <div className="friend-actions">
                     {person.status === "requested" ? <span className="status-hint">Waiting for acceptance</span> : null}
+                    {person.status === "pending" && person.requestDirection === "incoming" ? (
+                      <>
+                        <button className="small-button" onClick={() => respondFriend(person, "accept")}>Accept</button>
+                        <button className="small-button danger-button" onClick={() => respondFriend(person, "reject")}>Reject</button>
+                      </>
+                    ) : null}
                     {person.status !== "blocked" ? (
                       <button className="small-button" onClick={() => setFriendConfirm({ type: "block", person })}>Block</button>
                     ) : null}
@@ -2415,6 +2345,10 @@ function SettingsView({
   };
 
   const updateConfigToggle = async (key: "syncEnabled" | "aiEnabled", value: boolean) => {
+    if (key === "syncEnabled" && value && (!snapshot.profile?.connectedUserId || !getServerToken())) {
+      notify("Create or login to a server account before enabling sync.", "warning");
+      return;
+    }
     await db.appConfig.update("primary", { [key]: value, updatedAt: nowIso() });
     notify(`${key === "aiEnabled" ? "AI Chat" : "Sync"} ${value ? "enabled" : "disabled"}.`, "success");
     await onDone();
@@ -2447,10 +2381,6 @@ function SettingsView({
         return;
       }
     }
-    if (!isCloudConfigured()) {
-      notify("Server sync is not configured in this build.", "warning");
-      return;
-    }
     if (syncPassword.length < 8) {
       notify("Enter a cloud password with at least 8 characters.", "error");
       return;
@@ -2469,12 +2399,26 @@ function SettingsView({
     };
     let connectedUserId = snapshot.profile.connectedUserId;
     try {
-      connectedUserId = await createOrAppendCloudProfile(cloudEmail, syncPassword, updatedProfile, {
-        ...snapshot,
-        profile: updatedProfile,
-      });
+      if (!getServerToken()) {
+        try {
+          await registerServerAccount(cloudEmail, syncPassword, updatedProfile.displayName, updatedProfile.currency);
+          notify("Verification email sent. Verify your account, login, then tap Sync To Server again.", "success");
+          return;
+        } catch (error) {
+          if (!(error instanceof ApiClientError) || error.status !== 409) throw error;
+        }
+        const { user } = await loginServerAccount(cloudEmail, syncPassword);
+        connectedUserId = user.id;
+        updatedProfile.connectedUserId = user.id;
+        updatedProfile.connectionCode = user.connectionCode;
+        updatedProfile.displayName = user.displayName;
+        updatedProfile.currency = user.currency;
+      }
+      await pushServerSnapshot({ ...snapshot, profile: updatedProfile });
+      await pullServerSnapshot(snapshot.profile.id);
+      await syncServerFriendsToLocal({ ...updatedProfile, connectedUserId });
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Cloud account could not be created.", error instanceof Error && error.message.toLowerCase().includes("verify") ? "warning" : "error");
+      notify(error instanceof Error ? error.message : "Account could not be synced.", error instanceof Error && error.message.toLowerCase().includes("verify") ? "warning" : "error");
       return;
     }
     await db.transaction(
@@ -2483,21 +2427,14 @@ function SettingsView({
       async () => {
         await db.profiles.update(snapshot.profile!.id, {
           connectedUserId,
-          connectionCode,
+          connectionCode: updatedProfile.connectionCode,
           loginId: isLocalProfile ? normalizedEmail : snapshot.profile!.loginId,
           passwordHash: syncPasswordHash,
-          displayName: isLocalProfile ? normalizedEmail.split("@")[0] : snapshot.profile!.displayName,
+          displayName: updatedProfile.displayName,
+          currency: updatedProfile.currency,
           updatedAt: timestamp,
-          syncState: "queued",
+          syncState: "synced",
         });
-        await db.accounts.bulkPut(snapshot.accounts.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
-        await db.categories.bulkPut(snapshot.categories.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
-        await db.transactions.bulkPut(snapshot.transactions.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
-        await db.budgets.bulkPut(snapshot.budgets.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
-        await db.recurringTransactions.bulkPut(snapshot.recurring.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
-        await db.people.bulkPut(snapshot.people.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
-        await db.settlements.bulkPut(snapshot.settlements.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
-        await db.repayments.bulkPut(snapshot.repayments.map((item) => ({ ...item, syncState: "queued" as const, updatedAt: timestamp })));
         await db.appConfig.update("primary", { syncEnabled: true, updatedAt: timestamp });
       },
     );
@@ -2577,7 +2514,7 @@ function SettingsView({
               <span />
             </label>
           </div>
-          {snapshot.config.syncEnabled ? <p className="text-sm text-amber-700">Sync unavailable. Your data is safely stored on this device.</p> : null}
+          {snapshot.config.syncEnabled && !getServerToken() ? <p className="text-sm text-amber-700">Login again to resume server sync.</p> : null}
           {snapshot.config.aiEnabled ? <p className="text-sm text-slate-600">AI Chat is enabled.</p> : null}
         </div>
       </Panel>
@@ -2610,6 +2547,7 @@ function SettingsView({
               className="secondary-button"
               onClick={async () => {
                 if (!snapshot.profile) return;
+                clearServerToken();
                 await db.profiles.update(snapshot.profile.id, { connectedUserId: undefined, updatedAt: nowIso() });
                 await db.appConfig.update("primary", { syncEnabled: false, updatedAt: nowIso() });
                 await onDone();

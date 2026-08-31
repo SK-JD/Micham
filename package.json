@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "dev:full": "node scripts/dev-server.mjs",
     "build": "tsc -b && vite build",
     "check:api": "tsc -p tsconfig.api.json",
     "preview": "vite preview --host 0.0.0.0",

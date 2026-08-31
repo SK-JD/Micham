@@ -21,6 +21,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!user || user.status !== "active" || !(await verifyPassword(password, user.password_hash))) {
       throw new ApiError(401, "Invalid email or password.");
     }
+    if (!user.email_verified) {
+      throw new ApiError(403, "Verify your email before login.");
+    }
 
     const session = await createSession(user.id, user.email);
     jsonOk(res, {

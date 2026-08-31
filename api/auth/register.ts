@@ -45,7 +45,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     });
     if (tokenError) throw tokenError;
 
-    const verifyUrl = `${appBaseUrl()}/auth/verify?token=${encodeURIComponent(token)}`;
+    const verifyUrl = `${appBaseUrl()}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
     const template = verifyEmailTemplate(displayName, verifyUrl);
     const delivery = await sendMail({ to: email, ...template });
 
