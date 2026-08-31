@@ -38,7 +38,7 @@ Required server environment variables:
 
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_SECRET_KEY=your-supabase-secret-key
 SERVER_JWT_SECRET=use-a-long-random-secret
 APP_BASE_URL=https://your-app-domain.com
 SMTP_HOST=smtp.example.com
@@ -48,6 +48,8 @@ SMTP_USER=mailer@example.com
 SMTP_PASS=your-smtp-password
 SMTP_FROM="Micham <mailer@example.com>"
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` is also supported for legacy Supabase projects. Prefer the newer `sb_secret_*` key for Vercel/Netlify serverless functions.
 
 API endpoints:
 
