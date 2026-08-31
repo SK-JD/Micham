@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "node scripts/dev-server.mjs",
+    "dev:ui": "vite --host 0.0.0.0",
     "dev:full": "node scripts/dev-server.mjs",
     "build": "tsc -b && vite build",
     "check:api": "tsc -p tsconfig.api.json",

@@ -101,13 +101,22 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
   } catch {
-    throw new ApiClientError(0, "Server API is not running. Start local testing with `npx vercel dev --listen 0.0.0.0:5175`.");
+    throw new ApiClientError(0, "Server API is not running. Start local testing with `npm run dev` from this project.");
   }
 
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : {};
+  let payload: Record<string, unknown> = {};
+  try {
+    payload = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  } catch {
+    payload = { error: text || `HTTP ${response.status}` };
+  }
   if (!response.ok) {
-    throw new ApiClientError(response.status, payload.error || "Server request failed.");
+    const fallback =
+      response.status === 404
+        ? "Server API route was not found. Restart with `npm run dev`, not `npm run dev:ui`."
+        : "Server request failed.";
+    throw new ApiClientError(response.status, typeof payload.error === "string" ? payload.error : fallback);
   }
   return payload as T;
 }

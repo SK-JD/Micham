@@ -3,7 +3,7 @@ import { parse as parseUrl } from "node:url";
 import { createServer as createViteServer } from "vite";
 
 const host = process.env.HOST || "0.0.0.0";
-const port = Number(process.env.PORT || 5175);
+const port = Number(process.env.PORT || 5173);
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
