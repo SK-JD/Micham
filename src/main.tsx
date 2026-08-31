@@ -2330,7 +2330,7 @@ function SettingsView({
 
   const saveCloudConnection = async () => {
     if (!cloudUrl.trim() || !cloudAnonKey.trim()) {
-      notify("Enter Supabase URL and anon key.", "error");
+      notify("Enter Supabase URL and publishable key.", "error");
       return;
     }
     if (!cloudUrl.trim().startsWith("https://")) {
@@ -2376,7 +2376,7 @@ function SettingsView({
       saveCloudSettings({ url: cloudUrl, anonKey: cloudAnonKey });
     }
     if (!isCloudConfigured()) {
-      notify("Add Supabase URL and anon key in Settings before enabling cloud sync.", "warning");
+      notify("Add Supabase URL and publishable key in Settings before enabling cloud sync.", "warning");
       return;
     }
     if (syncPassword.length < 8) {
@@ -2549,7 +2549,7 @@ function SettingsView({
             </p>
             <div className="cloud-settings-box">
               <TextField label="Supabase URL" value={cloudUrl} onChange={setCloudUrl} placeholder="https://your-project.supabase.co" />
-              <TextField label="Supabase anon key" value={cloudAnonKey} onChange={setCloudAnonKey} type="password" placeholder="Paste anon public key" />
+              <TextField label="Supabase publishable key" value={cloudAnonKey} onChange={setCloudAnonKey} type="password" placeholder="Paste publishable key" />
               <button className="secondary-button" onClick={saveCloudConnection}>
                 <RefreshCw size={18} /> Save Supabase Connection
               </button>

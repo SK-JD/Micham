@@ -54,6 +54,8 @@ type CloudEntityRow = {
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const bundledSupabaseKey = supabasePublishableKey || supabaseAnonKey;
 const CLOUD_SETTINGS_KEY = "micham_supabase_settings";
 
 let supabaseClient: SupabaseClient | undefined;
@@ -69,12 +71,12 @@ function readStoredCloudSettings(): CloudSettings {
     const parsed = JSON.parse(localStorage.getItem(CLOUD_SETTINGS_KEY) || "{}") as Partial<CloudSettings>;
     return {
       url: parsed.url?.trim() || supabaseUrl?.trim() || "",
-      anonKey: parsed.anonKey?.trim() || supabaseAnonKey?.trim() || "",
+      anonKey: parsed.anonKey?.trim() || bundledSupabaseKey?.trim() || "",
     };
   } catch {
     return {
       url: supabaseUrl?.trim() || "",
-      anonKey: supabaseAnonKey?.trim() || "",
+      anonKey: bundledSupabaseKey?.trim() || "",
     };
   }
 }
@@ -121,7 +123,7 @@ export function createConnectionCode() {
 
 function requireClient() {
   const client = getSupabaseClient();
-  if (!client) throw new Error("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.");
+  if (!client) throw new Error("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env.");
   return client;
 }
 

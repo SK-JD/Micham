@@ -16,17 +16,17 @@ This app does not need a separate backend server. Supabase provides Auth, databa
 1. Create a Supabase project.
 2. Open Supabase SQL Editor.
 3. Run `supabase/schema.sql`.
-4. Copy the project URL and anon public key.
+4. Copy the project URL and publishable key.
 5. For web/dev builds, put them into `.env`.
 
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
 6. Restart the Vite dev server or rebuild the APK.
 
-For an already-installed APK, open `Settings > Account`, paste the Supabase URL and anon key, then tap `Save Supabase Connection`. No separate backend server is required.
+`VITE_SUPABASE_ANON_KEY` is also supported for older Supabase projects. For an already-installed APK, open `Settings > Account`, paste the Supabase URL and publishable key, then tap `Save Supabase Connection`. No separate backend server is required.
 
 ## Sync Behavior
 
