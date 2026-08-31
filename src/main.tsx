@@ -33,16 +33,14 @@ import { StatCard } from "./components/StatCard";
 import { accountBalance, budgetUsage, categorySpend, personBalance, sameDay, summarize } from "./lib/calculations";
 import {
   connectCloudFriend,
+  createOrAppendCloudProfile,
   createConnectionCode,
-  getCloudSettings,
   isCloudConfigured,
   mirrorCloudEntityToFriend,
   pullCloudAppConfig,
   pullCloudEntities,
   sendCloudPasswordReset,
-  saveCloudSettings,
   signInCloudProfile,
-  signUpCloudProfile,
   subscribeToCloudChanges,
   syncCloudSnapshot,
 } from "./lib/cloud";
@@ -734,7 +732,7 @@ function AuthGate({
 
     if (isCloudConfigured()) {
       try {
-        const connectedUserId = await signUpCloudProfile(normalizedLoginId, password, profile, {
+        const connectedUserId = await createOrAppendCloudProfile(normalizedLoginId, password, profile, {
           profile,
           accounts: newAccounts,
           categories: [],
@@ -1263,7 +1261,7 @@ function SplitExpensePanel({
   notify: (message: string, tone?: Toast["tone"]) => void;
   onDone: () => Promise<void>;
 }) {
-  const activePeople = snapshot.people.filter((person) => person.active && person.status !== "blocked");
+  const activePeople = snapshot.people.filter((person) => person.active && (person.status === "local" || person.status === "connected"));
   const [personId, setPersonId] = useState(activePeople[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -1691,7 +1689,7 @@ function PeopleView({
   notify: (message: string, tone?: Toast["tone"]) => void;
   onDone: () => Promise<void>;
 }) {
-  const activePeople = snapshot.people.filter((person) => person.active && person.status !== "blocked");
+  const activePeople = snapshot.people.filter((person) => person.active && (person.status === "local" || person.status === "connected"));
   const [name, setName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [personId, setPersonId] = useState(activePeople[0]?.id ?? "");
@@ -1702,6 +1700,7 @@ function PeopleView({
   const [repaymentSettlementId, setRepaymentSettlementId] = useState(openSettlements[0]?.id ?? "");
   const [repaymentAmount, setRepaymentAmount] = useState("");
   const [repaymentNote, setRepaymentNote] = useState("");
+  const [friendConfirm, setFriendConfirm] = useState<{ type: "block" | "remove"; person: Person; linked?: boolean } | null>(null);
 
   useEffect(() => {
     if (!activePeople.some((person) => person.id === personId)) setPersonId(activePeople[0]?.id ?? "");
@@ -1746,8 +1745,9 @@ function PeopleView({
         await db.people.update(personId, {
           localDisplayName: friend.display_name || person.localDisplayName,
           connectedUserId: friend.connection_code,
-          status: "connected",
-          verified: true,
+          status: "requested",
+          verified: false,
+          requestDirection: "outgoing",
           syncState: "queued",
           updatedAt: nowIso(),
         });
@@ -1757,7 +1757,7 @@ function PeopleView({
     }
     setName("");
     setInviteCode("");
-    notify(normalizedInviteCode ? "Friend connection saved." : "Local person added.", "success");
+    notify(normalizedInviteCode ? "Friend request sent. Waiting for acceptance." : "Local person added.", "success");
     await onDone();
   };
 
@@ -1910,7 +1910,6 @@ function PeopleView({
   };
 
   const updatePerson = async (person: Person, patch: Partial<Person>) => {
-    if (patch.status === "blocked" && !confirm(`Block ${person.localDisplayName}? Shared updates from this friend will stop.`)) return;
     await db.people.update(person.id, { ...patch, updatedAt: nowIso() });
     notify("Friend updated.", "success");
     await onDone();
@@ -1920,7 +1919,6 @@ function PeopleView({
     const linked =
       snapshot.settlements.some((settlement) => settlement.personId === person.id) ||
       snapshot.transactions.some((transaction) => transaction.personIds?.includes(person.id));
-    if (!confirm(`${linked ? "Hide" : "Remove"} ${person.localDisplayName}?`)) return;
     await db.people.update(person.id, {
       active: false,
       deletedAt: linked ? undefined : nowIso(),
@@ -1929,6 +1927,17 @@ function PeopleView({
     });
     notify(linked ? "Friend hidden because existing records use it." : "Friend removed.", "warning");
     await onDone();
+  };
+
+  const confirmFriendAction = async () => {
+    if (!friendConfirm) return;
+    const current = friendConfirm;
+    setFriendConfirm(null);
+    if (current.type === "block") {
+      await updatePerson(current.person, { status: "blocked", active: false });
+      return;
+    }
+    await removeOrHidePerson(current.person);
   };
 
   return (
@@ -1968,9 +1977,9 @@ function PeopleView({
                       <button className="small-button" onClick={() => updatePerson(person, { status: "connected" })}>Connect</button>
                     ) : null}
                     {person.status !== "blocked" ? (
-                      <button className="small-button" onClick={() => updatePerson(person, { status: "blocked", active: false })}>Block</button>
+                      <button className="small-button" onClick={() => setFriendConfirm({ type: "block", person })}>Block</button>
                     ) : null}
-                    <button className="small-button danger-button" onClick={() => removeOrHidePerson(person)}>
+                    <button className="small-button danger-button" onClick={() => setFriendConfirm({ type: "remove", person, linked })}>
                       <Trash2 size={15} /> {linked ? "Hide" : "Remove"}
                     </button>
                   </div>
@@ -1980,6 +1989,26 @@ function PeopleView({
           </div>
         </div>
       </Panel>
+      {friendConfirm ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="confirm-dialog">
+            <div>
+              <strong>{friendConfirm.type === "block" ? "Block Friend" : friendConfirm.linked ? "Hide Friend" : "Remove Friend"}</strong>
+              <p>
+                {friendConfirm.type === "block"
+                  ? `Block ${friendConfirm.person.localDisplayName}? Shared updates from this friend will stop.`
+                  : `${friendConfirm.linked ? "Hide" : "Remove"} ${friendConfirm.person.localDisplayName}?`}
+              </p>
+            </div>
+            <div className="confirm-actions">
+              <button className="secondary-button" onClick={() => setFriendConfirm(null)}>Cancel</button>
+              <button className="primary-button danger-action" onClick={confirmFriendAction}>
+                {friendConfirm.type === "block" ? "Block" : friendConfirm.linked ? "Hide" : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <Panel title="Owe / Owed">
         <div className="grid gap-4">
           <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
@@ -2330,8 +2359,6 @@ function SettingsView({
 }) {
   const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
   const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
-  const [cloudUrl, setCloudUrl] = useState(() => getCloudSettings().url);
-  const [cloudAnonKey, setCloudAnonKey] = useState(() => getCloudSettings().anonKey);
   const [syncEmail, setSyncEmail] = useState("");
   const [syncPassword, setSyncPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -2412,19 +2439,6 @@ function SettingsView({
     await onDone();
   };
 
-  const saveCloudConnection = async () => {
-    if (!cloudUrl.trim() || !cloudAnonKey.trim()) {
-      notify("Enter Supabase URL and publishable key.", "error");
-      return;
-    }
-    if (!cloudUrl.trim().startsWith("https://")) {
-      notify("Supabase URL must start with https://", "error");
-      return;
-    }
-    saveCloudSettings({ url: cloudUrl, anonKey: cloudAnonKey });
-    notify("Supabase connection saved.", "success");
-  };
-
   const connectProfile = async () => {
     if (!snapshot.profile) return;
     const timestamp = nowIso();
@@ -2446,11 +2460,8 @@ function SettingsView({
         return;
       }
     }
-    if (!isCloudConfigured() && cloudUrl.trim() && cloudAnonKey.trim()) {
-      saveCloudSettings({ url: cloudUrl, anonKey: cloudAnonKey });
-    }
     if (!isCloudConfigured()) {
-      notify("Add Supabase URL and publishable key in Settings before enabling cloud sync.", "warning");
+      notify("Server sync is not configured in this build.", "warning");
       return;
     }
     if (syncPassword.length < 8) {
@@ -2471,7 +2482,7 @@ function SettingsView({
     };
     let connectedUserId = snapshot.profile.connectedUserId;
     try {
-      connectedUserId = await signUpCloudProfile(cloudEmail, syncPassword, updatedProfile, {
+      connectedUserId = await createOrAppendCloudProfile(cloudEmail, syncPassword, updatedProfile, {
         ...snapshot,
         profile: updatedProfile,
       });
@@ -2505,7 +2516,7 @@ function SettingsView({
     );
     setSyncEmail("");
     setSyncPassword("");
-    notify(isLocalProfile ? "Account created and local data synced." : "Cloud sync enabled.", "success");
+    notify(isLocalProfile ? "Account connected and local data synced." : "Latest local data synced.", "success");
     await onDone();
   };
 
@@ -2621,19 +2632,12 @@ function SettingsView({
             <p className="text-sm text-slate-600">
               Create an account when you want this device data to be linked for future sync.
             </p>
-            <div className="cloud-settings-box">
-              <TextField label="Supabase URL" value={cloudUrl} onChange={setCloudUrl} placeholder="https://your-project.supabase.co" />
-              <TextField label="Supabase publishable key" value={cloudAnonKey} onChange={setCloudAnonKey} type="password" placeholder="Paste publishable key" />
-              <button className="secondary-button" onClick={saveCloudConnection}>
-                <RefreshCw size={18} /> Save Supabase Connection
-              </button>
-            </div>
             {snapshot.profile?.loginId === "local-device" ? (
               <TextField label="Email" value={syncEmail} onChange={setSyncEmail} placeholder="you@example.com" />
             ) : null}
             <TextField label="Cloud password" value={syncPassword} onChange={setSyncPassword} type="password" />
             <button className="primary-button" onClick={connectProfile}>
-              <RefreshCw size={18} /> Create Account & Sync Local Data
+              <RefreshCw size={18} /> Sync To Server
             </button>
           </div>
         )}

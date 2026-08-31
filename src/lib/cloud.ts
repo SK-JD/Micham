@@ -275,6 +275,24 @@ export async function signUpCloudProfile(email: string, password: string, profil
   return data.user.id;
 }
 
+export async function signInAndPushCloudProfile(email: string, password: string, profile: Profile, snapshot: CloudSnapshot) {
+  const client = requireClient();
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  if (!data.user?.id) throw new Error("Cloud login failed.");
+  await ensureCloudProfile({ ...profile, loginId: email, connectedUserId: data.user.id, syncState: "queued" });
+  await syncCloudSnapshot({ ...snapshot, profile: { ...profile, loginId: email, connectedUserId: data.user.id, syncState: "queued" } });
+  return data.user.id;
+}
+
+export async function createOrAppendCloudProfile(email: string, password: string, profile: Profile, snapshot: CloudSnapshot) {
+  try {
+    return await signInAndPushCloudProfile(email, password, profile, snapshot);
+  } catch {
+    return signUpCloudProfile(email, password, profile, snapshot);
+  }
+}
+
 export async function signInCloudProfile(email: string, password: string, config: AppConfig) {
   const client = requireClient();
   const { data, error } = await client.auth.signInWithPassword({ email, password });

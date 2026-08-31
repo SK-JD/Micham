@@ -861,6 +861,33 @@ button:disabled {
   width: min(920px, 96vw);
 }
 
+.confirm-dialog {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 28px 80px rgb(15 23 42 / 38%);
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  width: min(420px, 94vw);
+}
+
+.confirm-dialog p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0.35rem 0 0;
+}
+
+.confirm-actions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.danger-action {
+  background: linear-gradient(135deg, #dc2626, #f97316);
+}
+
 .receipt-viewer-head {
   align-items: center;
   display: flex;
@@ -1277,7 +1304,8 @@ button:disabled {
   color: #166534;
 }
 
-.status-pending {
+.status-pending,
+.status-requested {
   background: #fef3c7;
   color: #92400e;
 }
