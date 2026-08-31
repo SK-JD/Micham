@@ -13,9 +13,11 @@ npm run dev
 
 This app does not need a separate backend server. Supabase provides Auth, database storage, Row Level Security, RPC, and realtime.
 
+### Dashboard Setup
+
 1. Create a Supabase project.
 2. Open Supabase SQL Editor.
-3. Run `supabase/schema.sql`.
+3. Run `supabase/schema.sql` or `supabase/migrations/20260831000100_initial_schema.sql`.
 4. Copy the project URL and publishable key.
 5. For web/dev builds, put them into `.env`.
 
@@ -27,6 +29,22 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 6. Restart the Vite dev server or rebuild the APK.
 
 `VITE_SUPABASE_ANON_KEY` is also supported for older Supabase projects. For an already-installed APK, open `Settings > Account`, paste the Supabase URL and publishable key, then tap `Save Supabase Connection`. No separate backend server is required.
+
+### CLI Migration Setup
+
+If the Supabase CLI is installed and your project is linked, apply the migration with:
+
+```bash
+supabase db push
+```
+
+Or apply it directly with a database URL:
+
+```bash
+supabase db push --db-url "postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres"
+```
+
+After the migration runs, `Test Connection` should pass for the database and realtime checks.
 
 ## Sync Behavior
 
