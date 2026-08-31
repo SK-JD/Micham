@@ -1,6 +1,25 @@
 import http from "node:http";
+import fs from "node:fs";
 import { parse as parseUrl } from "node:url";
 import { createServer as createViteServer } from "vite";
+
+function loadDotEnv() {
+  if (!fs.existsSync(".env")) return;
+  const lines = fs.readFileSync(".env", "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
+    const index = trimmed.indexOf("=");
+    const key = trimmed.slice(0, index).trim();
+    let value = trimmed.slice(index + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (key && process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+loadDotEnv();
 
 const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 5173);
