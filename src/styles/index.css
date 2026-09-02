@@ -1463,6 +1463,77 @@ button:disabled {
   grid-row: 1 / span 2;
 }
 
+.friend-ledger {
+  display: grid;
+  gap: 1rem;
+}
+
+.friend-summary-card {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 14%, var(--panel)), color-mix(in srgb, var(--accent) 12%, var(--panel)));
+  border: 1px solid color-mix(in srgb, var(--brand) 38%, var(--border));
+  border-radius: 14px;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  padding: 1rem;
+}
+
+.friend-summary-card span,
+.friend-ledger-row p,
+.approval-card p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0.2rem 0 0;
+}
+
+.friend-summary-card strong {
+  color: var(--text);
+  display: block;
+  font-size: 1.65rem;
+  line-height: 1.2;
+  margin-top: 0.25rem;
+}
+
+.friend-mini-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.friend-ledger-row,
+.approval-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.friend-ledger-row {
+  align-items: center;
+  grid-template-columns: 1fr auto;
+}
+
+.friend-ledger-row span {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.approval-card {
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px) auto;
+}
+
+.approval-card-muted {
+  grid-template-columns: 1fr;
+  opacity: 0.82;
+}
+
+@media (max-width: 720px) {
+  .approval-card {
+    grid-template-columns: 1fr;
+  }
+}
+
 .status-hint {
   color: var(--muted);
   font-size: 0.82rem;

@@ -47,16 +47,20 @@ import {
   getServerToken,
   listServerFriends,
   loginServerAccount,
+  listServerSettlementEvents,
   mirrorServerFriendEntity,
   pullServerSnapshot,
   pushServerSnapshot,
   registerServerAccount,
   removeServerFriend,
   requestServerFriend,
+  requestServerRepayment,
   requestServerPasswordReset,
+  respondServerRepayment,
   respondServerFriend,
   syncServerSnapshot,
   verifyServerFriend,
+  type ServerSettlementEvent,
 } from "./lib/serverApi";
 import type {
   Account,
@@ -1702,7 +1706,24 @@ function PeopleView({
   const [repaymentNote, setRepaymentNote] = useState("");
   const [friendConfirm, setFriendConfirm] = useState<{ type: "block" | "remove"; person: Person; linked?: boolean } | null>(null);
   const [showAllFriends, setShowAllFriends] = useState(false);
+  const [selectedFriendId, setSelectedFriendId] = useState(activePeople[0]?.id ?? "");
+  const [settlementEvents, setSettlementEvents] = useState<ServerSettlementEvent[]>([]);
+  const [eventAccounts, setEventAccounts] = useState<Record<string, string>>({});
+  const [busyEventId, setBusyEventId] = useState("");
   const visiblePeople = snapshot.people.slice(0, 3);
+  const selectedFriend = activePeople.find((person) => person.id === selectedFriendId) ?? activePeople[0];
+  const selectedFriendSettlements = selectedFriend
+    ? snapshot.settlements.filter((settlement) => settlement.personId === selectedFriend.id && !settlement.deletedAt)
+    : [];
+  const selectedFriendRepayments = selectedFriend
+    ? snapshot.repayments.filter((repayment) => repayment.personId === selectedFriend.id && !repayment.deletedAt)
+    : [];
+  const pendingEvents = settlementEvents.filter(
+    (event) => event.status === "pending" && event.requested_by !== snapshot.profile?.connectedUserId,
+  );
+  const myPendingEvents = settlementEvents.filter(
+    (event) => event.status === "pending" && event.requested_by === snapshot.profile?.connectedUserId,
+  );
 
   useEffect(() => {
     if (!snapshot.profile?.connectedUserId || !getServerToken()) return;
@@ -1713,6 +1734,7 @@ function PeopleView({
 
   useEffect(() => {
     if (!activePeople.some((person) => person.id === personId)) setPersonId(activePeople[0]?.id ?? "");
+    if (!activePeople.some((person) => person.id === selectedFriendId)) setSelectedFriendId(activePeople[0]?.id ?? "");
   }, [activePeople, personId]);
 
   useEffect(() => {
@@ -1727,6 +1749,111 @@ function PeopleView({
   useEffect(() => {
     if (!openSettlements.some((settlement) => settlement.id === repaymentSettlementId)) setRepaymentSettlementId(openSettlements[0]?.id ?? "");
   }, [openSettlements, repaymentSettlementId]);
+
+  const finalizeRepayment = async (
+    settlement: Settlement,
+    amountValue: number,
+    noteValue: string,
+    accountValue: string,
+    dateValue: string,
+    eventId: string,
+  ) => {
+    const existing = await db.repayments.where("linkedRepaymentId").equals(eventId).first();
+    if (existing?.status === "confirmed") return false;
+    const timestamp = nowIso();
+    const transactionId = existing?.transactionId ?? createId();
+    const repayment: Repayment = {
+      id: existing?.id ?? createId(),
+      ownerProfileId: snapshot.profile?.id,
+      settlementId: settlement.id,
+      personId: settlement.personId,
+      amount: amountValue,
+      accountId: accountValue,
+      transactionId,
+      date: dateValue,
+      note: noteValue || "Returned money",
+      linkedRepaymentId: eventId,
+      friendUserId: settlement.friendUserId,
+      status: "confirmed",
+      confirmedAt: timestamp,
+      confirmedBy: snapshot.profile?.connectedUserId,
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    };
+    const transaction: Transaction = {
+      id: transactionId,
+      ownerProfileId: snapshot.profile?.id,
+      type: settlement.direction === "to_me" ? "income" : "expense",
+      amount: amountValue,
+      accountId: accountValue,
+      date: dateValue,
+      note: repayment.note,
+      personIds: [settlement.personId],
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    };
+    const currentRepaid = settlement.repaidAmount + amountValue;
+    await db.transaction("rw", db.settlements, db.repayments, db.transactions, async () => {
+      await db.repayments.put(repayment);
+      await db.transactions.put(transaction);
+      await db.settlements.update(settlement.id, {
+        repaidAmount: Math.min(settlement.originalAmount, currentRepaid),
+        status: currentRepaid >= settlement.originalAmount ? "settled" : "open",
+        updatedAt: timestamp,
+        syncState: snapshot.config.syncEnabled ? "queued" : "local",
+      });
+    });
+    return true;
+  };
+
+  const applyServerSettlementEvents = async (events: ServerSettlementEvent[]) => {
+    let changed = false;
+    for (const event of events) {
+      if (event.status === "rejected") {
+        const pending = await db.repayments.where("linkedRepaymentId").equals(event.id).first();
+        if (pending?.status === "pending") {
+          await db.repayments.update(pending.id, { status: "rejected", updatedAt: nowIso(), syncState: snapshot.config.syncEnabled ? "queued" : "local" });
+          changed = true;
+        }
+        continue;
+      }
+      if (event.status !== "accepted") continue;
+      const amountValue = Number(event.amount) || Number(event.payload.amount) || 0;
+      if (!amountValue) continue;
+      const payload = event.payload || {};
+      const localSettlementId = typeof payload.localSettlementId === "string" ? payload.localSettlementId : event.settlement_entity_id;
+      const settlement =
+        snapshot.settlements.find((item) => item.id === localSettlementId) ||
+        snapshot.settlements.find((item) => item.id === event.settlement_entity_id);
+      if (!settlement) continue;
+      const accountValue =
+        typeof payload.requesterAccountId === "string" && event.requested_by === snapshot.profile?.connectedUserId
+          ? payload.requesterAccountId
+          : eventAccounts[event.id] || activeAccounts[0]?.id || "";
+      if (!accountValue) continue;
+      const noteValue = typeof payload.note === "string" ? payload.note : "Returned money";
+      const dateValue = typeof payload.date === "string" ? payload.date : event.created_at;
+      changed = (await finalizeRepayment(settlement, amountValue, noteValue, accountValue, dateValue, event.id)) || changed;
+    }
+    if (changed) await onDone();
+  };
+
+  const refreshSettlementEvents = async () => {
+    if (!getServerToken() || !snapshot.profile?.connectedUserId) return;
+    try {
+      const result = await listServerSettlementEvents();
+      setSettlementEvents(result.events);
+      await applyServerSettlementEvents(result.events);
+    } catch {
+      // Friend events are a secondary sync channel; regular entity sync still runs.
+    }
+  };
+
+  useEffect(() => {
+    void refreshSettlementEvents();
+  }, [snapshot.profile?.connectedUserId, snapshot.settlements.length, snapshot.repayments.length]);
 
   const verifyFriendCode = async () => {
     const normalizedInviteCode = inviteCode.trim().toUpperCase();
@@ -1901,86 +2028,86 @@ function PeopleView({
       return;
     }
     const timestamp = nowIso();
-    const transactionId = createId();
-    const repayment: Repayment = {
-      id: createId(),
-      ownerProfileId: snapshot.profile?.id,
-      settlementId: settlement.id,
-      personId: settlement.personId,
-      amount: numericAmount,
-      accountId: repaymentAccountId,
-      transactionId,
-      friendUserId: settlement.friendUserId,
-      date: timestamp,
-      note: repaymentNote || "Returned money",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      syncState: snapshot.config.syncEnabled ? "queued" : "local",
-    };
     const person = snapshot.people.find((item) => item.id === settlement.personId);
-    const transaction: Transaction = {
-      id: transactionId,
-      ownerProfileId: snapshot.profile?.id,
-      type: settlement.direction === "to_me" ? "income" : "expense",
-      amount: numericAmount,
-      accountId: repaymentAccountId,
-      date: timestamp,
-      note: repayment.note,
-      personIds: [settlement.personId],
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      syncState: snapshot.config.syncEnabled ? "queued" : "local",
-    };
-    const totalRepaid = settlement.repaidAmount + numericAmount;
-    await db.transaction("rw", db.settlements, db.repayments, db.transactions, async () => {
-      await db.repayments.put(repayment);
-      await db.transactions.put(transaction);
-      await db.settlements.update(settlement.id, {
-        repaidAmount: totalRepaid,
+    if (person?.status === "connected" && person.connectedUserId && person.friendUserId && snapshot.profile?.connectedUserId && getServerToken()) {
+      const repaymentId = createId();
+      const remoteSettlementId = settlement.linkedSettlementId || `mirror-${settlement.id}`;
+      const payload = {
+        amount: numericAmount,
+        date: timestamp,
+        note: repaymentNote || "Returned money",
+        localSettlementId: settlement.id,
+        remoteSettlementId,
+        requesterAccountId: repaymentAccountId,
+        requesterUserId: snapshot.profile.connectedUserId,
+        requesterName: snapshot.profile.displayName,
+      };
+      const { event } = await requestServerRepayment(person.friendUserId, remoteSettlementId, numericAmount, payload);
+      const pendingRepayment: Repayment = {
+        id: repaymentId,
+        ownerProfileId: snapshot.profile?.id,
+        settlementId: settlement.id,
+        personId: settlement.personId,
+        amount: numericAmount,
+        accountId: repaymentAccountId,
+        friendUserId: settlement.friendUserId,
+        date: timestamp,
+        note: repaymentNote || "Returned money",
+        linkedRepaymentId: event.id,
+        status: "pending",
+        createdAt: timestamp,
         updatedAt: timestamp,
         syncState: snapshot.config.syncEnabled ? "queued" : "local",
-      });
-    });
-    if (person?.status === "connected" && person.connectedUserId && person.friendUserId && snapshot.profile?.connectedUserId && getServerToken()) {
-      const remoteSettlementId = settlement.linkedSettlementId || `mirror-${settlement.id}`;
-      const mirroredSettlement: Settlement = {
-        ...settlement,
-        id: remoteSettlementId,
-        ownerProfileId: undefined,
-        personId: "",
-        direction: settlement.direction === "to_me" ? "by_me" : "to_me",
-        accountId: undefined,
-        categoryId: undefined,
-        transactionId: undefined,
-        linkedSettlementId: settlement.id,
-        friendUserId: snapshot.profile.connectedUserId,
-        repaidAmount: totalRepaid,
-        updatedAt: timestamp,
-        syncState: "synced",
       };
-      const mirroredRepayment: Repayment = {
-        ...repayment,
-        id: `mirror-${repayment.id}`,
-        ownerProfileId: undefined,
-        settlementId: remoteSettlementId,
-        personId: "",
-        accountId: undefined,
-        transactionId: undefined,
-        linkedRepaymentId: repayment.id,
-        friendUserId: snapshot.profile.connectedUserId,
-        syncState: "synced",
-      };
-      await mirrorServerFriendEntity(person.connectedUserId, "settlements", mirroredSettlement.id, { ...mirroredSettlement }).catch((error: unknown) => {
-        notify(error instanceof Error ? error.message : "Friend settlement update will sync when the server is reachable.", "warning");
-      });
-      await mirrorServerFriendEntity(person.connectedUserId, "repayments", mirroredRepayment.id, { ...mirroredRepayment }).catch((error: unknown) => {
-        notify(error instanceof Error ? error.message : "Friend repayment update will sync when the server is reachable.", "warning");
-      });
+      await db.repayments.put(pendingRepayment);
+      setRepaymentAmount("");
+      setRepaymentNote("");
+      await refreshSettlementEvents();
+      notify("Repayment request sent. Waiting for friend acknowledgement.", "success");
+      await onDone();
+      return;
     }
+    await finalizeRepayment(settlement, numericAmount, repaymentNote || "Returned money", repaymentAccountId, timestamp, createId());
     setRepaymentAmount("");
     setRepaymentNote("");
     notify("Returned money recorded.", "success");
     await onDone();
+  };
+
+  const respondRepayment = async (event: ServerSettlementEvent, action: "accept" | "reject") => {
+    if (busyEventId) return;
+    setBusyEventId(event.id);
+    try {
+      const result = await respondServerRepayment(event.id, action);
+      if (action === "reject") {
+        notify("Repayment request rejected.", "warning");
+        await refreshSettlementEvents();
+        return;
+      }
+      const settlement =
+        snapshot.settlements.find((item) => item.id === event.settlement_entity_id) ||
+        snapshot.settlements.find((item) => item.id === event.payload.localSettlementId);
+      const accountValue = eventAccounts[event.id] || activeAccounts[0]?.id || "";
+      if (!settlement || !accountValue) {
+        notify("Choose an account and make sure the shared record is synced before accepting.", "error");
+        return;
+      }
+      await finalizeRepayment(
+        settlement,
+        Number(result.event.amount) || Number(event.amount) || 0,
+        typeof event.payload.note === "string" ? event.payload.note : "Returned money",
+        accountValue,
+        typeof event.payload.date === "string" ? event.payload.date : event.created_at,
+        event.id,
+      );
+      notify("Repayment acknowledged and added to your account.", "success");
+      await refreshSettlementEvents();
+      await onDone();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not update repayment request.", "error");
+    } finally {
+      setBusyEventId("");
+    }
   };
 
   const updatePerson = async (person: Person, patch: Partial<Person>) => {
@@ -2130,6 +2257,86 @@ function PeopleView({
             </div>
           </div>
         </div>
+      ) : null}
+      <Panel title="Friend Ledger" icon={<Users size={18} />}>
+        <div className="friend-ledger">
+          <SelectField label="Friend" value={selectedFriend?.id ?? ""} onChange={setSelectedFriendId}>
+            {activePeople.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.localDisplayName}
+              </option>
+            ))}
+          </SelectField>
+          {selectedFriend ? (
+            <div className="friend-summary-card">
+              <div>
+                <span>Overall balance</span>
+                <strong>{formatMoney(personBalance(selectedFriend, snapshot.settlements), currency)}</strong>
+                <p>{personBalance(selectedFriend, snapshot.settlements) >= 0 ? "Owed to you" : "You owe"}</p>
+              </div>
+              <div>
+                <span>Open records</span>
+                <strong>{selectedFriendSettlements.filter((settlement) => settlement.repaidAmount < settlement.originalAmount).length}</strong>
+                <p>{selectedFriend.verified ? "Verified friend" : selectedFriend.status}</p>
+              </div>
+            </div>
+          ) : (
+            <Empty text="Select a friend to see their ledger." />
+          )}
+          <div className="friend-mini-list">
+            {selectedFriendSettlements.slice().reverse().slice(0, 4).map((settlement) => (
+              <div className="friend-ledger-row" key={settlement.id}>
+                <div>
+                  <strong>{settlement.direction === "to_me" ? "They owe me" : "I owe them"}</strong>
+                  <p>{settlement.note || "No note"} · {formatDate(settlement.date)}</p>
+                </div>
+                <span>{formatMoney(settlement.originalAmount - settlement.repaidAmount, currency)}</span>
+              </div>
+            ))}
+            {selectedFriend && selectedFriendSettlements.length === 0 ? <Empty text="No records for this friend yet." /> : null}
+          </div>
+        </div>
+      </Panel>
+      {pendingEvents.length || myPendingEvents.length ? (
+        <Panel title="Acknowledgements" icon={<RefreshCw size={18} />}>
+          <div className="grid gap-3">
+            {pendingEvents.map((event) => {
+              const amountValue = Number(event.amount) || Number(event.payload.amount) || 0;
+              const friend = snapshot.people.find((person) => person.friendUserId === event.requested_by);
+              return (
+                <div className="approval-card" key={event.id}>
+                  <div>
+                    <strong>{friend?.localDisplayName ?? (typeof event.payload.requesterName === "string" ? event.payload.requesterName : "Friend")} marked returned money</strong>
+                    <p>{formatMoney(amountValue, currency)} · {typeof event.payload.note === "string" ? event.payload.note : "Returned money"}</p>
+                  </div>
+                  <SelectField label="Add to account" value={eventAccounts[event.id] || activeAccounts[0]?.id || ""} onChange={(value) => setEventAccounts((items) => ({ ...items, [event.id]: value }))}>
+                    {activeAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <div className="friend-actions">
+                    <button className="secondary-button" disabled={busyEventId === event.id} onClick={() => respondRepayment(event, "reject")}>
+                      Reject
+                    </button>
+                    <LoadingButton className="primary-button" loading={busyEventId === event.id} onClick={() => respondRepayment(event, "accept")}>
+                      Accept & Add
+                    </LoadingButton>
+                  </div>
+                </div>
+              );
+            })}
+            {myPendingEvents.map((event) => (
+              <div className="approval-card approval-card-muted" key={event.id}>
+                <div>
+                  <strong>Waiting for friend acknowledgement</strong>
+                  <p>{formatMoney(Number(event.amount) || Number(event.payload.amount) || 0, currency)} · {typeof event.payload.note === "string" ? event.payload.note : "Returned money"}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
       ) : null}
       <Panel title="Owe / Owed">
         <div className="grid gap-4">

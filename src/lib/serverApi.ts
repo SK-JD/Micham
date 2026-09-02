@@ -57,6 +57,22 @@ type CloudEntityRow = {
   deleted_at?: string | null;
 };
 
+export type ServerSettlementEvent = {
+  id: string;
+  owner_id: string;
+  friend_id: string;
+  settlement_entity_id: string;
+  event_type: "owe_created" | "repayment_requested" | "repayment_confirmed" | "repayment_rejected" | "settlement_closed";
+  amount: number | string;
+  previous_event_id?: string | null;
+  payload: Record<string, unknown>;
+  status: "pending" | "accepted" | "rejected" | "cancelled";
+  requested_by?: string | null;
+  acknowledged_by?: string | null;
+  acknowledged_at?: string | null;
+  created_at: string;
+};
+
 const TOKEN_KEY = "micham_server_token";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
@@ -322,4 +338,26 @@ export async function listServerFriends() {
       } | null;
     }>;
   }>("/api/friends/list");
+}
+
+export async function listServerSettlementEvents() {
+  return apiFetch<{ events: ServerSettlementEvent[] }>("/api/settlements/list");
+}
+
+export async function requestServerRepayment(
+  friendUserId: string,
+  settlementEntityId: string,
+  amount: number,
+  payload: Record<string, unknown>,
+  previousEventId?: string,
+) {
+  return apiFetch<{ event: ServerSettlementEvent }>("/api/settlements/request-repayment", {
+    body: { friendUserId, settlementEntityId, amount, payload, previousEventId },
+  });
+}
+
+export async function respondServerRepayment(eventId: string, action: "accept" | "reject") {
+  return apiFetch<{ event: ServerSettlementEvent }>("/api/settlements/respond-repayment", {
+    body: { eventId, action },
+  });
 }
