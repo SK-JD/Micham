@@ -965,13 +965,13 @@ function Onboarding({ config, onDone }: { config: AppConfig; onDone: () => Promi
   if (mode === "connect") {
     return (
       <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-8">
-        <Panel title="Create Account Later">
+        <Panel title="Use Locally First">
           <p className="text-sm text-slate-600">
-            Supabase authentication is prepared for the next phase. Start offline now and connect this same local profile later
-            without losing accounts or transactions.
+            Start with local storage on this device. When you are ready, open Settings, create a password, verify your email,
+            and sync this same profile to the server.
           </p>
           <button className="primary-button mt-4" onClick={() => setMode("offline")}>
-            Continue Offline
+            Continue Locally
           </button>
         </Panel>
       </div>
