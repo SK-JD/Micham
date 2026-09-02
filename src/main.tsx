@@ -43,6 +43,7 @@ import {
   blockServerFriend,
   clearServerToken,
   deleteServerAccount,
+  emailServerDataExport,
   ensureLocalProfileForServerUser,
   getServerToken,
   listServerFriends,
@@ -277,7 +278,9 @@ async function syncServerFriendsToLocal(profile: Profile) {
     rows.push({
       id: existing?.id ?? link.owner_person_id ?? createId(),
       ownerProfileId: profile.id,
-      localDisplayName: friend.display_name,
+      localDisplayName: existing?.nickname || existing?.localDisplayName || friend.display_name,
+      nickname: existing?.nickname,
+      serverDisplayName: friend.display_name,
       inviteCode: friend.connection_code,
       connectedUserId: friend.connection_code,
       friendUserId: link.friend_id,
@@ -303,6 +306,7 @@ function App() {
   const [currentProfileId, setCurrentProfileId] = useState(() => localStorage.getItem("micham_profile_id") || "");
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [busyMessage, setBusyMessage] = useState("");
+  const [showTour, setShowTour] = useState(false);
 
   const notify = (message: string, tone: Toast["tone"] = "info") => {
     const id = createId();
@@ -431,6 +435,7 @@ function App() {
             await claimUnownedData(profileId);
             await db.appConfig.update("primary", { syncEnabled: true, updatedAt: nowIso() });
             await refresh(profileId);
+            if (localStorage.getItem("micham_tour_seen") !== "true") setShowTour(true);
           }}
           onAdminLogin={async () => {
             localStorage.setItem("micham_role", "admin");
@@ -478,7 +483,7 @@ function App() {
           )}
           {view === "people" && <PeopleView snapshot={snapshot} currency={currency} notify={notify} onDone={refresh} />}
           {view === "manage" && <ManageView snapshot={snapshot} notify={notify} onDone={refresh} />}
-          {view === "settings" && <SettingsView snapshot={snapshot} notify={notify} onDone={refresh} onLogout={logoutUser} onNavigate={setView} />}
+          {view === "settings" && <SettingsView snapshot={snapshot} notify={notify} onDone={refresh} onLogout={logoutUser} onNavigate={setView} onStartTour={() => setShowTour(true)} />}
           {view === "ai" && <AiChatView snapshot={snapshot} currency={currency} notify={notify} />}
         </main>
 
@@ -496,6 +501,10 @@ function App() {
         </nav>
       </div>
       {busyMessage ? <BusyOverlay message={busyMessage} /> : null}
+      {showTour ? <UserTour onClose={() => {
+        localStorage.setItem("micham_tour_seen", "true");
+        setShowTour(false);
+      }} /> : null}
       <ToastHost toasts={toasts} />
     </Shell>
   );
@@ -528,6 +537,57 @@ function BusyOverlay({ message }: { message: string }) {
         <span className="busy-spinner" />
         <strong>{message}</strong>
       </div>
+    </div>
+  );
+}
+
+function UserTour({ onClose }: { onClose: () => void }) {
+  const steps = [
+    {
+      title: "Start From Home",
+      body: "See balance, month savings, today spend, accounts, and quick actions in one place.",
+      icon: <Home size={22} />,
+    },
+    {
+      title: "Add Money Flow",
+      body: "Use Add for expenses, income, transfers, receipts, and split or friend-related records.",
+      icon: <Plus size={22} />,
+    },
+    {
+      title: "Track Friends",
+      body: "Send requests by connection code, set nicknames, record owe/owed, and approve repayments from both sides.",
+      icon: <Users size={22} />,
+    },
+    {
+      title: "Control Settings",
+      body: "Manage sync, AI chat, password, export, account deletion, and local-to-cloud connection.",
+      icon: <Settings size={22} />,
+    },
+  ];
+  const [index, setIndex] = useState(0);
+  const step = steps[index];
+  const isLast = index === steps.length - 1;
+  return (
+    <div className="tour-backdrop" role="dialog" aria-modal="true">
+      <section className="tour-card">
+        <div className="tour-icon">{step.icon}</div>
+        <div className="tour-copy">
+          <span>Step {index + 1} of {steps.length}</span>
+          <h2>{step.title}</h2>
+          <p>{step.body}</p>
+        </div>
+        <div className="tour-dots">
+          {steps.map((item, dotIndex) => (
+            <button key={item.title} className={dotIndex === index ? "tour-dot-active" : ""} aria-label={`Go to ${item.title}`} onClick={() => setIndex(dotIndex)} />
+          ))}
+        </div>
+        <div className="tour-actions">
+          <button className="secondary-button" onClick={onClose}>Skip</button>
+          <button className="primary-button" onClick={() => (isLast ? onClose() : setIndex((value) => value + 1))}>
+            {isLast ? "Finish Tour" : "Next"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
@@ -1710,6 +1770,7 @@ function PeopleView({
   const [settlementEvents, setSettlementEvents] = useState<ServerSettlementEvent[]>([]);
   const [eventAccounts, setEventAccounts] = useState<Record<string, string>>({});
   const [busyEventId, setBusyEventId] = useState("");
+  const [nicknameDraft, setNicknameDraft] = useState("");
   const visiblePeople = snapshot.people.slice(0, 3);
   const selectedFriend = activePeople.find((person) => person.id === selectedFriendId) ?? activePeople[0];
   const selectedFriendSettlements = selectedFriend
@@ -1736,6 +1797,10 @@ function PeopleView({
     if (!activePeople.some((person) => person.id === personId)) setPersonId(activePeople[0]?.id ?? "");
     if (!activePeople.some((person) => person.id === selectedFriendId)) setSelectedFriendId(activePeople[0]?.id ?? "");
   }, [activePeople, personId]);
+
+  useEffect(() => {
+    setNicknameDraft(selectedFriend?.nickname || selectedFriend?.localDisplayName || "");
+  }, [selectedFriend?.id]);
 
   useEffect(() => {
     if (!activeAccounts.some((account) => account.id === accountId)) setAccountId(activeAccounts[0]?.id ?? "");
@@ -2173,6 +2238,23 @@ function PeopleView({
     await removeOrHidePerson(current.person);
   };
 
+  const saveNickname = async () => {
+    if (!selectedFriend) return;
+    const nickname = nicknameDraft.trim();
+    if (!nickname) {
+      notify("Enter a nickname for this friend.", "error");
+      return;
+    }
+    await db.people.update(selectedFriend.id, {
+      localDisplayName: nickname,
+      nickname,
+      updatedAt: nowIso(),
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    });
+    notify("Friend nickname updated.", "success");
+    await onDone();
+  };
+
   return (
     <div className="grid gap-5">
       <Panel title="Friends List">
@@ -2268,18 +2350,30 @@ function PeopleView({
             ))}
           </SelectField>
           {selectedFriend ? (
-            <div className="friend-summary-card">
-              <div>
-                <span>Overall balance</span>
-                <strong>{formatMoney(personBalance(selectedFriend, snapshot.settlements), currency)}</strong>
-                <p>{personBalance(selectedFriend, snapshot.settlements) >= 0 ? "Owed to you" : "You owe"}</p>
+            <>
+              <div className="nickname-editor">
+                <div>
+                  <span>Nickname</span>
+                  <p>Verified name: {selectedFriend.serverDisplayName || selectedFriend.localDisplayName}</p>
+                </div>
+                <input className="field-input" value={nicknameDraft} onChange={(event) => setNicknameDraft(event.target.value)} placeholder="Friend nickname" />
+                <button className="secondary-button" onClick={saveNickname} disabled={!nicknameDraft.trim() || nicknameDraft.trim() === selectedFriend.localDisplayName}>
+                  Save Nickname
+                </button>
               </div>
-              <div>
-                <span>Open records</span>
-                <strong>{selectedFriendSettlements.filter((settlement) => settlement.repaidAmount < settlement.originalAmount).length}</strong>
-                <p>{selectedFriend.verified ? "Verified friend" : selectedFriend.status}</p>
+              <div className="friend-summary-card">
+                <div>
+                  <span>Overall balance</span>
+                  <strong>{formatMoney(personBalance(selectedFriend, snapshot.settlements), currency)}</strong>
+                  <p>{personBalance(selectedFriend, snapshot.settlements) >= 0 ? "Owed to you" : "You owe"}</p>
+                </div>
+                <div>
+                  <span>Open records</span>
+                  <strong>{selectedFriendSettlements.filter((settlement) => settlement.repaidAmount < settlement.originalAmount).length}</strong>
+                  <p>{selectedFriend.verified ? "Verified friend" : selectedFriend.status}</p>
+                </div>
               </div>
-            </div>
+            </>
           ) : (
             <Empty text="Select a friend to see their ledger." />
           )}
@@ -2753,12 +2847,14 @@ function SettingsView({
   onDone,
   onLogout,
   onNavigate,
+  onStartTour,
 }: {
   snapshot: Snapshot;
   notify: (message: string, tone?: Toast["tone"]) => void;
   onDone: () => Promise<void>;
   onLogout: () => void;
   onNavigate: (view: View) => void;
+  onStartTour: () => void;
 }) {
   const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
   const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
@@ -2985,6 +3081,11 @@ function SettingsView({
         return;
       }
       if (snapshot.profile.connectedUserId) {
+        const exportResult = await emailServerDataExport();
+        if (exportResult.emailDelivery?.delivered === false) {
+          notify("Export email could not be sent. Account deletion stopped.", "error");
+          return;
+        }
         await deleteServerAccount();
       }
       await clearLocalProfileData(snapshot.profile.id);
@@ -3011,7 +3112,14 @@ function SettingsView({
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <Panel title="Profile">
-        <div className="grid gap-2 text-sm">
+        <div className="settings-profile">
+          <div className="settings-profile-hero">
+            <div className="profile-avatar">{snapshot.profile?.displayName?.slice(0, 1).toUpperCase() || "M"}</div>
+            <div>
+              <strong>{snapshot.profile?.displayName}</strong>
+              <p>{snapshot.profile?.connectedUserId ? "Cloud account" : "Local profile"}</p>
+            </div>
+          </div>
           <div className="row">
             <span>Name</span>
             <strong>{snapshot.profile?.displayName}</strong>
@@ -3068,6 +3176,10 @@ function SettingsView({
             <SlidersHorizontal size={18} />
             <span>Manage</span>
           </button>
+          <button className="more-button" onClick={onStartTour}>
+            <CircleUserRound size={18} />
+            <span>App Tour</span>
+          </button>
         </div>
       </Panel>
 
@@ -3095,7 +3207,7 @@ function SettingsView({
                 Disconnect Sync
               </button>
               <button className="secondary-button danger-button" onClick={() => setDeleteConfirm(true)}>
-                <Trash2 size={18} /> Delete Account
+                <Trash2 size={18} /> Delete & Email Export
               </button>
             </div>
           </div>
@@ -3168,13 +3280,13 @@ function SettingsView({
               <strong>Delete Account</strong>
               <p>
                 This will delete this account from the server when connected, clear this profile data from this device, and logout.
-                You can create a new account later with the same email.
+                Before deleting a connected account, Micham emails your full data export to the account email.
               </p>
             </div>
             <div className="confirm-actions">
               <button className="secondary-button" onClick={() => setDeleteConfirm(false)}>Cancel</button>
               <LoadingButton className="primary-button danger-action" loading={busyAction === "delete"} onClick={deleteAccount}>
-                Delete
+                {snapshot.profile?.connectedUserId ? "Email Export & Delete" : "Delete Local Data"}
               </LoadingButton>
             </div>
           </div>
@@ -3515,7 +3627,7 @@ function FriendCard({
             {person.verified || person.status === "connected" ? <Star className="verified-star" size={15} fill="currentColor" /> : null}
             {person.localDisplayName}
           </strong>
-          <p>{person.inviteCode ? person.inviteCode : "Local person"}</p>
+          <p>{person.serverDisplayName && person.serverDisplayName !== person.localDisplayName ? `${person.serverDisplayName} · ${person.inviteCode}` : person.inviteCode ? person.inviteCode : "Local person"}</p>
         </div>
         <span className={`status-pill status-${person.status || "local"}`}>{person.active ? person.status || "local" : "hidden"}</span>
       </div>

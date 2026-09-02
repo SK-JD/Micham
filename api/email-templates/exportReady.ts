@@ -1,11 +1,15 @@
+import { escapeHtml, mailShell } from "./layout";
+
 export function exportReadyTemplate(displayName: string) {
   const text = `Hi ${displayName}, your Micham data export is attached.`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0b1f17">
-      <h2>Your Micham export is ready</h2>
-      <p>Hi ${displayName},</p>
-      <p>Your requested data export is attached as a CSV file that opens in Excel.</p>
-    </div>
-  `;
+  const html = mailShell(
+    "Your Micham export is ready",
+    "Your account data export is attached.",
+    `
+      <p style="margin:0 0 16px;color:#315f51;font-size:15px;line-height:1.6">Hi ${escapeHtml(displayName)},</p>
+      <p style="margin:0 0 8px;color:#315f51;font-size:15px;line-height:1.6">Your requested account export is attached as an Excel-compatible workbook.</p>
+      <p style="margin:0;color:#6f8f84;font-size:13px;line-height:1.5">Keep this file private. It can include transactions, friends, accounts, categories, settlements, and repayments.</p>
+    `,
+  );
   return { subject: "Your Micham data export", html, text };
 }

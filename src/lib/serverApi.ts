@@ -159,6 +159,10 @@ export async function deleteServerAccount() {
   return apiFetch<{ ok: true }>("/api/auth/delete-account", { body: {} });
 }
 
+export async function emailServerDataExport() {
+  return apiFetch<{ ok: true; emailDelivery?: { delivered: boolean; reason?: string } }>("/api/export/email", { body: {} });
+}
+
 export async function ensureLocalProfileForServerUser(user: ServerUser, config: AppConfig) {
   const existing = await db.profiles.where("loginId").equals(user.email).first();
   const timestamp = nowIso();

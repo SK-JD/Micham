@@ -112,6 +112,8 @@ export interface RecurringTransaction extends BaseEntity {
 export interface Person extends BaseEntity {
   ownerProfileId?: string;
   localDisplayName: string;
+  nickname?: string;
+  serverDisplayName?: string;
   inviteCode?: string;
   connectedUserId?: string;
   status: FriendStatus;

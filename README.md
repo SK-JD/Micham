@@ -75,6 +75,8 @@ API endpoints:
 
 Email templates are kept separately in `api/email-templates/`.
 
+Detailed module notes and flow diagrams are in `docs/modules-and-flows.md`.
+
 ### CLI Migration Setup
 
 If the Supabase CLI is installed and your project is linked, apply the migration with:
@@ -94,11 +96,11 @@ After the migration runs, the serverless API can create users, issue sessions, s
 ## Sync Behavior
 
 - `Use Locally` keeps all data in IndexedDB on the device.
-- `Create Account` is moving to the serverless auth API so Supabase Auth email limits do not affect the app.
-- `Create Account & Sync Local Data` links the current local profile to Supabase.
+- `Create Account` uses the serverless auth API so Supabase Auth email limits do not affect the app.
+- `Sync To Server` links the current local profile to the cloud account after email verification.
 - Accounts, categories, transactions, budgets, recurring records, friends, owe/owed records, and repayments are synced as cloud entities.
 - Friend connection uses the friend's `MCH-...` connection code.
-- Connected friend owe/owed and repayment records are mirrored through Supabase RPC and received through realtime.
+- Connected friend owe/owed records are mirrored to the other account, and repayments require acknowledgement before they finalize.
 
 ## APK
 
