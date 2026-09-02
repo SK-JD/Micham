@@ -1,14 +1,16 @@
+import { buttonLink, escapeHtml, mailShell } from "./layout";
+
 export function verifyEmailTemplate(displayName: string, verifyUrl: string) {
   const text = `Hi ${displayName}, verify your Micham account: ${verifyUrl}`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0b1f17">
-      <h2>Verify your Micham account</h2>
-      <p>Hi ${displayName},</p>
-      <p>Use the button below to verify your email and start cloud sync.</p>
-      <p><a href="${verifyUrl}" style="display:inline-block;background:#04966d;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">Verify email</a></p>
-      <p>If the button does not work, open this link:</p>
-      <p>${verifyUrl}</p>
-    </div>
-  `;
+  const html = mailShell(
+    "Verify your Micham account",
+    "Verify your email to activate cloud sync.",
+    `
+      <p style="margin:0 0 16px;color:#315f51;font-size:15px;line-height:1.6">Hi ${escapeHtml(displayName)},</p>
+      <p style="margin:0 0 24px;color:#315f51;font-size:15px;line-height:1.6">Verify this email to activate your account and start cloud sync.</p>
+      <p style="margin:0 0 24px">${buttonLink(verifyUrl, "Verify email")}</p>
+      <p style="margin:0;color:#6f8f84;font-size:13px;line-height:1.5">If the button does not work, open this link:<br><a href="${escapeHtml(verifyUrl)}" style="color:#007a5b;word-break:break-all">${escapeHtml(verifyUrl)}</a></p>
+    `,
+  );
   return { subject: "Verify your Micham account", html, text };
 }

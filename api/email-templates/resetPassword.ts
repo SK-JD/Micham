@@ -1,14 +1,16 @@
+import { buttonLink, escapeHtml, mailShell } from "./layout";
+
 export function resetPasswordTemplate(displayName: string, resetUrl: string) {
   const text = `Hi ${displayName}, reset your Micham password: ${resetUrl}`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0b1f17">
-      <h2>Reset your Micham password</h2>
-      <p>Hi ${displayName},</p>
-      <p>Use the button below to set a new password. This link expires soon.</p>
-      <p><a href="${resetUrl}" style="display:inline-block;background:#04966d;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">Reset password</a></p>
-      <p>If the button does not work, open this link:</p>
-      <p>${resetUrl}</p>
-    </div>
-  `;
+  const html = mailShell(
+    "Reset your Micham password",
+    "Use this secure link to set a new password.",
+    `
+      <p style="margin:0 0 16px;color:#315f51;font-size:15px;line-height:1.6">Hi ${escapeHtml(displayName)},</p>
+      <p style="margin:0 0 24px;color:#315f51;font-size:15px;line-height:1.6">Use this secure link to set a new password. The link expires soon.</p>
+      <p style="margin:0 0 24px">${buttonLink(resetUrl, "Reset password")}</p>
+      <p style="margin:0;color:#6f8f84;font-size:13px;line-height:1.5">If the button does not work, open this link:<br><a href="${escapeHtml(resetUrl)}" style="color:#007a5b;word-break:break-all">${escapeHtml(resetUrl)}</a></p>
+    `,
+  );
   return { subject: "Reset your Micham password", html, text };
 }

@@ -122,7 +122,7 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
 }
 
 export async function registerServerAccount(email: string, password: string, displayName: string, currency: string) {
-  return apiFetch<{ user: ServerUser; emailDelivery?: { sent: boolean } }>("/api/auth/register", {
+  return apiFetch<{ user: ServerUser; emailDelivery?: { delivered: boolean; reason?: string } }>("/api/auth/register", {
     body: { email, password, displayName, currency },
   });
 }
@@ -239,10 +239,14 @@ export async function pullServerSnapshot(localProfileId: string) {
   }>("/api/sync/pull");
 
   const grouped = new Map<EntityType, Record<string, unknown>[]>();
+  const localPeople = await db.people.where("ownerProfileId").equals(localProfileId).toArray();
   for (const row of result.entities ?? []) {
+    const friendUserId = typeof row.payload.friendUserId === "string" ? row.payload.friendUserId : "";
+    const localFriend = friendUserId ? localPeople.find((person) => person.friendUserId === friendUserId) : undefined;
     const payload = {
       ...row.payload,
       ownerProfileId: localProfileId,
+      personId: localFriend?.id ?? row.payload.personId,
       deletedAt: row.deleted_at ?? (row.payload.deletedAt as string | undefined),
       syncState: "synced",
     };
@@ -290,6 +294,12 @@ export async function blockServerFriend(friendUserId: string) {
 
 export async function removeServerFriend(friendUserId: string) {
   return apiFetch<{ status: "removed" }>("/api/friends/remove", { body: { friendUserId } });
+}
+
+export async function mirrorServerFriendEntity(connectionCode: string, entityType: EntityType, entityId: string, payload: Record<string, unknown>) {
+  return apiFetch<{ ok: true }>("/api/friends/mirror", {
+    body: { connectionCode, entityType, entityId, payload },
+  });
 }
 
 export async function listServerFriends() {

@@ -127,8 +127,11 @@ export interface Settlement extends BaseEntity {
   direction: OweDirection;
   originalAmount: number;
   repaidAmount: number;
+  accountId?: string;
+  categoryId?: string;
   transactionId?: string;
   linkedSettlementId?: string;
+  friendUserId?: string;
   status?: SettlementStatus;
   pendingRepaymentAmount?: number;
   parentSettlementId?: string;
@@ -143,9 +146,12 @@ export interface Repayment extends BaseEntity {
   settlementId: string;
   personId: string;
   amount: number;
+  accountId?: string;
+  transactionId?: string;
   date: string;
   note: string;
   linkedRepaymentId?: string;
+  friendUserId?: string;
   status?: "pending" | "confirmed" | "rejected";
   parentRepaymentId?: string;
   confirmedAt?: string;

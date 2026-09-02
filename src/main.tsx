@@ -47,6 +47,7 @@ import {
   getServerToken,
   listServerFriends,
   loginServerAccount,
+  mirrorServerFriendEntity,
   pullServerSnapshot,
   pushServerSnapshot,
   registerServerAccount,
@@ -651,12 +652,15 @@ function AuthGate({
   const [localEmail, setLocalEmail] = useState("");
   const [currency, setCurrency] = useState(config.defaultCurrency);
   const [formError, setFormError] = useState("");
+  const [formSuccess, setFormSuccess] = useState("");
+  const [showLocalUse, setShowLocalUse] = useState(false);
   const [busyAction, setBusyAction] = useState<"" | "login" | "register" | "local" | "reset">("");
 
   const login = async () => {
     if (busyAction) return;
     setBusyAction("login");
     setFormError("");
+    setFormSuccess("");
     try {
       const normalizedLoginId = loginId.trim().toLowerCase();
       const loginLimit = checkRateLimit(`micham_login_${normalizedLoginId || "blank"}`, LOGIN_LIMIT.max, LOGIN_LIMIT.windowMs);
@@ -718,6 +722,7 @@ function AuthGate({
     if (busyAction) return;
     setBusyAction("register");
     setFormError("");
+    setFormSuccess("");
     try {
       const normalizedLoginId = loginId.trim().toLowerCase();
       if (!isValidEmail(normalizedLoginId)) {
@@ -730,8 +735,12 @@ function AuthGate({
         notify("Password must be at least 8 characters.", "error");
         return;
       }
-      await registerServerAccount(normalizedLoginId, password, displayName || normalizedLoginId.split("@")[0], currency);
-      notify("Verification email sent. Verify your account, then login.", "success");
+      const result = await registerServerAccount(normalizedLoginId, password, displayName || normalizedLoginId.split("@")[0], currency);
+      const message = result.emailDelivery?.delivered === false
+        ? "Account created, but email delivery is not configured. Ask admin to check SMTP."
+        : "Verification email sent. Open your mail, verify the account, then login.";
+      setFormSuccess(message);
+      notify(message, result.emailDelivery?.delivered === false ? "warning" : "success");
       setMode("login");
       setPassword("");
     } catch (error) {
@@ -746,6 +755,7 @@ function AuthGate({
     if (busyAction) return;
     setBusyAction("local");
     setFormError("");
+    setFormSuccess("");
     try {
       const normalizedEmail = localEmail.trim().toLowerCase();
       if (!localName.trim()) {
@@ -768,6 +778,7 @@ function AuthGate({
     if (busyAction) return;
     setBusyAction("reset");
     setFormError("");
+    setFormSuccess("");
     try {
       const normalizedLoginId = loginId.trim().toLowerCase();
       if (!isValidEmail(normalizedLoginId)) {
@@ -833,17 +844,26 @@ function AuthGate({
           <button className={mode === "reset" ? "auth-tab-active" : ""} onClick={() => setMode("reset")}>Reset</button>
         </div>
         {formError ? <div className="form-error">{formError}</div> : null}
+        {formSuccess ? <div className="form-success">{formSuccess}</div> : null}
         {mode === "login" ? (
           <div className="local-entry">
-            <div className="grid gap-3">
-              <TextField label="Local name" value={localName} onChange={setLocalName} placeholder="Your name" />
-              <TextField label="Local email" value={localEmail} onChange={setLocalEmail} placeholder="you@example.com" />
-            </div>
-            <LoadingButton className="local-use-button" loading={busyAction === "local"} onClick={useLocally}>
+            <button className={`local-toggle ${showLocalUse ? "local-toggle-active" : ""}`} onClick={() => setShowLocalUse((value) => !value)}>
               <WalletCards size={19} /> Use Locally
-            </LoadingButton>
-            <p>Your data stays on this device until you create an account and enable sync.</p>
-            <div className="auth-divider"><span>or login</span></div>
+              <ChevronDown size={18} />
+            </button>
+            {showLocalUse ? (
+              <div className="local-panel">
+                <div className="grid gap-3">
+                  <TextField label="Local name" value={localName} onChange={setLocalName} placeholder="Your name" />
+                  <TextField label="Local email" value={localEmail} onChange={setLocalEmail} placeholder="you@example.com" />
+                </div>
+                <LoadingButton className="local-use-button" loading={busyAction === "local"} onClick={useLocally}>
+                  Start Local Profile
+                </LoadingButton>
+                <p>Your data stays on this device until you create an account and enable sync.</p>
+              </div>
+            ) : null}
+            <div className="auth-divider"><span>cloud login</span></div>
           </div>
         ) : null}
         {mode === "reset" ? (
@@ -1664,15 +1684,20 @@ function PeopleView({
   onDone: () => Promise<void>;
 }) {
   const activePeople = snapshot.people.filter((person) => person.active && (person.status === "local" || person.status === "connected"));
+  const activeAccounts = snapshot.accounts.filter((account) => account.active);
+  const expenseCategories = snapshot.categories.filter((category) => category.active && category.kind === "expense");
   const [name, setName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [verifiedFriend, setVerifiedFriend] = useState<{ displayName: string; connectionCode: string } | null>(null);
   const [personId, setPersonId] = useState(activePeople[0]?.id ?? "");
+  const [accountId, setAccountId] = useState(activeAccounts[0]?.id ?? "");
+  const [categoryId, setCategoryId] = useState(expenseCategories[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"to_me" | "by_me">("to_me");
   const [note, setNote] = useState("");
   const openSettlements = snapshot.settlements.filter((settlement) => !settlement.deletedAt && settlement.repaidAmount < settlement.originalAmount);
   const [repaymentSettlementId, setRepaymentSettlementId] = useState(openSettlements[0]?.id ?? "");
+  const [repaymentAccountId, setRepaymentAccountId] = useState(activeAccounts[0]?.id ?? "");
   const [repaymentAmount, setRepaymentAmount] = useState("");
   const [repaymentNote, setRepaymentNote] = useState("");
   const [friendConfirm, setFriendConfirm] = useState<{ type: "block" | "remove"; person: Person; linked?: boolean } | null>(null);
@@ -1689,6 +1714,15 @@ function PeopleView({
   useEffect(() => {
     if (!activePeople.some((person) => person.id === personId)) setPersonId(activePeople[0]?.id ?? "");
   }, [activePeople, personId]);
+
+  useEffect(() => {
+    if (!activeAccounts.some((account) => account.id === accountId)) setAccountId(activeAccounts[0]?.id ?? "");
+    if (!activeAccounts.some((account) => account.id === repaymentAccountId)) setRepaymentAccountId(activeAccounts[0]?.id ?? "");
+  }, [activeAccounts, accountId, repaymentAccountId]);
+
+  useEffect(() => {
+    if (!expenseCategories.some((category) => category.id === categoryId)) setCategoryId(expenseCategories[0]?.id ?? "");
+  }, [expenseCategories, categoryId]);
 
   useEffect(() => {
     if (!openSettlements.some((settlement) => settlement.id === repaymentSettlementId)) setRepaymentSettlementId(openSettlements[0]?.id ?? "");
@@ -1782,7 +1816,13 @@ function PeopleView({
       notify("Enter a valid amount.", "error");
       return;
     }
+    if (direction === "to_me" && !accountId) {
+      notify("Choose the account you paid from.", "error");
+      return;
+    }
     const timestamp = nowIso();
+    const person = snapshot.people.find((item) => item.id === personId);
+    const transactionId = direction === "to_me" ? createId() : undefined;
     const settlement: Settlement = {
       id: createId(),
       ownerProfileId: snapshot.profile?.id,
@@ -1790,13 +1830,54 @@ function PeopleView({
       direction,
       originalAmount: Number(amount) || 0,
       repaidAmount: 0,
+      accountId: direction === "to_me" ? accountId : undefined,
+      categoryId: direction === "to_me" ? categoryId || undefined : undefined,
+      transactionId,
+      friendUserId: person?.friendUserId,
       date: timestamp,
       note,
       createdAt: timestamp,
       updatedAt: timestamp,
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     };
-    await db.settlements.put(settlement);
+    const transaction: Transaction | undefined = transactionId
+      ? {
+          id: transactionId,
+          ownerProfileId: snapshot.profile?.id,
+          type: "expense",
+          amount: settlement.originalAmount,
+          accountId,
+          categoryId: categoryId || undefined,
+          date: timestamp,
+          note: note || `${person?.localDisplayName ?? "Friend"} owes me`,
+          personIds: [personId],
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          syncState: snapshot.config.syncEnabled ? "queued" : "local",
+        }
+      : undefined;
+    await db.transaction("rw", db.settlements, db.transactions, async () => {
+      await db.settlements.put(settlement);
+      if (transaction) await db.transactions.put(transaction);
+    });
+    if (person?.status === "connected" && person.connectedUserId && person.friendUserId && snapshot.profile?.connectedUserId && getServerToken()) {
+      const mirroredSettlement: Settlement = {
+        ...settlement,
+        id: `mirror-${settlement.id}`,
+        ownerProfileId: undefined,
+        personId: "",
+        direction: direction === "to_me" ? "by_me" : "to_me",
+        accountId: undefined,
+        categoryId: undefined,
+        transactionId: undefined,
+        linkedSettlementId: settlement.id,
+        friendUserId: snapshot.profile.connectedUserId,
+        syncState: "synced",
+      };
+      await mirrorServerFriendEntity(person.connectedUserId, "settlements", mirroredSettlement.id, { ...mirroredSettlement }).catch((error: unknown) => {
+        notify(error instanceof Error ? error.message : "Friend record will sync when the server is reachable.", "warning");
+      });
+    }
     setAmount("");
     setNote("");
     notify("Owe/owed entry recorded.", "success");
@@ -1815,28 +1896,87 @@ function PeopleView({
       notify(`Enter a returned amount up to ${formatMoney(remaining, currency)}.`, "error");
       return;
     }
+    if (!repaymentAccountId) {
+      notify("Choose the account for this returned money.", "error");
+      return;
+    }
     const timestamp = nowIso();
+    const transactionId = createId();
     const repayment: Repayment = {
       id: createId(),
       ownerProfileId: snapshot.profile?.id,
       settlementId: settlement.id,
       personId: settlement.personId,
       amount: numericAmount,
+      accountId: repaymentAccountId,
+      transactionId,
+      friendUserId: settlement.friendUserId,
       date: timestamp,
       note: repaymentNote || "Returned money",
       createdAt: timestamp,
       updatedAt: timestamp,
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     };
+    const person = snapshot.people.find((item) => item.id === settlement.personId);
+    const transaction: Transaction = {
+      id: transactionId,
+      ownerProfileId: snapshot.profile?.id,
+      type: settlement.direction === "to_me" ? "income" : "expense",
+      amount: numericAmount,
+      accountId: repaymentAccountId,
+      date: timestamp,
+      note: repayment.note,
+      personIds: [settlement.personId],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    };
     const totalRepaid = settlement.repaidAmount + numericAmount;
-    await db.transaction("rw", db.settlements, db.repayments, async () => {
+    await db.transaction("rw", db.settlements, db.repayments, db.transactions, async () => {
       await db.repayments.put(repayment);
+      await db.transactions.put(transaction);
       await db.settlements.update(settlement.id, {
         repaidAmount: totalRepaid,
         updatedAt: timestamp,
         syncState: snapshot.config.syncEnabled ? "queued" : "local",
       });
     });
+    if (person?.status === "connected" && person.connectedUserId && person.friendUserId && snapshot.profile?.connectedUserId && getServerToken()) {
+      const remoteSettlementId = settlement.linkedSettlementId || `mirror-${settlement.id}`;
+      const mirroredSettlement: Settlement = {
+        ...settlement,
+        id: remoteSettlementId,
+        ownerProfileId: undefined,
+        personId: "",
+        direction: settlement.direction === "to_me" ? "by_me" : "to_me",
+        accountId: undefined,
+        categoryId: undefined,
+        transactionId: undefined,
+        linkedSettlementId: settlement.id,
+        friendUserId: snapshot.profile.connectedUserId,
+        repaidAmount: totalRepaid,
+        updatedAt: timestamp,
+        syncState: "synced",
+      };
+      const mirroredRepayment: Repayment = {
+        ...repayment,
+        id: `mirror-${repayment.id}`,
+        ownerProfileId: undefined,
+        settlementId: remoteSettlementId,
+        personId: "",
+        accountId: undefined,
+        transactionId: undefined,
+        linkedRepaymentId: repayment.id,
+        friendUserId: snapshot.profile.connectedUserId,
+        syncState: "synced",
+      };
+      await mirrorServerFriendEntity(person.connectedUserId, "settlements", mirroredSettlement.id, { ...mirroredSettlement }).catch((error: unknown) => {
+        notify(error instanceof Error ? error.message : "Friend settlement update will sync when the server is reachable.", "warning");
+      });
+      await mirrorServerFriendEntity(person.connectedUserId, "repayments", mirroredRepayment.id, { ...mirroredRepayment }).catch((error: unknown) => {
+        notify(error instanceof Error ? error.message : "Friend repayment update will sync when the server is reachable.", "warning");
+      });
+    }
     setRepaymentAmount("");
     setRepaymentNote("");
     notify("Returned money recorded.", "success");
@@ -2005,6 +2145,24 @@ function PeopleView({
               <option value="to_me">They owe me</option>
               <option value="by_me">I owe them</option>
             </SelectField>
+            {direction === "to_me" ? (
+              <>
+                <SelectField label="Paid from account" value={accountId} onChange={setAccountId}>
+                  {activeAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField label="Expense category" value={categoryId} onChange={setCategoryId}>
+                  {expenseCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </SelectField>
+              </>
+            ) : null}
             <input className="field-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" />
             <input className="field-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
           </div>
@@ -2030,7 +2188,7 @@ function PeopleView({
       </Panel>
       <Panel title="Returned Money" icon={<RefreshCw size={18} />}>
         <div className="grid gap-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_140px_1fr_auto]">
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_140px_1fr_auto]">
             <SelectField label="Open record" value={repaymentSettlementId} onChange={setRepaymentSettlementId}>
               {openSettlements.map((settlement) => {
                 const person = snapshot.people.find((item) => item.id === settlement.personId);
@@ -2041,6 +2199,13 @@ function PeopleView({
                   </option>
                 );
               })}
+            </SelectField>
+            <SelectField label="Money account" value={repaymentAccountId} onChange={setRepaymentAccountId}>
+              {activeAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
             </SelectField>
             <input className="field-input" type="number" value={repaymentAmount} onChange={(event) => setRepaymentAmount(event.target.value)} placeholder="Returned" />
             <input className="field-input" value={repaymentNote} onChange={(event) => setRepaymentNote(event.target.value)} placeholder="Cash returned, UPI paid..." />
