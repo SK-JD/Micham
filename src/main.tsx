@@ -42,6 +42,7 @@ import {
   ApiClientError,
   blockServerFriend,
   clearServerToken,
+  deleteServerAccount,
   ensureLocalProfileForServerUser,
   getServerToken,
   listServerFriends,
@@ -49,6 +50,7 @@ import {
   pullServerSnapshot,
   pushServerSnapshot,
   registerServerAccount,
+  removeServerFriend,
   requestServerFriend,
   requestServerPasswordReset,
   respondServerFriend,
@@ -189,6 +191,34 @@ async function claimUnownedData(profileId: string) {
   );
 }
 
+async function clearLocalProfileData(profileId: string) {
+  const [accounts, categories, transactions, budgets, recurring, people, settlements, repayments] = await Promise.all([
+    db.accounts.where("ownerProfileId").equals(profileId).primaryKeys(),
+    db.categories.where("ownerProfileId").equals(profileId).primaryKeys(),
+    db.transactions.where("ownerProfileId").equals(profileId).primaryKeys(),
+    db.budgets.where("ownerProfileId").equals(profileId).primaryKeys(),
+    db.recurringTransactions.where("ownerProfileId").equals(profileId).primaryKeys(),
+    db.people.where("ownerProfileId").equals(profileId).primaryKeys(),
+    db.settlements.where("ownerProfileId").equals(profileId).primaryKeys(),
+    db.repayments.where("ownerProfileId").equals(profileId).primaryKeys(),
+  ]);
+  await db.transaction(
+    "rw",
+    [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
+    async () => {
+      await db.accounts.bulkDelete(accounts as string[]);
+      await db.categories.bulkDelete(categories as string[]);
+      await db.transactions.bulkDelete(transactions as string[]);
+      await db.budgets.bulkDelete(budgets as string[]);
+      await db.recurringTransactions.bulkDelete(recurring as string[]);
+      await db.people.bulkDelete(people as string[]);
+      await db.settlements.bulkDelete(settlements as string[]);
+      await db.repayments.bulkDelete(repayments as string[]);
+      await db.profiles.delete(profileId);
+    },
+  );
+}
+
 async function createOrGetLocalProfile(config: AppConfig, email: string, displayName: string) {
   const loginId = `local:${email.trim().toLowerCase()}`;
   const existing = await db.profiles.where("loginId").equals(loginId).first();
@@ -237,7 +267,7 @@ async function syncServerFriendsToLocal(profile: Profile) {
     const existing =
       existingPeople.find((person) => person.friendUserId === link.friend_id) ||
       existingPeople.find((person) => person.inviteCode === friend.connection_code);
-    if (existing && !existing.active && existing.status !== "blocked" && link.status !== "connected") continue;
+    if (existing && !existing.active && link.status !== "blocked") continue;
     const requestDirection = link.status === "pending" ? (link.requested_by === profile.connectedUserId ? "outgoing" : "incoming") : undefined;
     rows.push({
       id: existing?.id ?? link.owner_person_id ?? createId(),
@@ -267,6 +297,7 @@ function App() {
   const [sessionRole, setSessionRole] = useState<SessionRole>(() => (localStorage.getItem("micham_role") as SessionRole) || "guest");
   const [currentProfileId, setCurrentProfileId] = useState(() => localStorage.getItem("micham_profile_id") || "");
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [busyMessage, setBusyMessage] = useState("");
 
   const notify = (message: string, tone: Toast["tone"] = "info") => {
     const id = createId();
@@ -362,7 +393,7 @@ function App() {
     setCurrentProfileId("");
   };
 
-  if (loading) return <Shell snapshot={snapshot}>Loading...</Shell>;
+  if (loading) return <SplashScreen config={snapshot.config} />;
 
   if (sessionRole === "admin") {
     return (
@@ -393,6 +424,7 @@ function App() {
             setSessionRole("user");
             setCurrentProfileId(profileId);
             await claimUnownedData(profileId);
+            await db.appConfig.update("primary", { syncEnabled: true, updatedAt: nowIso() });
             await refresh(profileId);
           }}
           onAdminLogin={async () => {
@@ -458,6 +490,7 @@ function App() {
           </div>
         </nav>
       </div>
+      {busyMessage ? <BusyOverlay message={busyMessage} /> : null}
       <ToastHost toasts={toasts} />
     </Shell>
   );
@@ -467,6 +500,29 @@ function Shell({ snapshot, children }: { snapshot: Snapshot; children: React.Rea
   return (
     <div className="min-h-screen bg-[var(--surface)] text-[var(--text)]">
       {children}
+    </div>
+  );
+}
+
+function SplashScreen({ config }: { config: AppConfig }) {
+  return (
+    <div className="splash-screen">
+      <div className="splash-mark">
+        <img className="splash-logo" src={config.logoImage || defaultAppLogoUrl} alt={`${config.appName} logo`} />
+        <img className="splash-wordmark" src={config.themeMode === "dark" ? defaultDarkWordmarkUrl : defaultWordmarkUrl} alt={config.appName} />
+        <span className="splash-pulse" />
+      </div>
+    </div>
+  );
+}
+
+function BusyOverlay({ message }: { message: string }) {
+  return (
+    <div className="busy-overlay" role="status" aria-live="polite">
+      <div className="busy-card">
+        <span className="busy-spinner" />
+        <strong>{message}</strong>
+      </div>
     </div>
   );
 }
@@ -595,77 +651,85 @@ function AuthGate({
   const [localEmail, setLocalEmail] = useState("");
   const [currency, setCurrency] = useState(config.defaultCurrency);
   const [formError, setFormError] = useState("");
+  const [busyAction, setBusyAction] = useState<"" | "login" | "register" | "local" | "reset">("");
 
   const login = async () => {
+    if (busyAction) return;
+    setBusyAction("login");
     setFormError("");
-    const normalizedLoginId = loginId.trim().toLowerCase();
-    const loginLimit = checkRateLimit(`micham_login_${normalizedLoginId || "blank"}`, LOGIN_LIMIT.max, LOGIN_LIMIT.windowMs);
-    if (!loginLimit.allowed) {
-      const message = `Too many login attempts. Try again in ${minutesFromMs(loginLimit.retryAfterMs)} minute(s).`;
-      setFormError(message);
-      notify(message, "error");
-      return;
-    }
-
-    if (loginId.trim() === config.adminId && password === config.adminPassword) {
-      resetRateLimit(`micham_login_${normalizedLoginId}`);
-      await onAdminLogin();
-      return;
-    }
-
-    if (!isValidEmail(normalizedLoginId)) {
-      setFormError("Use your email address to login, or use the admin ID for admin login.");
-      return;
-    }
-
     try {
-      const { user } = await loginServerAccount(normalizedLoginId, password);
-      const profile = await ensureLocalProfileForServerUser(user, config);
-      await pullServerSnapshot(profile.id);
-      await syncServerFriendsToLocal(profile);
-      resetRateLimit(`micham_login_${normalizedLoginId}`);
-      notify("Account connected.", "success");
-      await onLogin(profile.id);
-      return;
-    } catch (error) {
-      const localProfile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
-      if (!localProfile) {
-        const message = error instanceof Error ? error.message : "Login failed.";
+      const normalizedLoginId = loginId.trim().toLowerCase();
+      const loginLimit = checkRateLimit(`micham_login_${normalizedLoginId || "blank"}`, LOGIN_LIMIT.max, LOGIN_LIMIT.windowMs);
+      if (!loginLimit.allowed) {
+        const message = `Too many login attempts. Try again in ${minutesFromMs(loginLimit.retryAfterMs)} minute(s).`;
         setFormError(message);
-        notify(message, error instanceof ApiClientError && error.status === 403 ? "warning" : "error");
+        notify(message, "error");
         return;
       }
-    }
 
-    const passwordHash = await hashPassword(password);
-    const profile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
-    if (!profile || profile.passwordHash !== passwordHash) {
-      setFormError("Invalid email or password.");
-      notify("Invalid email or password.", "error");
-      return;
+      if (loginId.trim() === config.adminId && password === config.adminPassword) {
+        resetRateLimit(`micham_login_${normalizedLoginId}`);
+        await onAdminLogin();
+        return;
+      }
+
+      if (!isValidEmail(normalizedLoginId)) {
+        setFormError("Use your email address to login, or use the admin ID for admin login.");
+        return;
+      }
+
+      try {
+        const { user } = await loginServerAccount(normalizedLoginId, password);
+        const profile = await ensureLocalProfileForServerUser(user, config);
+        await pullServerSnapshot(profile.id);
+        await syncServerFriendsToLocal(profile);
+        resetRateLimit(`micham_login_${normalizedLoginId}`);
+        notify("Account connected.", "success");
+        await onLogin(profile.id);
+        return;
+      } catch (error) {
+        const localProfile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
+        if (!localProfile) {
+          const message = error instanceof Error ? error.message : "Login failed.";
+          setFormError(message);
+          notify(message, error instanceof ApiClientError && error.status === 403 ? "warning" : "error");
+          return;
+        }
+      }
+
+      const passwordHash = await hashPassword(password);
+      const profile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
+      if (!profile || profile.passwordHash !== passwordHash) {
+        setFormError("Invalid email or password.");
+        notify("Invalid email or password.", "error");
+        return;
+      }
+      if (!profile.connectionCode) {
+        await db.profiles.update(profile.id, { connectionCode: createConnectionCode(), updatedAt: nowIso() });
+      }
+      resetRateLimit(`micham_login_${normalizedLoginId}`);
+      await onLogin(profile.id);
+    } finally {
+      setBusyAction("");
     }
-    if (!profile.connectionCode) {
-      await db.profiles.update(profile.id, { connectionCode: createConnectionCode(), updatedAt: nowIso() });
-    }
-    resetRateLimit(`micham_login_${normalizedLoginId}`);
-    await onLogin(profile.id);
   };
 
   const register = async () => {
+    if (busyAction) return;
+    setBusyAction("register");
     setFormError("");
-    const normalizedLoginId = loginId.trim().toLowerCase();
-    if (!isValidEmail(normalizedLoginId)) {
-      setFormError("Enter a valid email address.");
-      notify("Enter a valid email address.", "error");
-      return;
-    }
-    if (password.length < 8) {
-      setFormError("Password must be at least 8 characters.");
-      notify("Password must be at least 8 characters.", "error");
-      return;
-    }
-
     try {
+      const normalizedLoginId = loginId.trim().toLowerCase();
+      if (!isValidEmail(normalizedLoginId)) {
+        setFormError("Enter a valid email address.");
+        notify("Enter a valid email address.", "error");
+        return;
+      }
+      if (password.length < 8) {
+        setFormError("Password must be at least 8 characters.");
+        notify("Password must be at least 8 characters.", "error");
+        return;
+      }
       await registerServerAccount(normalizedLoginId, password, displayName || normalizedLoginId.split("@")[0], currency);
       notify("Verification email sent. Verify your account, then login.", "success");
       setMode("login");
@@ -673,64 +737,75 @@ function AuthGate({
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Account could not be created.");
       notify(error instanceof Error ? error.message : "Account could not be created.", "error");
+    } finally {
+      setBusyAction("");
     }
   };
 
   const useLocally = async () => {
+    if (busyAction) return;
+    setBusyAction("local");
     setFormError("");
-    const normalizedEmail = localEmail.trim().toLowerCase();
-    if (!localName.trim()) {
-      setFormError("Enter your name for local usage.");
-      return;
+    try {
+      const normalizedEmail = localEmail.trim().toLowerCase();
+      if (!localName.trim()) {
+        setFormError("Enter your name for local usage.");
+        return;
+      }
+      if (!isValidEmail(normalizedEmail)) {
+        setFormError("Enter a valid email for local usage.");
+        return;
+      }
+      const profileId = await createOrGetLocalProfile(config, normalizedEmail, localName);
+      notify("Using local device storage.", "success");
+      await onLogin(profileId);
+    } finally {
+      setBusyAction("");
     }
-    if (!isValidEmail(normalizedEmail)) {
-      setFormError("Enter a valid email for local usage.");
-      return;
-    }
-    const profileId = await createOrGetLocalProfile(config, normalizedEmail, localName);
-    notify("Using local device storage.", "success");
-    await onLogin(profileId);
   };
 
   const resetPassword = async () => {
+    if (busyAction) return;
+    setBusyAction("reset");
     setFormError("");
-    const normalizedLoginId = loginId.trim().toLowerCase();
-    if (!isValidEmail(normalizedLoginId)) {
-      setFormError("Enter the email used for this local account.");
-      return;
-    }
-    if (!connectionCode.trim()) {
-      try {
+    try {
+      const normalizedLoginId = loginId.trim().toLowerCase();
+      if (!isValidEmail(normalizedLoginId)) {
+        setFormError("Enter the email used for this local account.");
+        return;
+      }
+      if (!connectionCode.trim()) {
         await requestServerPasswordReset(normalizedLoginId);
         notify("Password reset email sent.", "success");
         return;
-      } catch (error) {
-        setFormError(error instanceof Error ? error.message : "Unable to send reset email.");
-        notify(error instanceof Error ? error.message : "Unable to send reset email.", "error");
+      }
+      const profile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
+      if (!profile || profile.connectionCode !== connectionCode.trim().toUpperCase()) {
+        setFormError("Email and connection code do not match.");
+        notify("Email and connection code do not match.", "error");
         return;
       }
+      if (newPassword.length < 8) {
+        setFormError("New password must be at least 8 characters.");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setFormError("New password and confirmation do not match.");
+        return;
+      }
+      await db.profiles.update(profile.id, { passwordHash: await hashPassword(newPassword), updatedAt: nowIso() });
+      setPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setConnectionCode("");
+      setMode("login");
+      notify("Password reset. Login with the new password.", "success");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Unable to reset password.");
+      notify(error instanceof Error ? error.message : "Unable to reset password.", "error");
+    } finally {
+      setBusyAction("");
     }
-    const profile = await db.profiles.where("loginId").equals(normalizedLoginId).first();
-    if (!profile || profile.connectionCode !== connectionCode.trim().toUpperCase()) {
-      setFormError("Email and connection code do not match.");
-      notify("Email and connection code do not match.", "error");
-      return;
-    }
-    if (newPassword.length < 8) {
-      setFormError("New password must be at least 8 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setFormError("New password and confirmation do not match.");
-      return;
-    }
-    await db.profiles.update(profile.id, { passwordHash: await hashPassword(newPassword), updatedAt: nowIso() });
-    setPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setConnectionCode("");
-    setMode("login");
-    notify("Password reset. Login with the new password.", "success");
   };
 
   const modeTitle = mode === "register" ? "Create your account" : mode === "reset" ? "Reset password" : "Welcome back";
@@ -764,9 +839,9 @@ function AuthGate({
               <TextField label="Local name" value={localName} onChange={setLocalName} placeholder="Your name" />
               <TextField label="Local email" value={localEmail} onChange={setLocalEmail} placeholder="you@example.com" />
             </div>
-            <button className="local-use-button" onClick={useLocally}>
+            <LoadingButton className="local-use-button" loading={busyAction === "local"} onClick={useLocally}>
               <WalletCards size={19} /> Use Locally
-            </button>
+            </LoadingButton>
             <p>Your data stays on this device until you create an account and enable sync.</p>
             <div className="auth-divider"><span>or login</span></div>
           </div>
@@ -781,9 +856,9 @@ function AuthGate({
                 <TextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" />
               </>
             ) : null}
-            <button className="primary-button" onClick={resetPassword} disabled={!loginId || Boolean(connectionCode && (!newPassword || !confirmPassword))}>
+            <LoadingButton className="primary-button" loading={busyAction === "reset"} onClick={resetPassword} disabled={!loginId || Boolean(connectionCode && (!newPassword || !confirmPassword))}>
               {!connectionCode ? "Send Reset Email" : "Reset Password"}
-            </button>
+            </LoadingButton>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -795,9 +870,9 @@ function AuthGate({
                 <TextField label="Currency" value={currency} onChange={setCurrency} placeholder="INR" />
               </>
             ) : null}
-            <button className="primary-button" onClick={mode === "register" ? register : login} disabled={!loginId || !password}>
+            <LoadingButton className="primary-button" loading={busyAction === (mode === "register" ? "register" : "login")} onClick={mode === "register" ? register : login} disabled={!loginId || !password}>
               {mode === "register" ? "Create Account" : "Login"}
-            </button>
+            </LoadingButton>
           </div>
         )}
       </section>
@@ -1601,6 +1676,8 @@ function PeopleView({
   const [repaymentAmount, setRepaymentAmount] = useState("");
   const [repaymentNote, setRepaymentNote] = useState("");
   const [friendConfirm, setFriendConfirm] = useState<{ type: "block" | "remove"; person: Person; linked?: boolean } | null>(null);
+  const [showAllFriends, setShowAllFriends] = useState(false);
+  const visiblePeople = snapshot.people.slice(0, 3);
 
   useEffect(() => {
     if (!snapshot.profile?.connectedUserId || !getServerToken()) return;
@@ -1801,6 +1878,11 @@ function PeopleView({
       updatedAt: nowIso(),
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     });
+    if (!linked && person.friendUserId && getServerToken()) {
+      await removeServerFriend(person.friendUserId).catch((error: unknown) => {
+        notify(error instanceof Error ? error.message : "Server friend removal failed.", "warning");
+      });
+    }
     notify(linked ? "Friend hidden because existing records use it." : "Friend removed.", "warning");
     await onDone();
   };
@@ -1865,46 +1947,30 @@ function PeopleView({
           ) : null}
           <div className="friends-grid">
             {snapshot.people.length === 0 ? <Empty text="No friends added yet." /> : null}
+            {visiblePeople.map((person) => {
+              const balance = personBalance(person, snapshot.settlements);
+              const linked = snapshot.settlements.some((settlement) => settlement.personId === person.id);
+              return <FriendCard key={person.id} person={person} balance={balance} currency={currency} linked={linked} onRespond={respondFriend} onConfirm={setFriendConfirm} />;
+            })}
+          </div>
+          {snapshot.people.length > 3 ? (
+            <button className="secondary-button w-full" onClick={() => setShowAllFriends(true)}>
+              Show all friends
+            </button>
+          ) : null}
+        </div>
+      </Panel>
+      {showAllFriends ? (
+        <ListModal title="All Friends" onClose={() => setShowAllFriends(false)}>
+          <div className="friends-grid">
             {snapshot.people.map((person) => {
               const balance = personBalance(person, snapshot.settlements);
               const linked = snapshot.settlements.some((settlement) => settlement.personId === person.id);
-              return (
-                <div className="friend-card" key={person.id}>
-                  <div className="friend-card-main">
-                    <div>
-                      <strong className="inline-flex items-center gap-1">
-                        {person.verified || person.status === "connected" ? <Star className="verified-star" size={15} fill="currentColor" /> : null}
-                        {person.localDisplayName}
-                      </strong>
-                      <p>{person.inviteCode ? person.inviteCode : "Local person"}</p>
-                    </div>
-                    <span className={`status-pill status-${person.status || "local"}`}>{person.active ? person.status || "local" : "hidden"}</span>
-                  </div>
-                  <div className="friend-balance">
-                    <span>{balance >= 0 ? "Owed to you" : "You owe"}</span>
-                    <strong>{formatMoney(Math.abs(balance), currency)}</strong>
-                  </div>
-                  <div className="friend-actions">
-                    {person.status === "requested" ? <span className="status-hint">Waiting for acceptance</span> : null}
-                    {person.status === "pending" && person.requestDirection === "incoming" ? (
-                      <>
-                        <button className="small-button" onClick={() => respondFriend(person, "accept")}>Accept</button>
-                        <button className="small-button danger-button" onClick={() => respondFriend(person, "reject")}>Reject</button>
-                      </>
-                    ) : null}
-                    {person.status !== "blocked" ? (
-                      <button className="small-button" onClick={() => setFriendConfirm({ type: "block", person })}>Block</button>
-                    ) : null}
-                    <button className="small-button danger-button" onClick={() => setFriendConfirm({ type: "remove", person, linked })}>
-                      <Trash2 size={15} /> {linked ? "Hide" : "Remove"}
-                    </button>
-                  </div>
-                </div>
-              );
+              return <FriendCard key={person.id} person={person} balance={balance} currency={currency} linked={linked} onRespond={respondFriend} onConfirm={setFriendConfirm} />;
             })}
           </div>
-        </div>
-      </Panel>
+        </ListModal>
+      ) : null}
       {friendConfirm ? (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="confirm-dialog">
@@ -2038,6 +2104,8 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
   const [budgetAmount, setBudgetAmount] = useState("");
   const [accountName, setAccountName] = useState("");
   const [accountOpening, setAccountOpening] = useState("");
+  const [showAccountsModal, setShowAccountsModal] = useState(false);
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const currency = snapshot.profile?.currency ?? snapshot.config.defaultCurrency;
 
   useEffect(() => {
@@ -2168,7 +2236,7 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
             </button>
           </div>
           <div className="manage-list">
-            {snapshot.accounts.map((account) => {
+            {snapshot.accounts.slice(0, 3).map((account) => {
               const linked = snapshot.transactions.some((item) => item.accountId === account.id || item.toAccountId === account.id);
               return (
                 <div className="manage-row" key={account.id}>
@@ -2185,6 +2253,9 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
               );
             })}
           </div>
+          {snapshot.accounts.length > 3 ? (
+            <button className="secondary-button w-full" onClick={() => setShowAccountsModal(true)}>Show all accounts</button>
+          ) : null}
         </div>
       </Panel>
 
@@ -2201,7 +2272,7 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
             </button>
           </div>
           <div className="manage-list">
-            {snapshot.categories.map((category) => (
+            {snapshot.categories.slice(0, 3).map((category) => (
               <div className="manage-row" key={category.id}>
                 <div>
                   <strong>{category.name}</strong>
@@ -2215,6 +2286,9 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
               </div>
             ))}
           </div>
+          {snapshot.categories.length > 3 ? (
+            <button className="secondary-button w-full" onClick={() => setShowCategoriesModal(true)}>Show all categories</button>
+          ) : null}
         </div>
       </Panel>
 
@@ -2256,6 +2330,47 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
           </div>
         </div>
       </Panel>
+      {showAccountsModal ? (
+        <ListModal title="All Accounts" onClose={() => setShowAccountsModal(false)}>
+          <div className="manage-list">
+            {snapshot.accounts.map((account) => {
+              const linked = snapshot.transactions.some((item) => item.accountId === account.id || item.toAccountId === account.id);
+              return (
+                <div className="manage-row" key={account.id}>
+                  <div>
+                    <strong>{account.name}</strong>
+                    <p>{account.active ? "Active" : "Hidden"} · Opening {formatMoney(account.openingBalance, currency)}</p>
+                  </div>
+                  {account.active ? (
+                    <button className="small-button" onClick={() => archiveAccount(account)}>
+                      {linked ? "Hide" : "Remove"}
+                    </button>
+                  ) : <span className="status-pill status-blocked">Hidden</span>}
+                </div>
+              );
+            })}
+          </div>
+        </ListModal>
+      ) : null}
+      {showCategoriesModal ? (
+        <ListModal title="All Categories" onClose={() => setShowCategoriesModal(false)}>
+          <div className="manage-list">
+            {snapshot.categories.map((category) => (
+              <div className="manage-row" key={category.id}>
+                <div>
+                  <strong>{category.name}</strong>
+                  <p>{category.active ? "Active" : "Hidden"} · {category.kind}</p>
+                </div>
+                {category.active ? (
+                  <button className="small-button" onClick={() => archiveCategory(category)}>
+                    {snapshot.transactions.some((item) => item.categoryId === category.id) ? "Hide" : "Remove"}
+                  </button>
+                ) : <span className="status-pill status-blocked">Hidden</span>}
+              </div>
+            ))}
+          </div>
+        </ListModal>
+      ) : null}
     </div>
   );
 }
@@ -2281,6 +2396,8 @@ function SettingsView({
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [busyAction, setBusyAction] = useState<"" | "sync" | "password" | "delete">("");
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const exportData = async () => {
     const { groqApiKey: _groqApiKey, ...exportableConfig } = snapshot.config;
@@ -2361,12 +2478,34 @@ function SettingsView({
   };
 
   const connectProfile = async () => {
+    if (busyAction) return;
     if (!snapshot.profile) return;
-    const timestamp = nowIso();
-    const connectionCode = snapshot.profile.connectionCode || createConnectionCode();
-    const isLocalProfile = snapshot.profile.loginId === "local-device" || snapshot.profile.loginId.startsWith("local:");
-    const normalizedEmail = (syncEmail || savedLocalEmail).trim().toLowerCase();
-    if (isLocalProfile) {
+    setBusyAction("sync");
+    try {
+      const timestamp = nowIso();
+      const connectionCode = snapshot.profile.connectionCode || createConnectionCode();
+      const isLocalProfile = snapshot.profile.loginId === "local-device" || snapshot.profile.loginId.startsWith("local:");
+      const normalizedEmail = (syncEmail || savedLocalEmail).trim().toLowerCase();
+
+      if (snapshot.profile.connectedUserId) {
+        if (!getServerToken()) {
+          notify("Login again to refresh the server session before syncing.", "warning");
+          return;
+        }
+        await pushServerSnapshot(snapshot);
+        await pullServerSnapshot(snapshot.profile.id);
+        await syncServerFriendsToLocal(snapshot.profile);
+        await db.appConfig.update("primary", { syncEnabled: true, updatedAt: timestamp });
+        setSyncPassword("");
+        notify("Latest local data synced.", "success");
+        await onDone();
+        return;
+      }
+
+      if (!isLocalProfile) {
+        notify("Login again with this email before syncing.", "warning");
+        return;
+      }
       if (!isValidEmail(normalizedEmail)) {
         notify("Enter a valid email to create the account.", "error");
         return;
@@ -2380,34 +2519,26 @@ function SettingsView({
         notify("An account already exists for this email.", "error");
         return;
       }
-    }
-    if (syncPassword.length < 8) {
-      notify("Enter a cloud password with at least 8 characters.", "error");
-      return;
-    }
-    const syncPasswordHash = isLocalProfile ? await hashPassword(syncPassword) : snapshot.profile.passwordHash;
-    const cloudEmail = isLocalProfile ? normalizedEmail : snapshot.profile.loginId;
-    const updatedProfile: Profile = {
-      ...snapshot.profile,
-      connectedUserId: snapshot.profile.connectedUserId,
-      connectionCode,
-      loginId: cloudEmail,
-      passwordHash: syncPasswordHash,
-      displayName: isLocalProfile ? normalizedEmail.split("@")[0] : snapshot.profile.displayName,
-      updatedAt: timestamp,
-      syncState: "queued",
-    };
-    let connectedUserId = snapshot.profile.connectedUserId;
-    try {
+      const syncPasswordHash = await hashPassword(syncPassword);
+      const updatedProfile: Profile = {
+        ...snapshot.profile,
+        connectionCode,
+        loginId: normalizedEmail,
+        passwordHash: syncPasswordHash,
+        displayName: snapshot.profile.displayName || normalizedEmail.split("@")[0],
+        updatedAt: timestamp,
+        syncState: "queued",
+      };
+      let connectedUserId = snapshot.profile.connectedUserId;
       if (!getServerToken()) {
         try {
-          await registerServerAccount(cloudEmail, syncPassword, updatedProfile.displayName, updatedProfile.currency);
+          await registerServerAccount(normalizedEmail, syncPassword, updatedProfile.displayName, updatedProfile.currency);
           notify("Verification email sent. Verify your account, login, then tap Sync To Server again.", "success");
           return;
         } catch (error) {
           if (!(error instanceof ApiClientError) || error.status !== 409) throw error;
         }
-        const { user } = await loginServerAccount(cloudEmail, syncPassword);
+        const { user } = await loginServerAccount(normalizedEmail, syncPassword);
         connectedUserId = user.id;
         updatedProfile.connectedUserId = user.id;
         updatedProfile.connectionCode = user.connectionCode;
@@ -2417,53 +2548,85 @@ function SettingsView({
       await pushServerSnapshot({ ...snapshot, profile: updatedProfile });
       await pullServerSnapshot(snapshot.profile.id);
       await syncServerFriendsToLocal({ ...updatedProfile, connectedUserId });
+      await db.transaction(
+        "rw",
+        [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments, db.appConfig],
+        async () => {
+          await db.profiles.update(snapshot.profile!.id, {
+            connectedUserId,
+            connectionCode: updatedProfile.connectionCode,
+            loginId: normalizedEmail,
+            passwordHash: syncPasswordHash,
+            displayName: updatedProfile.displayName,
+            currency: updatedProfile.currency,
+            updatedAt: timestamp,
+            syncState: "synced",
+          });
+          await db.appConfig.update("primary", { syncEnabled: true, updatedAt: timestamp });
+        },
+      );
+      setSyncEmail("");
+      setSyncPassword("");
+      notify("Account connected and local data synced.", "success");
+      await onDone();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Account could not be synced.", error instanceof Error && error.message.toLowerCase().includes("verify") ? "warning" : "error");
-      return;
+    } finally {
+      setBusyAction("");
     }
-    await db.transaction(
-      "rw",
-      [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments, db.appConfig],
-      async () => {
-        await db.profiles.update(snapshot.profile!.id, {
-          connectedUserId,
-          connectionCode: updatedProfile.connectionCode,
-          loginId: isLocalProfile ? normalizedEmail : snapshot.profile!.loginId,
-          passwordHash: syncPasswordHash,
-          displayName: updatedProfile.displayName,
-          currency: updatedProfile.currency,
-          updatedAt: timestamp,
-          syncState: "synced",
-        });
-        await db.appConfig.update("primary", { syncEnabled: true, updatedAt: timestamp });
-      },
-    );
-    setSyncEmail("");
-    setSyncPassword("");
-    notify(isLocalProfile ? "Account connected and local data synced." : "Latest local data synced.", "success");
-    await onDone();
   };
 
   const changePassword = async () => {
+    if (busyAction) return;
     if (!snapshot.profile) return;
-    if ((await hashPassword(currentPassword)) !== snapshot.profile.passwordHash) {
-      notify("Current password is incorrect.", "error");
-      return;
+    setBusyAction("password");
+    try {
+      if ((await hashPassword(currentPassword)) !== snapshot.profile.passwordHash) {
+        notify("Current password is incorrect.", "error");
+        return;
+      }
+      if (newPassword.length < 8) {
+        notify("New password must be at least 8 characters.", "error");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        notify("New password and confirmation do not match.", "error");
+        return;
+      }
+      await db.profiles.update(snapshot.profile.id, { passwordHash: await hashPassword(newPassword), updatedAt: nowIso() });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      notify("Password changed.", "success");
+      await onDone();
+    } finally {
+      setBusyAction("");
     }
-    if (newPassword.length < 8) {
-      notify("New password must be at least 8 characters.", "error");
-      return;
+  };
+
+  const deleteAccount = async () => {
+    if (busyAction || !snapshot.profile) return;
+    setBusyAction("delete");
+    try {
+      if (snapshot.profile.connectedUserId && !getServerToken()) {
+        notify("Login again before deleting the server account.", "warning");
+        return;
+      }
+      if (snapshot.profile.connectedUserId) {
+        await deleteServerAccount();
+      }
+      await clearLocalProfileData(snapshot.profile.id);
+      clearServerToken();
+      localStorage.removeItem("micham_role");
+      localStorage.removeItem("micham_profile_id");
+      notify("Account deleted.", "warning");
+      onLogout();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Account could not be deleted.", "error");
+    } finally {
+      setBusyAction("");
+      setDeleteConfirm(false);
     }
-    if (newPassword !== confirmPassword) {
-      notify("New password and confirmation do not match.", "error");
-      return;
-    }
-    await db.profiles.update(snapshot.profile.id, { passwordHash: await hashPassword(newPassword), updatedAt: nowIso() });
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    notify("Password changed.", "success");
-    await onDone();
   };
 
   const toggleDarkMode = async () => {
@@ -2538,23 +2701,31 @@ function SettingsView({
 
       <Panel title="Account">
         {snapshot.profile?.connectedUserId ? (
-          <div className="grid gap-2">
+          <div className="grid gap-3">
             <div className="row">
               <span>Connected ID</span>
               <strong>{snapshot.profile.connectedUserId}</strong>
             </div>
-            <button
-              className="secondary-button"
-              onClick={async () => {
-                if (!snapshot.profile) return;
-                clearServerToken();
-                await db.profiles.update(snapshot.profile.id, { connectedUserId: undefined, updatedAt: nowIso() });
-                await db.appConfig.update("primary", { syncEnabled: false, updatedAt: nowIso() });
-                await onDone();
-              }}
-            >
-              Disconnect Sync
-            </button>
+            <LoadingButton className="primary-button" loading={busyAction === "sync"} onClick={connectProfile}>
+              <RefreshCw size={18} /> Sync Now
+            </LoadingButton>
+            <div className="settings-action-grid">
+              <button
+                className="secondary-button"
+                onClick={async () => {
+                  if (!snapshot.profile) return;
+                  clearServerToken();
+                  await db.profiles.update(snapshot.profile.id, { connectedUserId: undefined, updatedAt: nowIso() });
+                  await db.appConfig.update("primary", { syncEnabled: false, updatedAt: nowIso() });
+                  await onDone();
+                }}
+              >
+                Disconnect Sync
+              </button>
+              <button className="secondary-button danger-button" onClick={() => setDeleteConfirm(true)}>
+                <Trash2 size={18} /> Delete Account
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid gap-3">
@@ -2570,8 +2741,11 @@ function SettingsView({
               </div>
             ) : null}
             <TextField label="Create cloud password" value={syncPassword} onChange={setSyncPassword} type="password" />
-            <button className="primary-button" onClick={connectProfile}>
+            <LoadingButton className="primary-button" loading={busyAction === "sync"} onClick={connectProfile}>
               <RefreshCw size={18} /> Sync To Server
+            </LoadingButton>
+            <button className="secondary-button danger-button" onClick={() => setDeleteConfirm(true)}>
+              <Trash2 size={18} /> Delete Local Account
             </button>
           </div>
         )}
@@ -2582,9 +2756,9 @@ function SettingsView({
           <TextField label="Current password" value={currentPassword} onChange={setCurrentPassword} type="password" />
           <TextField label="New password" value={newPassword} onChange={setNewPassword} type="password" />
           <TextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" />
-          <button className="primary-button" onClick={changePassword}>
+          <LoadingButton className="primary-button" loading={busyAction === "password"} onClick={changePassword}>
             Save Password
-          </button>
+          </LoadingButton>
         </div>
       </Panel>
 
@@ -2615,6 +2789,25 @@ function SettingsView({
           </button>
         </div>
       </Panel>
+      {deleteConfirm ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="confirm-dialog">
+            <div>
+              <strong>Delete Account</strong>
+              <p>
+                This will delete this account from the server when connected, clear this profile data from this device, and logout.
+                You can create a new account later with the same email.
+              </p>
+            </div>
+            <div className="confirm-actions">
+              <button className="secondary-button" onClick={() => setDeleteConfirm(false)}>Cancel</button>
+              <LoadingButton className="primary-button danger-action" loading={busyAction === "delete"} onClick={deleteAccount}>
+                Delete
+              </LoadingButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2913,6 +3106,70 @@ function Panel({ title, icon, children }: { title: string; icon?: React.ReactNod
   );
 }
 
+function ListModal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="list-modal">
+        <div className="receipt-viewer-head">
+          <strong>{title}</strong>
+          <button className="small-button" onClick={onClose}>Close</button>
+        </div>
+        <div className="list-modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function FriendCard({
+  person,
+  balance,
+  currency,
+  linked,
+  onRespond,
+  onConfirm,
+}: {
+  person: Person;
+  balance: number;
+  currency: string;
+  linked: boolean;
+  onRespond: (person: Person, action: "accept" | "reject") => void | Promise<void>;
+  onConfirm: (value: { type: "block" | "remove"; person: Person; linked?: boolean }) => void;
+}) {
+  return (
+    <div className="friend-card">
+      <div className="friend-card-main">
+        <div>
+          <strong className="inline-flex items-center gap-1">
+            {person.verified || person.status === "connected" ? <Star className="verified-star" size={15} fill="currentColor" /> : null}
+            {person.localDisplayName}
+          </strong>
+          <p>{person.inviteCode ? person.inviteCode : "Local person"}</p>
+        </div>
+        <span className={`status-pill status-${person.status || "local"}`}>{person.active ? person.status || "local" : "hidden"}</span>
+      </div>
+      <div className="friend-balance">
+        <span>{balance >= 0 ? "Owed to you" : "You owe"}</span>
+        <strong>{formatMoney(Math.abs(balance), currency)}</strong>
+      </div>
+      <div className="friend-actions">
+        {person.status === "requested" ? <span className="status-hint">Waiting for acceptance</span> : null}
+        {person.status === "pending" && person.requestDirection === "incoming" ? (
+          <>
+            <button className="small-button" onClick={() => onRespond(person, "accept")}>Accept</button>
+            <button className="small-button danger-button" onClick={() => onRespond(person, "reject")}>Reject</button>
+          </>
+        ) : null}
+        {person.status !== "blocked" ? (
+          <button className="small-button" onClick={() => onConfirm({ type: "block", person })}>Block</button>
+        ) : null}
+        <button className="small-button danger-button" onClick={() => onConfirm({ type: "remove", person, linked })}>
+          <Trash2 size={15} /> {linked ? "Hide" : "Remove"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Empty({ text }: { text: string }) {
   return <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">{text}</p>;
 }
@@ -2944,6 +3201,27 @@ function TextField({
         ) : null}
       </span>
     </label>
+  );
+}
+
+function LoadingButton({
+  className,
+  loading,
+  disabled,
+  children,
+  onClick,
+}: {
+  className: string;
+  loading: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+  onClick: () => void | Promise<void>;
+}) {
+  return (
+    <button className={className} onClick={onClick} disabled={disabled || loading}>
+      {loading ? <span className="button-spinner" /> : null}
+      {children}
+    </button>
   );
 }
 

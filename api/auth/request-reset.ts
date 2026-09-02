@@ -25,7 +25,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       });
       if (tokenError) throw tokenError;
-      const resetUrl = `${appBaseUrl()}/auth/reset?token=${encodeURIComponent(token)}`;
+      const resetUrl = `${appBaseUrl()}/api/auth/confirm-reset?token=${encodeURIComponent(token)}`;
       const template = resetPasswordTemplate(user.display_name, resetUrl);
       await sendMail({ to: user.email, ...template });
     }

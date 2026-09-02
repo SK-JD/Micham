@@ -139,6 +139,10 @@ export async function requestServerPasswordReset(email: string) {
   return apiFetch<{ ok: true }>("/api/auth/request-reset", { body: { email } });
 }
 
+export async function deleteServerAccount() {
+  return apiFetch<{ ok: true }>("/api/auth/delete-account", { body: {} });
+}
+
 export async function ensureLocalProfileForServerUser(user: ServerUser, config: AppConfig) {
   const existing = await db.profiles.where("loginId").equals(user.email).first();
   const timestamp = nowIso();
@@ -282,6 +286,10 @@ export async function respondServerFriend(friendUserId: string, action: "accept"
 
 export async function blockServerFriend(friendUserId: string) {
   return apiFetch<{ status: "blocked" }>("/api/friends/block", { body: { friendUserId } });
+}
+
+export async function removeServerFriend(friendUserId: string) {
+  return apiFetch<{ status: "removed" }>("/api/friends/remove", { body: { friendUserId } });
 }
 
 export async function listServerFriends() {

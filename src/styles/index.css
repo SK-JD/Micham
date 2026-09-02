@@ -53,6 +53,93 @@ nav {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+.splash-screen {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 34%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 32%),
+    linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--brand) 10%, var(--surface)));
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 2rem;
+}
+
+.splash-mark {
+  align-items: center;
+  animation: splash-rise 900ms ease both;
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+  position: relative;
+}
+
+.splash-logo {
+  animation: splash-breathe 1.4s ease-in-out infinite;
+  height: 82px;
+  object-fit: contain;
+  width: 82px;
+  z-index: 1;
+}
+
+.splash-wordmark {
+  animation: splash-fade 900ms ease 180ms both;
+  height: 58px;
+  max-width: min(300px, 78vw);
+  object-fit: contain;
+  z-index: 1;
+}
+
+.splash-pulse {
+  animation: splash-pulse 1.45s ease-out infinite;
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-radius: 999px;
+  height: 126px;
+  position: absolute;
+  top: -22px;
+  width: 126px;
+}
+
+.busy-overlay {
+  align-items: center;
+  background: rgb(15 23 42 / 20%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  pointer-events: none;
+  position: fixed;
+  z-index: 120;
+}
+
+.busy-card {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 55px rgb(15 23 42 / 24%);
+  color: var(--text);
+  display: inline-flex;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+}
+
+.busy-spinner,
+.button-spinner {
+  animation: spin 750ms linear infinite;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  display: inline-flex;
+  height: 18px;
+  width: 18px;
+}
+
+.button-spinner {
+  height: 16px;
+  width: 16px;
+}
+
 .bottom-nav {
   background: color-mix(in srgb, var(--panel) 92%, transparent);
   border-top: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
@@ -872,6 +959,24 @@ button:disabled {
   width: min(420px, 94vw);
 }
 
+.list-modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 28px 80px rgb(15 23 42 / 38%);
+  display: grid;
+  gap: 1rem;
+  max-height: min(780px, 90vh);
+  padding: 1rem;
+  width: min(720px, 94vw);
+}
+
+.list-modal-body {
+  max-height: 68vh;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
 .confirm-dialog p {
   color: var(--muted);
   font-size: 0.9rem;
@@ -886,6 +991,11 @@ button:disabled {
 
 .danger-action {
   background: linear-gradient(135deg, #dc2626, #f97316);
+}
+
+.danger-button {
+  border-color: color-mix(in srgb, #dc2626 42%, var(--border));
+  color: #dc2626;
 }
 
 .receipt-viewer-head {
@@ -1590,6 +1700,55 @@ button:disabled {
 :root[data-theme="dark"] .bottom-nav-menu {
   background: color-mix(in srgb, var(--panel-muted) 78%, transparent);
   border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+}
+
+@keyframes splash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes splash-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes splash-fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes splash-pulse {
+  from {
+    opacity: 0.75;
+    transform: scale(0.78);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 640px) {
