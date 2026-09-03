@@ -83,6 +83,7 @@ export type ServerSettlementEvent = {
 };
 
 const TOKEN_KEY = "micham_server_token";
+const ADMIN_TOKEN_KEY = "micham_admin_token";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
 export class ApiClientError extends Error {
@@ -110,6 +111,18 @@ export function setServerToken(token: string) {
 
 export function clearServerToken() {
   localStorage.removeItem(TOKEN_KEY);
+}
+
+export function getAdminToken() {
+  return localStorage.getItem(ADMIN_TOKEN_KEY) || "";
+}
+
+export function setAdminToken(token: string) {
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+}
+
+export function clearAdminToken() {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
 }
 
 export function isServerSessionReady() {
@@ -177,6 +190,120 @@ export async function loginServerAccount(email: string, password: string) {
   });
   setServerToken(result.token);
   return result;
+}
+
+export type AdminPermission =
+  | "dashboard.view"
+  | "admin.manage"
+  | "users.view"
+  | "users.manage"
+  | "plans.manage"
+  | "features.manage"
+  | "settings.manage"
+  | "ads.manage"
+  | "announcements.manage"
+  | "audit.view";
+
+export type AdminAccount = {
+  id: string;
+  email: string;
+  display_name: string;
+  role: "SUPER_ADMIN" | "ADMIN" | "SUPPORT" | "VIEWER";
+  status: "ACTIVE" | "SUSPENDED";
+  permissions?: AdminPermission[];
+};
+
+export type AdminDashboard = {
+  stats: Record<string, number>;
+  recentAudit: Array<{ id: string; action: string; target_type?: string | null; target_id?: string | null; created_at: string; metadata?: Record<string, unknown> }>;
+};
+
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  display_name: string;
+  currency: string;
+  connection_code: string;
+  email_verified: boolean;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminCatalog = {
+  plans: Array<Record<string, unknown>>;
+  features: Array<Record<string, unknown>>;
+  planFeatures: Array<Record<string, unknown>>;
+  planLimits: Array<Record<string, unknown>>;
+  flags: Array<Record<string, unknown>>;
+  settings: Array<Record<string, unknown>>;
+  adPlacements: Array<Record<string, unknown>>;
+  adConfigs: Array<Record<string, unknown>>;
+  adPolicies: Array<Record<string, unknown>>;
+  announcements: Array<Record<string, unknown>>;
+};
+
+async function adminFetch<T>(path: string, options: ApiOptions = {}) {
+  return apiFetch<T>(path, { ...options, token: options.token ?? getAdminToken() });
+}
+
+export async function bootstrapAdmin(setupToken: string, email: string, password: string, displayName: string) {
+  return apiFetch<{ admin: AdminAccount }>("/api/admin/auth/bootstrap", {
+    body: { setupToken, email, password, displayName },
+  });
+}
+
+export async function loginAdminAccount(email: string, password: string) {
+  const result = await apiFetch<{ admin: AdminAccount; session: { token: string; expiresAt: string } }>("/api/admin/auth/login", {
+    body: { email, password },
+  });
+  setAdminToken(result.session.token);
+  return result;
+}
+
+export async function logoutAdminAccount() {
+  try {
+    return await adminFetch<{ ok: true }>("/api/admin/auth/logout", { body: {} });
+  } finally {
+    clearAdminToken();
+  }
+}
+
+export async function getAdminMe() {
+  return adminFetch<{ admin: AdminAccount }>("/api/admin/auth/me");
+}
+
+export async function getAdminDashboard() {
+  return adminFetch<AdminDashboard>("/api/admin/dashboard");
+}
+
+export async function getAdminCatalog() {
+  return adminFetch<AdminCatalog>("/api/admin/catalog");
+}
+
+export async function listAdminUsers(params: { q?: string; status?: string; page?: number; pageSize?: number } = {}) {
+  const query = new URLSearchParams();
+  if (params.q) query.set("q", params.q);
+  if (params.status) query.set("status", params.status);
+  if (params.page) query.set("page", String(params.page));
+  if (params.pageSize) query.set("pageSize", String(params.pageSize));
+  return adminFetch<{ users: AdminUserRow[]; page: number; pageSize: number; total: number }>(`/api/admin/users/list${query.size ? `?${query}` : ""}`);
+}
+
+export async function setAdminUserStatus(userId: string, status: "ACTIVE" | "SUSPENDED", reason = "") {
+  return adminFetch<{ user: AdminUserRow }>("/api/admin/users/status", { body: { userId, status, reason } });
+}
+
+export async function revokeAdminUserSessions(userId: string) {
+  return adminFetch<{ ok: true }>("/api/admin/users/revoke-sessions", { body: { userId } });
+}
+
+export async function assignAdminUserPlan(userId: string, planCode: string) {
+  return adminFetch<{ subscription: Record<string, unknown>; plan: Record<string, unknown> }>("/api/admin/users/assign-plan", { body: { userId, planCode } });
+}
+
+export async function saveAdminSetting(settingKey: string, value: unknown, isPublic = true, description = "") {
+  return adminFetch<{ setting: Record<string, unknown> }>("/api/admin/settings/save", { body: { settingKey, value, isPublic, description } });
 }
 
 export async function requestServerPasswordReset(email: string) {

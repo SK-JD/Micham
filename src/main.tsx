@@ -40,13 +40,23 @@ import { createId, nowIso } from "./lib/defaults";
 import { formatDate, formatMoney } from "./lib/format";
 import {
   ApiClientError,
+  assignAdminUserPlan,
   blockServerFriend,
+  bootstrapAdmin,
+  clearAdminToken,
   clearServerToken,
   deleteServerAccount,
   emailServerDataExport,
   ensureLocalProfileForServerUser,
+  getAdminCatalog,
+  getAdminDashboard,
+  getAdminMe,
+  getAdminToken,
   getServerToken,
+  listAdminUsers,
   listServerFriends,
+  loginAdminAccount,
+  logoutAdminAccount,
   loginServerAccount,
   listServerSettlementEvents,
   mirrorServerFriendEntity,
@@ -59,8 +69,15 @@ import {
   requestServerPasswordReset,
   respondServerRepayment,
   respondServerFriend,
+  revokeAdminUserSessions,
+  saveAdminSetting,
+  setAdminUserStatus,
   syncServerSnapshot,
   verifyServerFriend,
+  type AdminAccount,
+  type AdminCatalog,
+  type AdminDashboard,
+  type AdminUserRow,
   type ServerSettlementEvent,
 } from "./lib/serverApi";
 import type {
@@ -134,6 +151,58 @@ const LOGIN_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
 const AI_LIMIT = { max: 10, windowMs: 60 * 1000 };
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 const MAX_LOGO_BYTES = 1024 * 1024;
+const MAX_RECEIPT_SOURCE_BYTES = 6 * 1024 * 1024;
+const MAX_RECEIPT_COMPRESSED_BYTES = 900 * 1024;
+const RECEIPT_IMAGE_MAX_SIDE = 1280;
+const LOGO_IMAGE_MAX_SIDE = 512;
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error || new Error("Could not read image."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function loadBrowserImage(file: File) {
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new window.Image();
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Image could not be loaded."));
+      image.src = url;
+    });
+    return image;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function compressImageFile(file: File, options: { maxSide: number; quality: number; maxBytes: number }) {
+  const image = await loadBrowserImage(file);
+  const scale = Math.min(1, options.maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Image compression is not available in this browser.");
+  context.drawImage(image, 0, 0, width, height);
+
+  const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
+  let quality = options.quality;
+  let blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mimeType, quality));
+  while (blob && blob.size > options.maxBytes && quality > 0.46 && mimeType !== "image/png") {
+    quality -= 0.08;
+    blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mimeType, quality));
+  }
+  if (!blob) throw new Error("Image compression failed.");
+  if (blob.size > options.maxBytes) throw new Error("Image is still too large after compression.");
+  return blobToDataUrl(blob);
+}
 
 function checkRateLimit(key: string, max: number, windowMs: number) {
   const now = Date.now();
@@ -1429,6 +1498,7 @@ function QuickTransaction({
   const [note, setNote] = useState("");
   const [receiptName, setReceiptName] = useState("");
   const [receiptData, setReceiptData] = useState("");
+  const [receiptProcessing, setReceiptProcessing] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [budgetWarning, setBudgetWarning] = useState<{ categoryName: string; overBy: number } | null>(null);
 
@@ -1494,12 +1564,33 @@ function QuickTransaction({
     await onDone();
   };
 
-  const attachReceipt = (file?: File) => {
+  const attachReceipt = async (file?: File) => {
     if (!file) return;
-    setReceiptName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => setReceiptData(String(reader.result));
-    reader.readAsDataURL(file);
+    if (!file.type.startsWith("image/")) {
+      notify?.("Upload an image file for the receipt.", "error");
+      return;
+    }
+    if (file.size > MAX_RECEIPT_SOURCE_BYTES) {
+      notify?.("Receipt image is too large. Choose an image under 6 MB.", "error");
+      return;
+    }
+    setReceiptProcessing(true);
+    try {
+      setReceiptName(file.name);
+      const dataUrl = await compressImageFile(file, {
+        maxSide: RECEIPT_IMAGE_MAX_SIDE,
+        quality: 0.72,
+        maxBytes: MAX_RECEIPT_COMPRESSED_BYTES,
+      });
+      setReceiptData(dataUrl);
+      notify?.("Receipt compressed and attached.", "success");
+    } catch (error) {
+      setReceiptName("");
+      setReceiptData("");
+      notify?.(error instanceof Error ? error.message : "Receipt image could not be processed.", "error");
+    } finally {
+      setReceiptProcessing(false);
+    }
   };
 
   return (
@@ -1553,9 +1644,18 @@ function QuickTransaction({
           </label>
           <div className="receipt-control">
             <span className="field-label">Receipt</span>
-            <label className="secondary-button cursor-pointer">
-              <Image size={18} /> {receiptName ? "Change Receipt" : "Add Receipt"}
-              <input className="hidden" type="file" accept="image/*" onChange={(event) => attachReceipt(event.target.files?.[0])} />
+            <label className={`secondary-button cursor-pointer ${receiptProcessing ? "button-loading" : ""}`}>
+              <Image size={18} /> {receiptProcessing ? "Compressing" : receiptName ? "Change Receipt" : "Add Receipt"}
+              <input
+                className="hidden"
+                type="file"
+                accept="image/*"
+                disabled={receiptProcessing}
+                onChange={(event) => {
+                  void attachReceipt(event.target.files?.[0]);
+                  event.currentTarget.value = "";
+                }}
+              />
             </label>
             {receiptData ? <img className="receipt-preview" src={receiptData} alt={receiptName || "Receipt preview"} /> : null}
           </div>
@@ -3390,8 +3490,93 @@ function AdminView({
   onDone: () => Promise<void>;
 }) {
   const [form, setForm] = useState(snapshot.config);
+  const [logoProcessing, setLogoProcessing] = useState(false);
+  const [admin, setAdmin] = useState<AdminAccount | null>(null);
+  const [adminMode, setAdminMode] = useState<"login" | "setup">("login");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [setupToken, setSetupToken] = useState("");
+  const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
+  const [catalog, setCatalog] = useState<AdminCatalog | null>(null);
+  const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [busy, setBusy] = useState("");
+  const [adminError, setAdminError] = useState("");
 
   useEffect(() => setForm(snapshot.config), [snapshot.config]);
+
+  const loadAdminConsole = async () => {
+    setBusy("load-admin");
+    setAdminError("");
+    try {
+      const [{ admin: currentAdmin }, dashboardResult, catalogResult, userResult] = await Promise.all([
+        getAdminMe(),
+        getAdminDashboard(),
+        getAdminCatalog(),
+        listAdminUsers({ q: userSearch, pageSize: 20 }),
+      ]);
+      setAdmin(currentAdmin);
+      setDashboard(dashboardResult);
+      setCatalog(catalogResult);
+      setUsers(userResult.users);
+    } catch (error) {
+      setAdmin(null);
+      setAdminError(error instanceof Error ? error.message : "Admin console could not be loaded.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  useEffect(() => {
+    if (getAdminToken()) void loadAdminConsole();
+  }, []);
+
+  const serverAdminLogin = async () => {
+    setBusy("admin-login");
+    setAdminError("");
+    try {
+      const result = await loginAdminAccount(adminEmail.trim().toLowerCase(), adminPassword);
+      setAdmin(result.admin);
+      setAdminPassword("");
+      notify("Admin session started.", "success");
+      await loadAdminConsole();
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "Admin login failed.");
+      notify(error instanceof Error ? error.message : "Admin login failed.", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const setupServerAdmin = async () => {
+    setBusy("admin-setup");
+    setAdminError("");
+    try {
+      await bootstrapAdmin(setupToken.trim(), adminEmail.trim().toLowerCase(), adminPassword, adminName || adminEmail.split("@")[0]);
+      setSetupToken("");
+      setAdminPassword("");
+      setAdminMode("login");
+      notify("Admin created. Login with the admin email.", "success");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "Admin setup failed.");
+      notify(error instanceof Error ? error.message : "Admin setup failed.", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const refreshUsers = async () => {
+    setBusy("users");
+    try {
+      const result = await listAdminUsers({ q: userSearch, pageSize: 20 });
+      setUsers(result.users);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Users could not be loaded.", "error");
+    } finally {
+      setBusy("");
+    }
+  };
 
   const save = async () => {
     await db.appConfig.put({ ...form, id: "primary", updatedAt: nowIso() });
@@ -3408,14 +3593,176 @@ function AdminView({
       notify("Logo image is too large. Maximum size is 1 MB.", "error");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setForm((current) => ({ ...current, logoImage: String(reader.result) }));
-    reader.readAsDataURL(file);
+    setLogoProcessing(true);
+    try {
+      const dataUrl = await compressImageFile(file, {
+        maxSide: LOGO_IMAGE_MAX_SIDE,
+        quality: 0.82,
+        maxBytes: MAX_LOGO_BYTES,
+      });
+      setForm((current) => ({ ...current, logoImage: dataUrl }));
+      notify("Logo image optimized.", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Logo image could not be processed.", "error");
+    } finally {
+      setLogoProcessing(false);
+    }
   };
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-      <Panel title="Application Configuration">
+    <div className="admin-console">
+      {!admin ? (
+        <Panel title="Server Admin">
+          <div className="grid gap-4">
+            <div className="segmented-control">
+              <button className={adminMode === "login" ? "segment-active" : ""} onClick={() => setAdminMode("login")}>Login</button>
+              <button className={adminMode === "setup" ? "segment-active" : ""} onClick={() => setAdminMode("setup")}>First setup</button>
+            </div>
+            {adminError ? <div className="form-error">{adminError}</div> : null}
+            <TextField label="Admin email" value={adminEmail} onChange={setAdminEmail} placeholder="admin@example.com" />
+            <TextField label="Admin password" value={adminPassword} onChange={setAdminPassword} type="password" />
+            {adminMode === "setup" ? (
+              <>
+                <TextField label="Display name" value={adminName} onChange={setAdminName} placeholder="Owner" />
+                <TextField label="Setup token" value={setupToken} onChange={setSetupToken} type="password" />
+                <LoadingButton className="primary-button" loading={busy === "admin-setup"} onClick={setupServerAdmin}>
+                  Create Server Admin
+                </LoadingButton>
+              </>
+            ) : (
+              <LoadingButton className="primary-button" loading={busy === "admin-login"} onClick={serverAdminLogin}>
+                Login to Server Admin
+              </LoadingButton>
+            )}
+            <button className="secondary-button" onClick={onLogout}>
+              <LogOut size={18} /> Exit Admin
+            </button>
+          </div>
+        </Panel>
+      ) : (
+        <>
+          <Panel title="Admin Dashboard" icon={<BarChart3 size={18} />}>
+            <div className="admin-head">
+              <div>
+                <strong>{admin.display_name}</strong>
+                <p>{admin.email} · {admin.role}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <LoadingButton className="secondary-button" loading={busy === "load-admin"} onClick={loadAdminConsole}>
+                  <RefreshCw size={18} /> Refresh
+                </LoadingButton>
+                <button
+                  className="secondary-button"
+                  onClick={async () => {
+                    await logoutAdminAccount();
+                    clearAdminToken();
+                    setAdmin(null);
+                    notify("Admin logged out.", "success");
+                  }}
+                >
+                  <LogOut size={18} /> Logout
+                </button>
+              </div>
+            </div>
+            <div className="admin-stat-grid">
+              {Object.entries(dashboard?.stats || {}).map(([key, value]) => (
+                <div className="admin-stat" key={key}>
+                  <span>{key.replace(/([A-Z])/g, " $1").trim()}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="Users" icon={<Users size={18} />}>
+            <div className="admin-users-toolbar">
+              <input className="field-input" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Search user, email, or connection code" />
+              <LoadingButton className="secondary-button" loading={busy === "users"} onClick={refreshUsers}>
+                Search
+              </LoadingButton>
+            </div>
+            <div className="admin-user-list">
+              {users.map((user) => (
+                <div className="admin-user-row" key={user.id}>
+                  <div>
+                    <strong>{user.display_name}</strong>
+                    <p>{user.email} · {user.status} · {user.connection_code}</p>
+                  </div>
+                  <div className="admin-user-actions">
+                    <button
+                      className="small-button"
+                      onClick={async () => {
+                        const nextStatus = user.status === "active" ? "SUSPENDED" : "ACTIVE";
+                        await setAdminUserStatus(user.id, nextStatus, "Admin console change");
+                        await refreshUsers();
+                      }}
+                    >
+                      {user.status === "active" ? "Suspend" : "Activate"}
+                    </button>
+                    <button
+                      className="small-button"
+                      onClick={async () => {
+                        await revokeAdminUserSessions(user.id);
+                        notify("User sessions revoked.", "success");
+                      }}
+                    >
+                      Revoke
+                    </button>
+                    <button
+                      className="small-button"
+                      onClick={async () => {
+                        await assignAdminUserPlan(user.id, "FREE");
+                        notify("Free plan assigned.", "success");
+                      }}
+                    >
+                      Free
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {users.length === 0 ? <Empty text="No users found." /> : null}
+            </div>
+          </Panel>
+
+          <Panel title="Plans and Controls" icon={<SlidersHorizontal size={18} />}>
+            <div className="admin-catalog-grid">
+              <div>
+                <h3>Plans</h3>
+                {(catalog?.plans || []).map((plan) => (
+                  <p key={String(plan.id)}><strong>{String(plan.code)}</strong> · {String(plan.name)} · {String(plan.status)}</p>
+                ))}
+              </div>
+              <div>
+                <h3>Features</h3>
+                {(catalog?.features || []).slice(0, 8).map((feature) => (
+                  <p key={String(feature.feature_key)}><strong>{String(feature.feature_key)}</strong> · {String(feature.status)}</p>
+                ))}
+              </div>
+              <div>
+                <h3>Runtime</h3>
+                {(catalog?.settings || []).map((setting) => (
+                  <button
+                    className="runtime-setting-row"
+                    key={String(setting.setting_key)}
+                    onClick={async () => {
+                      const nextValue = setting.value === true ? false : setting.value === false ? true : setting.value;
+                      await saveAdminSetting(String(setting.setting_key), nextValue, setting.is_public === true, String(setting.description || ""));
+                      notify("Runtime setting saved.", "success");
+                      await loadAdminConsole();
+                    }}
+                  >
+                    <span>{String(setting.setting_key)}</span>
+                    <strong>{JSON.stringify(setting.value)}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Panel>
+        </>
+      )}
+
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+        <Panel title="Application Configuration">
         <div className="grid gap-4">
           <TextField label="App name" value={form.appName} onChange={(value) => setForm({ ...form, appName: value })} />
           <TextField label="Tagline" value={form.tagline} onChange={(value) => setForm({ ...form, tagline: value })} />
@@ -3424,8 +3771,17 @@ function AdminView({
             <span className="field-label">App icon / image</span>
             <div className="flex flex-wrap gap-2">
               <label className="secondary-button cursor-pointer">
-                <Upload size={18} /> Upload Image
-                <input className="hidden" type="file" accept="image/*" onChange={(event) => uploadLogo(event.target.files?.[0])} />
+                <Upload size={18} /> {logoProcessing ? "Optimizing" : "Upload Image"}
+                <input
+                  className="hidden"
+                  type="file"
+                  accept="image/*"
+                  disabled={logoProcessing}
+                  onChange={(event) => {
+                    void uploadLogo(event.target.files?.[0]);
+                    event.currentTarget.value = "";
+                  }}
+                />
               </label>
               {form.logoImage ? (
                 <button className="secondary-button" onClick={() => setForm({ ...form, logoImage: undefined })}>
@@ -3454,8 +3810,8 @@ function AdminView({
             </button>
           </div>
         </div>
-      </Panel>
-      <Panel title="Preview">
+        </Panel>
+        <Panel title="Preview">
         <div className="grid gap-4">
           <Logo config={form} />
           <div>
@@ -3469,7 +3825,8 @@ function AdminView({
             Accent action
           </button>
         </div>
-      </Panel>
+        </Panel>
+      </div>
     </div>
   );
 }

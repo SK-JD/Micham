@@ -33,6 +33,12 @@ Serverless endpoints:
 
 Bootstrap is protected by `ADMIN_SETUP_TOKEN` and only works while there are no admin users. Admin sessions are JWTs stored by hash in `micham_admin_sessions`, separate from app user sessions.
 
+Frontend surface:
+
+- Login to the existing local admin entry first.
+- Use the `Server Admin` panel to run first setup or login to the protected server admin session.
+- Server admin tokens are stored separately from normal user cloud tokens.
+
 Roles:
 
 - `SUPER_ADMIN`: full access.
@@ -202,7 +208,16 @@ SMTP variables are still used by the existing account verification, password res
 ## Current Boundaries
 
 - Existing offline-first data, friend, settlement, and sync flows remain unchanged.
-- The existing in-app `AdminView` is still local app branding/configuration. The server-side admin APIs added here are the foundation for the production business admin panel and should be wired into a separate protected admin surface.
+- The in-app `AdminView` now has a compact server admin console for setup/login, dashboard counts, user status/session actions, default plan assignment, catalog visibility, and basic runtime setting toggles.
+- The same `AdminView` still includes local app branding/configuration.
 - Plan limits are stored but not enforced in transaction/friend/sync APIs yet.
 - Ads are stored as placements/configs/policies only.
 - Payments and billing providers are not part of this foundation.
+
+## Image Upload Handling
+
+Receipt images and uploaded app logo images are compressed in the browser before saving:
+
+- Receipts: source max `6 MB`, longest side `1280 px`, compressed output target under `900 KB`.
+- App logo uploads: source max `1 MB`, longest side `512 px`.
+- Images are still stored as local data URLs in the current offline-first data model.

@@ -359,6 +359,11 @@ button:disabled {
   padding: 0.65rem 1rem;
 }
 
+.button-loading {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 .small-button {
   min-height: 36px;
   padding: 0.45rem 0.75rem;
@@ -1361,6 +1366,97 @@ button:disabled {
   color: var(--muted);
   font-size: 0.72rem;
   margin-top: 0.2rem;
+}
+
+.admin-console {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.admin-head,
+.admin-users-toolbar,
+.admin-user-row,
+.runtime-setting-row {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.admin-head p,
+.admin-user-row p,
+.admin-catalog-grid p {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin: 0.2rem 0 0;
+}
+
+.admin-stat-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-top: 1rem;
+}
+
+.admin-stat,
+.admin-catalog-grid > div,
+.admin-user-row,
+.runtime-setting-row {
+  background: color-mix(in srgb, var(--panel) 82%, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.admin-stat span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.admin-stat strong {
+  display: block;
+  font-size: 1.65rem;
+  margin-top: 0.2rem;
+}
+
+.admin-user-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.admin-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: end;
+}
+
+.admin-catalog-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.admin-catalog-grid h3 {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 800;
+  margin: 0 0 0.75rem;
+}
+
+.runtime-setting-row {
+  color: var(--text);
+  margin-top: 0.5rem;
+  text-align: left;
+  width: 100%;
+}
+
+.runtime-setting-row span {
+  font-weight: 700;
 }
 
 .chat-message {
