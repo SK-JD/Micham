@@ -1094,7 +1094,8 @@ button:disabled {
   z-index: 90;
 }
 
-.receipt-viewer {
+.receipt-viewer,
+.transaction-detail-modal {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1105,6 +1106,12 @@ button:disabled {
   overflow: hidden;
   padding: 1rem;
   width: min(920px, 96vw);
+}
+
+.transaction-detail-modal {
+  max-height: min(820px, 92vh);
+  overflow: auto;
+  width: min(720px, 96vw);
 }
 
 .confirm-dialog {
@@ -1173,6 +1180,75 @@ button:disabled {
 .receipt-viewer img {
   border-radius: 8px;
   max-height: 68vh;
+  object-fit: contain;
+  width: 100%;
+}
+
+.transaction-detail-summary {
+  align-items: center;
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand) 20%, var(--border));
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.9rem 1rem;
+}
+
+.transaction-detail-summary span,
+.transaction-detail-grid span,
+.transaction-detail-note span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.transaction-detail-summary strong {
+  font-size: 1.45rem;
+}
+
+.transaction-detail-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.transaction-detail-grid > div,
+.transaction-detail-note,
+.transaction-receipt-section {
+  background: color-mix(in srgb, var(--panel) 82%, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.transaction-detail-note p {
+  color: var(--text);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.transaction-receipt-section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.transaction-receipt-section h3 {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  font-size: 1rem;
+  font-weight: 800;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.transaction-receipt-section img {
+  background: color-mix(in srgb, var(--surface) 70%, white);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: min(58vh, 560px);
   object-fit: contain;
   width: 100%;
 }
@@ -1255,10 +1331,19 @@ button:disabled {
   align-items: center;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+  cursor: pointer;
   display: flex;
   gap: 0.75rem;
   min-height: 64px;
   padding: 0.7rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.transaction-row:focus-visible,
+.transaction-row:hover {
+  border-color: color-mix(in srgb, var(--brand) 36%, var(--border));
+  box-shadow: 0 10px 26px rgb(15 23 42 / 8%);
+  outline: none;
 }
 
 .transaction-icon {

@@ -1,6 +1,7 @@
 import { appBaseUrl } from "../_lib/env";
 import { ApiError, beginRequest, bodyObject, handleError, jsonCreated, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
 import { sendMail } from "../_lib/mailer";
+import { ensureRuntimeEnabled } from "../_lib/runtimePolicy";
 import { createConnectionCode, hashPassword, isEmail, randomToken, rateLimit, sha256 } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 import { verifyEmailTemplate } from "../email-templates/verifyEmail";
@@ -18,6 +19,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!isEmail(email)) throw new ApiError(400, "Enter a valid email address.");
     if (password.length < 8) throw new ApiError(400, "Password must be at least 8 characters.");
     await rateLimit(`auth:register:${email}`, 5, 60 * 60);
+    await ensureRuntimeEnabled("registration_enabled", "registration", "Registration is temporarily unavailable.");
 
     const db = adminDb();
     const { data: existing, error: existingError } = await db.from("micham_app_users").select("id").eq("email", email).maybeSingle();

@@ -3598,7 +3598,15 @@ function AiChatView({ snapshot, currency, notify }: { snapshot: Snapshot; curren
 }
 
 function TransactionList({ snapshot, currency, transactions }: { snapshot: Snapshot; currency: string; transactions: Transaction[] }) {
-  const [receipt, setReceipt] = useState<Transaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const pressTimers = React.useRef<Record<string, number>>({});
+
+  const clearLongPress = (transactionId: string) => {
+    const timer = pressTimers.current[transactionId];
+    if (timer) window.clearTimeout(timer);
+    delete pressTimers.current[transactionId];
+  };
+
   if (transactions.length === 0) return <Empty text="No transactions yet." />;
   return (
     <>
@@ -3608,7 +3616,27 @@ function TransactionList({ snapshot, currency, transactions }: { snapshot: Snaps
           const toAccount = snapshot.accounts.find((item) => item.id === transaction.toAccountId);
           const category = snapshot.categories.find((item) => item.id === transaction.categoryId);
           return (
-            <div className="transaction-row" key={transaction.id}>
+            <div
+              className="transaction-row"
+              key={transaction.id}
+              onDoubleClick={() => setSelectedTransaction(transaction)}
+              onPointerCancel={() => clearLongPress(transaction.id)}
+              onPointerDown={() => {
+                clearLongPress(transaction.id);
+                pressTimers.current[transaction.id] = window.setTimeout(() => setSelectedTransaction(transaction), 520);
+              }}
+              onPointerLeave={() => clearLongPress(transaction.id)}
+              onPointerUp={() => clearLongPress(transaction.id)}
+              role="button"
+              tabIndex={0}
+              title="Long press to view details"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedTransaction(transaction);
+                }
+              }}
+            >
               <div className="transaction-icon">
                 {transaction.type === "transfer" ? <ArrowRightLeft size={16} /> : transaction.type === "income" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
               </div>
@@ -3625,7 +3653,14 @@ function TransactionList({ snapshot, currency, transactions }: { snapshot: Snaps
                   <p className="transaction-edit-note">Edited</p>
                 ) : null}
                 {transaction.receiptName ? (
-                  <button className="receipt-link" type="button" onClick={() => setReceipt(transaction)}>
+                  <button
+                    className="receipt-link"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedTransaction(transaction);
+                    }}
+                  >
                     <Image size={14} /> {transaction.receiptName}
                   </button>
                 ) : null}
@@ -3637,29 +3672,99 @@ function TransactionList({ snapshot, currency, transactions }: { snapshot: Snaps
           );
         })}
       </div>
-      {receipt ? <ReceiptViewer transaction={receipt} onClose={() => setReceipt(null)} /> : null}
+      {selectedTransaction ? (
+        <TransactionDetailsModal
+          snapshot={snapshot}
+          currency={currency}
+          transaction={selectedTransaction}
+          onClose={() => setSelectedTransaction(null)}
+        />
+      ) : null}
     </>
   );
 }
 
-function ReceiptViewer({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
+function TransactionDetailsModal({
+  snapshot,
+  currency,
+  transaction,
+  onClose,
+}: {
+  snapshot: Snapshot;
+  currency: string;
+  transaction: Transaction;
+  onClose: () => void;
+}) {
+  const account = snapshot.accounts.find((item) => item.id === transaction.accountId);
+  const toAccount = snapshot.accounts.find((item) => item.id === transaction.toAccountId);
+  const category = snapshot.categories.find((item) => item.id === transaction.categoryId);
+  const typeLabel = transaction.type[0].toUpperCase() + transaction.type.slice(1);
+
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="receipt-viewer">
+      <div className="transaction-detail-modal">
         <div className="receipt-viewer-head">
           <div>
-            <strong>{transaction.receiptName || "Receipt"}</strong>
-            <p>{formatDate(transaction.date)}</p>
+            <strong>{transaction.note || category?.name || typeLabel}</strong>
+            <p>{typeLabel} · {formatDate(transaction.date)}</p>
           </div>
           <button className="icon-button" onClick={onClose} title="Close">
-            ×
+            <span aria-hidden="true">×</span>
           </button>
         </div>
+        <div className="transaction-detail-summary">
+          <span>{typeLabel}</span>
+          <strong className={transaction.type === "income" ? "text-emerald-700" : transaction.type === "expense" ? "text-rose-700" : "text-slate-800"}>
+            {formatMoney(transaction.amount, currency)}
+          </strong>
+        </div>
+        <div className="transaction-detail-grid">
+          <div>
+            <span>Account</span>
+            <strong>{account?.name ?? "Not available"}</strong>
+          </div>
+          {transaction.type === "transfer" ? (
+            <div>
+              <span>To account</span>
+              <strong>{toAccount?.name ?? "Not available"}</strong>
+            </div>
+          ) : (
+            <div>
+              <span>Category</span>
+              <strong>{category?.name ?? "Not selected"}</strong>
+            </div>
+          )}
+          <div>
+            <span>Date</span>
+            <strong>{formatDate(transaction.date)}</strong>
+          </div>
+          <div>
+            <span>Sync</span>
+            <strong>{transaction.syncState ?? "local"}</strong>
+          </div>
+        </div>
+        {transaction.note ? (
+          <div className="transaction-detail-note">
+            <span>Note</span>
+            <p>{transaction.note}</p>
+          </div>
+        ) : null}
+        {transaction.edited ? (
+          <div className="transaction-detail-note">
+            <span>Edit history</span>
+            <p>
+              Edited{transaction.previousVersion ? ` from ${formatMoney(transaction.previousVersion.amount, currency)} on ${formatDate(transaction.previousVersion.date)}` : ""}.
+            </p>
+          </div>
+        ) : null}
+        <div className="transaction-receipt-section">
+          <h3><Image size={18} /> Receipt</h3>
         {transaction.receiptData ? (
           <img src={transaction.receiptData} alt={transaction.receiptName || "Receipt"} />
         ) : (
-          <Empty text="Receipt image data is not available for this older transaction." />
+            <Empty text={transaction.receiptName ? "Receipt image data is not available for this older transaction." : "No receipt attached."} />
         )}
+        </div>
       </div>
     </div>
   );

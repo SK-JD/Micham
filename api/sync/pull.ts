@@ -1,4 +1,5 @@
 import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ensureRuntimeEnabled } from "../_lib/runtimePolicy";
 import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
@@ -7,6 +8,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     beginRequest(req, res, "sync/pull");
     method(req, "GET");
     const user = await requireUser(req);
+    await ensureRuntimeEnabled("sync_enabled", "cloud_sync", "Cloud sync is temporarily unavailable.");
     await rateLimit(`sync:pull:${user.id}`, 300, 60 * 60);
     const db = adminDb();
     const cursor = String(Array.isArray(req.query?.cursor) ? req.query?.cursor[0] : req.query?.cursor || "").trim();
