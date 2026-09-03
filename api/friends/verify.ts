@@ -1,11 +1,13 @@
-import { ApiError, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { requireUser } from "../_lib/security";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "friends/verify");
     method(req, "POST");
     const user = await requireUser(req);
+    await rateLimit(`friends:verify:${user.id}`, 60, 60 * 60);
     const connectionCode = stringField(bodyObject(req), "connectionCode").toUpperCase();
     if (!connectionCode) throw new ApiError(400, "Connection code is required.");
 

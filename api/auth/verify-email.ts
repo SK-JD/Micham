@@ -1,4 +1,4 @@
-import { ApiError, bodyObject, handleError, jsonOk, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
 import { sha256 } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
@@ -25,6 +25,7 @@ function html(res: ApiResponse, status: number, title: string, message: string) 
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "auth/verify-email");
     if (!["GET", "POST"].includes(req.method || "")) throw new ApiError(405, "Method not allowed.");
     const token =
       req.method === "GET"

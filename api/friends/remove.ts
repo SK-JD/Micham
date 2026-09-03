@@ -1,17 +1,19 @@
-import { ApiError, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { requireUser } from "../_lib/security";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "friends/remove");
     method(req, "POST");
     const user = await requireUser(req);
+    await rateLimit(`friends:action:${user.id}`, 120, 60 * 60);
     const friendUserId = stringField(bodyObject(req), "friendUserId");
     if (!friendUserId) throw new ApiError(400, "Friend user ID is required.");
 
     const { error } = await adminDb()
       .from("micham_friend_links")
-      .delete()
+      .update({ status: "removed", responded_at: new Date().toISOString(), blocked_by: null })
       .or(`and(owner_id.eq.${user.id},friend_id.eq.${friendUserId}),and(owner_id.eq.${friendUserId},friend_id.eq.${user.id})`);
     if (error) throw error;
     jsonOk(res, { status: "removed" });

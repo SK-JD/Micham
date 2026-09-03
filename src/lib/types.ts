@@ -3,7 +3,7 @@ export type CategoryKind = "expense" | "income";
 export type BudgetPeriod = "monthly";
 export type RecurringFrequency = "weekly" | "monthly" | "yearly";
 export type OweDirection = "to_me" | "by_me";
-export type FriendStatus = "local" | "pending" | "requested" | "connected" | "blocked";
+export type FriendStatus = "local" | "pending" | "requested" | "connected" | "blocked" | "removed";
 export type SettlementStatus = "open" | "pending_settlement" | "settled" | "rejected";
 
 export interface TransactionVersion {
@@ -53,6 +53,7 @@ export interface Profile extends BaseEntity {
   displayName: string;
   currency: string;
   connectedUserId?: string;
+  lastSyncCursor?: string;
   setupComplete: boolean;
 }
 
@@ -165,6 +166,10 @@ export interface SyncOperation extends BaseEntity {
   entityId: string;
   action: "upsert" | "delete";
   payload: unknown;
+  clientMutationId?: string;
+  retryCount?: number;
+  lastAttemptAt?: string;
+  error?: string;
 }
 
 export interface ImportPayload {

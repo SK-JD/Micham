@@ -1,5 +1,5 @@
 import { appBaseUrl } from "../_lib/env";
-import { ApiError, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
 import { sendMail } from "../_lib/mailer";
 import { resetPasswordTemplate } from "../email-templates/resetPassword";
 import { isEmail, randomToken, rateLimit, sha256 } from "../_lib/security";
@@ -7,6 +7,7 @@ import { adminDb } from "../_lib/supabaseAdmin";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "auth/request-reset");
     method(req, "POST");
     const email = stringField(bodyObject(req), "email").toLowerCase();
     if (!isEmail(email)) throw new ApiError(400, "Enter a valid email address.");

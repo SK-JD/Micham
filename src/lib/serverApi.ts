@@ -55,6 +55,15 @@ type CloudEntityRow = {
   entity_id: string;
   payload: Record<string, unknown>;
   deleted_at?: string | null;
+  updated_at?: string | null;
+};
+
+type SyncMutation = {
+  clientMutationId: string;
+  entityType: EntityType;
+  entityId: string;
+  action: "upsert" | "delete";
+  payload: Record<string, unknown>;
 };
 
 export type ServerSettlementEvent = {
@@ -78,10 +87,16 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.
 
 export class ApiClientError extends Error {
   status: number;
+  code: string;
+  requestId?: string;
+  retryable: boolean;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code = "REQUEST_FAILED", requestId?: string, retryable = status === 0 || status === 429 || status >= 500) {
     super(message);
     this.status = status;
+    this.code = code;
+    this.requestId = requestId;
+    this.retryable = retryable;
   }
 }
 
@@ -117,7 +132,14 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
   } catch {
-    throw new ApiClientError(0, "Server API is not running. Start local testing with `npm run dev` from this project.");
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    throw new ApiClientError(
+      0,
+      offline ? "You are offline. The app will keep local changes and sync later." : "Server is unavailable. Try again shortly.",
+      offline ? "NETWORK_OFFLINE" : "NETWORK_ERROR",
+      undefined,
+      true,
+    );
   }
 
   const text = await response.text();
@@ -132,7 +154,13 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
       response.status === 404
         ? "Server API route was not found. Restart with `npm run dev`, not `npm run dev:ui`."
         : "Server request failed.";
-    throw new ApiClientError(response.status, typeof payload.error === "string" ? payload.error : fallback);
+    throw new ApiClientError(
+      response.status,
+      typeof payload.error === "string" ? payload.error : fallback,
+      typeof payload.code === "string" ? payload.code : "REQUEST_FAILED",
+      typeof payload.requestId === "string" ? payload.requestId : undefined,
+      typeof payload.retryable === "boolean" ? payload.retryable : response.status === 429 || response.status >= 500,
+    );
   }
   return payload as T;
 }
@@ -229,23 +257,102 @@ async function putEntity(type: EntityType, payloads: Record<string, unknown>[]) 
   }
 }
 
-export async function pushServerSnapshot(snapshot: CloudSnapshot) {
-  const result = await apiFetch<{ ok: true; synced: number }>("/api/sync/push", { body: snapshot });
+function profileCursorKey(localProfileId: string) {
+  return `micham_sync_cursor_${localProfileId}`;
+}
+
+function getProfileCursor(localProfileId: string) {
+  return localStorage.getItem(profileCursorKey(localProfileId)) || "";
+}
+
+function setProfileCursor(localProfileId: string, cursor: string) {
+  if (cursor) localStorage.setItem(profileCursorKey(localProfileId), cursor);
+}
+
+function entityItemsFromSnapshot(snapshot: CloudSnapshot) {
+  return entityItems(snapshot).flatMap((group) => group.items.map((item) => ({ type: group.type, item })));
+}
+
+export async function queuePendingLocalMutations(snapshot: CloudSnapshot) {
+  if (!snapshot.profile) return;
   const timestamp = nowIso();
+  const rows = entityItemsFromSnapshot(snapshot)
+    .filter(({ item }) => item.syncState !== "synced")
+    .map(({ type, item }) => ({
+      id: `${type}:${item.id}`,
+      entity: type,
+      entityId: item.id,
+      action: item.deletedAt ? ("delete" as const) : ("upsert" as const),
+      payload: item,
+      clientMutationId: `${type}:${item.id}:${item.updatedAt || timestamp}`,
+      retryCount: 0,
+      createdAt: item.createdAt || timestamp,
+      updatedAt: item.updatedAt || timestamp,
+      syncState: "queued" as const,
+    }));
+  if (rows.length) await db.syncQueue.bulkPut(rows);
+}
+
+export async function pushQueuedServerMutations(snapshot: CloudSnapshot) {
+  if (!getServerToken() || !snapshot.profile) return { ok: true, synced: 0 };
+  await queuePendingLocalMutations(snapshot);
+  const queued = await db.syncQueue.orderBy("updatedAt").limit(200).toArray();
+  if (!queued.length) return { ok: true, synced: 0 };
+  const timestamp = nowIso();
+  await db.syncQueue.bulkPut(queued.map((item) => ({ ...item, lastAttemptAt: timestamp, retryCount: (item.retryCount || 0) + 1 })));
+  const mutations: SyncMutation[] = queued.map((item) => ({
+    clientMutationId: item.clientMutationId || item.id,
+    entityType: item.entity as EntityType,
+    entityId: item.entityId,
+    action: item.action,
+    payload: (item.payload && typeof item.payload === "object" ? item.payload : {}) as Record<string, unknown>,
+  }));
+  let result: { ok: true; synced: number };
+  try {
+    result = await apiFetch<{ ok: true; synced: number }>("/api/sync/push", { body: { profile: snapshot.profile, mutations } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Sync failed.";
+    await db.syncQueue.bulkPut(
+      queued.map((item) => ({
+        ...item,
+        lastAttemptAt: timestamp,
+        retryCount: (item.retryCount || 0) + 1,
+        error: message,
+        syncState: "queued" as const,
+      })),
+    );
+    throw error;
+  }
   await db.transaction(
     "rw",
-    [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
+    [db.syncQueue, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments, db.profiles],
     async () => {
+      await db.syncQueue.bulkDelete(queued.map((item) => item.id));
       if (snapshot.profile) await db.profiles.update(snapshot.profile.id, { syncState: "synced", updatedAt: timestamp });
-      for (const group of entityItems(snapshot)) {
-        await putEntity(group.type, group.items.map((item) => ({ ...item, syncState: "synced" })));
+      for (const operation of queued) {
+        if (operation.action === "delete") continue;
+        const payload = operation.payload && typeof operation.payload === "object"
+          ? { ...(operation.payload as Record<string, unknown>), syncState: "synced" }
+          : undefined;
+        if (!payload) continue;
+        await putEntity(operation.entity as EntityType, [payload]);
       }
     },
   );
   return result;
 }
 
+export async function pushServerSnapshot(snapshot: CloudSnapshot) {
+  return pushQueuedServerMutations(snapshot);
+}
+
 export async function pullServerSnapshot(localProfileId: string) {
+  return pullServerChanges(localProfileId);
+}
+
+export async function pullServerChanges(localProfileId: string) {
+  const cursor = getProfileCursor(localProfileId);
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}&limit=500` : "?limit=500";
   const result = await apiFetch<{
     profile?: {
       id: string;
@@ -256,7 +363,9 @@ export async function pullServerSnapshot(localProfileId: string) {
       connection_code: string;
     } | null;
     entities: CloudEntityRow[];
-  }>("/api/sync/pull");
+    cursor?: string;
+    hasMore?: boolean;
+  }>(`/api/sync/pull${query}`);
 
   const grouped = new Map<EntityType, Record<string, unknown>[]>();
   const localPeople = await db.people.where("ownerProfileId").equals(localProfileId).toArray();
@@ -275,9 +384,13 @@ export async function pullServerSnapshot(localProfileId: string) {
 
   await db.transaction(
     "rw",
-    [db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
+    [db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments, db.profiles],
     async () => {
       for (const [type, payloads] of grouped) await putEntity(type, payloads);
+      if (result.cursor) {
+        await db.profiles.update(localProfileId, { lastSyncCursor: result.cursor, updatedAt: nowIso() });
+        setProfileCursor(localProfileId, result.cursor);
+      }
     },
   );
   return result;
@@ -285,8 +398,8 @@ export async function pullServerSnapshot(localProfileId: string) {
 
 export async function syncServerSnapshot(snapshot: CloudSnapshot) {
   if (!getServerToken() || !snapshot.profile) return;
-  await pushServerSnapshot(snapshot);
-  await pullServerSnapshot(snapshot.profile.id);
+  await pushQueuedServerMutations(snapshot);
+  await pullServerChanges(snapshot.profile.id);
 }
 
 export async function verifyServerFriend(connectionCode: string) {
@@ -305,7 +418,7 @@ export async function requestServerFriend(connectionCode: string, ownerPersonId:
 }
 
 export async function respondServerFriend(friendUserId: string, action: "accept" | "reject") {
-  return apiFetch<{ status: "connected" | "blocked" }>("/api/friends/respond", { body: { friendUserId, action } });
+  return apiFetch<{ status: "connected" | "removed" }>("/api/friends/respond", { body: { friendUserId, action } });
 }
 
 export async function blockServerFriend(friendUserId: string) {
@@ -328,7 +441,7 @@ export async function listServerFriends() {
       friend_id: string;
       owner_person_id?: string | null;
       friend_person_id?: string | null;
-      status: "pending" | "connected" | "blocked";
+      status: "pending" | "connected" | "blocked" | "removed";
       requested_by?: string | null;
       requested_at?: string | null;
       responded_at?: string | null;
@@ -354,9 +467,10 @@ export async function requestServerRepayment(
   amount: number,
   payload: Record<string, unknown>,
   previousEventId?: string,
+  clientMutationId?: string,
 ) {
   return apiFetch<{ event: ServerSettlementEvent }>("/api/settlements/request-repayment", {
-    body: { friendUserId, settlementEntityId, amount, payload, previousEventId },
+    body: { friendUserId, settlementEntityId, amount, payload, previousEventId, clientMutationId },
   });
 }
 

@@ -1,11 +1,13 @@
-import { ApiError, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { requireUser } from "../_lib/security";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "friends/request");
     method(req, "POST");
     const user = await requireUser(req);
+    await rateLimit(`friends:request:${user.id}`, 30, 60 * 60);
     const body = bodyObject(req);
     const connectionCode = stringField(body, "connectionCode").toUpperCase();
     const ownerPersonId = stringField(body, "ownerPersonId");

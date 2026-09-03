@@ -1,11 +1,13 @@
-import { ApiError, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { requireUser } from "../_lib/security";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "settlements/respond-repayment");
     method(req, "POST");
     const user = await requireUser(req);
+    await rateLimit(`settlements:action:${user.id}`, 120, 60 * 60);
     const body = bodyObject(req);
     const eventId = stringField(body, "eventId");
     const action = stringField(body, "action");
@@ -31,9 +33,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         acknowledged_at: new Date().toISOString(),
       })
       .eq("id", eventId)
+      .eq("status", "pending")
       .select("*")
-      .single();
+      .maybeSingle();
     if (error) throw error;
+    if (!updated) throw new ApiError(409, "This settlement request was already handled.");
     jsonOk(res, { event: updated });
   } catch (error) {
     handleError(res, error);

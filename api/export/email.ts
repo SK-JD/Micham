@@ -1,6 +1,6 @@
-import { handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
 import { sendMail } from "../_lib/mailer";
-import { requireUser } from "../_lib/security";
+import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 import { exportReadyTemplate } from "../email-templates/exportReady";
 
@@ -40,9 +40,18 @@ ${sheets.join("") || worksheet("empty", [["No data"]])}
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "export/email");
     method(req, "POST");
     const user = await requireUser(req);
+    await rateLimit(`export:email:${user.id}`, 3, 24 * 60 * 60);
     const db = adminDb();
+    const { data: job, error: jobError } = await db
+      .from("micham_export_jobs")
+      .insert({ user_id: user.id, export_type: "xls", status: "queued" })
+      .select("id")
+      .single();
+    if (jobError) throw jobError;
+
     const { data, error } = await db
       .from("micham_entities")
       .select("entity_type, entity_id, payload, deleted_at, updated_at")
@@ -51,12 +60,24 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (error) throw error;
 
     const template = exportReadyTemplate(user.display_name);
-    const delivery = await sendMail({
-      to: user.email,
-      ...template,
-      attachments: [{ filename: "micham-export.xls", content: workbook(data || []), contentType: "application/vnd.ms-excel" }],
-    });
-    jsonOk(res, { ok: true, emailDelivery: delivery });
+    try {
+      const delivery = await sendMail({
+        to: user.email,
+        ...template,
+        attachments: [{ filename: "micham-export.xls", content: workbook(data || []), contentType: "application/vnd.ms-excel" }],
+      });
+      await db
+        .from("micham_export_jobs")
+        .update({ status: delivery.delivered ? "sent" : "failed", error_message: delivery.delivered ? null : delivery.reason || "Email delivery failed.", sent_at: delivery.delivered ? new Date().toISOString() : null })
+        .eq("id", job.id);
+      jsonOk(res, { ok: true, exportJobId: job.id, emailDelivery: delivery });
+    } catch (mailError) {
+      await db
+        .from("micham_export_jobs")
+        .update({ status: "failed", error_message: mailError instanceof Error ? mailError.message.slice(0, 500) : "Email delivery failed." })
+        .eq("id", job.id);
+      throw mailError;
+    }
   } catch (error) {
     handleError(res, error);
   }

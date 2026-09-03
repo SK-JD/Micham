@@ -1,18 +1,52 @@
-import { ApiError, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { requireUser } from "../_lib/security";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
+
+const allowedMirrorEntityTypes = new Set(["settlements", "repayments"]);
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "friends/mirror");
     method(req, "POST");
     const user = await requireUser(req);
-    const body = bodyObject(req);
+    await rateLimit(`friends:mirror:${user.id}`, 240, 60 * 60);
+    const body = bodyObject(req, { maxBytes: 256 * 1024 });
     const connectionCode = stringField(body, "connectionCode").toUpperCase();
     const entityType = stringField(body, "entityType");
     const entityId = stringField(body, "entityId");
     const payload = body.payload && typeof body.payload === "object" ? (body.payload as Record<string, unknown>) : undefined;
     if (!connectionCode || !entityType || !entityId || !payload) {
       throw new ApiError(400, "Connection code, entity type, entity ID, and payload are required.");
+    }
+    if (!allowedMirrorEntityTypes.has(entityType)) {
+      throw new ApiError(400, "This entity type cannot be shared with a friend.");
+    }
+    if (entityId.length > 120) {
+      throw new ApiError(400, "Entity ID is too long.");
+    }
+    if (entityType === "settlements") {
+      if (typeof payload.linkedSettlementId !== "string" || typeof payload.friendUserId !== "string") {
+        throw new ApiError(400, "Shared settlement payload is invalid.");
+      }
+      if (payload.friendUserId !== user.id) {
+        throw new ApiError(403, "Shared settlement source is invalid.");
+      }
+      const amount = Number(payload.originalAmount);
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 999999999) {
+        throw new ApiError(400, "Shared settlement amount is invalid.");
+      }
+    }
+    if (entityType === "repayments") {
+      if (typeof payload.linkedRepaymentId !== "string" || typeof payload.friendUserId !== "string") {
+        throw new ApiError(400, "Shared repayment payload is invalid.");
+      }
+      if (payload.friendUserId !== user.id) {
+        throw new ApiError(403, "Shared repayment source is invalid.");
+      }
+      const amount = Number(payload.amount);
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 999999999) {
+        throw new ApiError(400, "Shared repayment amount is invalid.");
+      }
     }
 
     const db = adminDb();

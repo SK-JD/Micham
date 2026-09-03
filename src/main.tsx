@@ -273,8 +273,8 @@ async function syncServerFriendsToLocal(profile: Profile) {
     const existing =
       existingPeople.find((person) => person.friendUserId === link.friend_id) ||
       existingPeople.find((person) => person.inviteCode === friend.connection_code);
-    if (existing && !existing.active && link.status !== "blocked") continue;
     const requestDirection = link.status === "pending" ? (link.requested_by === profile.connectedUserId ? "outgoing" : "incoming") : undefined;
+    const localStatus = link.status === "pending" ? (requestDirection === "outgoing" ? "requested" : "pending") : link.status;
     rows.push({
       id: existing?.id ?? link.owner_person_id ?? createId(),
       ownerProfileId: profile.id,
@@ -284,10 +284,10 @@ async function syncServerFriendsToLocal(profile: Profile) {
       inviteCode: friend.connection_code,
       connectedUserId: friend.connection_code,
       friendUserId: link.friend_id,
-      status: link.status === "pending" ? (requestDirection === "outgoing" ? "requested" : "pending") : link.status,
+      status: localStatus,
       verified: link.status === "connected",
       requestDirection,
-      active: link.status !== "blocked",
+      active: link.status === "connected" || link.status === "pending",
       createdAt: existing?.createdAt ?? link.requested_at ?? timestamp,
       updatedAt: timestamp,
       syncState: "synced",
@@ -307,12 +307,19 @@ function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [busyMessage, setBusyMessage] = useState("");
   const [showTour, setShowTour] = useState(false);
+  const syncInFlightRef = React.useRef(false);
+  const syncFailureCountRef = React.useRef(0);
+  const snapshotRef = React.useRef(snapshot);
 
   const notify = (message: string, tone: Toast["tone"] = "info") => {
     const id = createId();
     setToasts((items) => [...items, { id, message, tone }]);
     window.setTimeout(() => setToasts((items) => items.filter((item) => item.id !== id)), 3200);
   };
+
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
 
   const refresh = async (profileId = currentProfileId, options: { syncCloud?: boolean } = {}) => {
     const [config, profiles, accounts, categories, transactions, budgets, recurring, people, settlements, repayments] = await Promise.all([
@@ -363,15 +370,47 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!getServerToken() || !currentProfileId || !snapshot.profile?.connectedUserId) return undefined;
-    const timer = window.setInterval(() => {
-      pullServerSnapshot(currentProfileId)
-        .then(() => syncServerFriendsToLocal(snapshot.profile!))
-        .then(() => refresh(currentProfileId, { syncCloud: false }))
-        .catch(() => undefined);
-    }, 12000);
-    return () => window.clearInterval(timer);
-  }, [currentProfileId, snapshot.profile?.connectedUserId]);
+    if (!getServerToken() || !currentProfileId || !snapshot.config.syncEnabled || !snapshot.profile?.connectedUserId) return undefined;
+    let cancelled = false;
+    let timer = 0;
+
+    const schedule = (delayMs: number) => {
+      timer = window.setTimeout(run, delayMs);
+    };
+    const run = async () => {
+      if (cancelled) return;
+      const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+      if (document.hidden || isOffline || syncInFlightRef.current) {
+        schedule(45000);
+        return;
+      }
+      syncInFlightRef.current = true;
+      try {
+        const latestSnapshot = snapshotRef.current;
+        if (!latestSnapshot.profile?.connectedUserId || !latestSnapshot.config.syncEnabled) {
+          schedule(45000);
+          return;
+        }
+        await syncServerSnapshot(latestSnapshot);
+        await syncServerFriendsToLocal(latestSnapshot.profile);
+        await refresh(currentProfileId, { syncCloud: false });
+        syncFailureCountRef.current = 0;
+        schedule(45000);
+      } catch {
+        syncFailureCountRef.current += 1;
+        const backoff = Math.min(5 * 60 * 1000, 15000 * 2 ** syncFailureCountRef.current);
+        schedule(backoff + Math.floor(Math.random() * 3000));
+      } finally {
+        syncInFlightRef.current = false;
+      }
+    };
+
+    schedule(5000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [currentProfileId, snapshot.config.syncEnabled, snapshot.profile?.connectedUserId]);
 
   useEffect(() => {
     document.documentElement.style.setProperty("--brand", snapshot.config.primaryColor);
@@ -410,6 +449,7 @@ function App() {
         <main className="mx-auto w-full max-w-6xl px-4 py-5">
           <AdminView
             snapshot={snapshot}
+            notify={notify}
             onLogout={() => {
               localStorage.removeItem("micham_role");
               setSessionRole("guest");
@@ -1390,6 +1430,7 @@ function QuickTransaction({
   const [receiptName, setReceiptName] = useState("");
   const [receiptData, setReceiptData] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [budgetWarning, setBudgetWarning] = useState<{ categoryName: string; overBy: number } | null>(null);
 
   useEffect(() => {
     setCategoryId(type === "income" ? incomeCategory?.id ?? "" : expenseCategory?.id ?? "");
@@ -1400,7 +1441,7 @@ function QuickTransaction({
     if (!activeAccounts.some((account) => account.id === toAccountId)) setToAccountId(activeAccounts[1]?.id ?? activeAccounts[0]?.id ?? "");
   }, [activeAccounts, accountId, toAccountId]);
 
-  const save = async () => {
+  const save = async (forceOverBudget = false) => {
     if (!snapshot.profile?.id) {
       notify?.("Login session is missing. Please login again.", "error");
       return;
@@ -1419,11 +1460,8 @@ function QuickTransaction({
         const projected = usage.spent + numericAmount;
         if (projected > activeBudget.amount) {
           const overBy = projected - activeBudget.amount;
-          const shouldContinue = confirm(
-            `${category?.name ?? "This category"} budget will exceed by ${formatMoney(overBy, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)}. Save anyway?`,
-          );
-          if (!shouldContinue) {
-            notify?.("Expense not saved.", "warning");
+          if (!forceOverBudget) {
+            setBudgetWarning({ categoryName: category?.name ?? "This category", overBy });
             return;
           }
           overBudget = true;
@@ -1504,7 +1542,7 @@ function QuickTransaction({
                 ))}
           </SelectField>
         )}
-          <button className="primary-button" onClick={save} disabled={!amount || !accountId}>
+          <button className="primary-button" onClick={() => save()} disabled={!amount || !accountId}>
             Save
           </button>
         </div>
@@ -1523,6 +1561,28 @@ function QuickTransaction({
           </div>
         </div>
       </div>
+      {budgetWarning ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="confirm-modal">
+            <strong>Budget Limit Warning</strong>
+            <p>
+              {budgetWarning.categoryName} will exceed by {formatMoney(budgetWarning.overBy, snapshot.profile?.currency ?? snapshot.config.defaultCurrency)}.
+            </p>
+            <div className="modal-actions">
+              <button className="secondary-button" onClick={() => setBudgetWarning(null)}>Cancel</button>
+              <button
+                className="primary-button"
+                onClick={() => {
+                  setBudgetWarning(null);
+                  void save(true);
+                }}
+              >
+                Save Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </Panel>
   );
 }
@@ -2107,7 +2167,7 @@ function PeopleView({
         requesterUserId: snapshot.profile.connectedUserId,
         requesterName: snapshot.profile.displayName,
       };
-      const { event } = await requestServerRepayment(person.friendUserId, remoteSettlementId, numericAmount, payload);
+      const { event } = await requestServerRepayment(person.friendUserId, remoteSettlementId, numericAmount, payload, undefined, repaymentId);
       const pendingRepayment: Repayment = {
         id: repaymentId,
         ownerProfileId: snapshot.profile?.id,
@@ -2186,7 +2246,7 @@ function PeopleView({
     try {
       const result = await respondServerFriend(person.friendUserId, action);
       await db.people.update(person.id, {
-        status: result.status === "connected" ? "connected" : "blocked",
+        status: result.status === "connected" ? "connected" : "removed",
         verified: result.status === "connected",
         active: result.status === "connected",
         requestDirection: undefined,
@@ -2206,11 +2266,12 @@ function PeopleView({
       snapshot.transactions.some((transaction) => transaction.personIds?.includes(person.id));
     await db.people.update(person.id, {
       active: false,
+      status: person.status === "blocked" ? "blocked" : "removed",
       deletedAt: linked ? undefined : nowIso(),
       updatedAt: nowIso(),
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
     });
-    if (!linked && person.friendUserId && getServerToken()) {
+    if (person.friendUserId && getServerToken()) {
       await removeServerFriend(person.friendUserId).catch((error: unknown) => {
         notify(error instanceof Error ? error.message : "Server friend removal failed.", "warning");
       });
@@ -2866,6 +2927,7 @@ function SettingsView({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busyAction, setBusyAction] = useState<"" | "sync" | "password" | "delete">("");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [pendingImport, setPendingImport] = useState<{ payload: ImportPayload; duplicateIds: number } | null>(null);
 
   const exportData = async () => {
     const { groqApiKey: _groqApiKey, ...exportableConfig } = snapshot.config;
@@ -2909,8 +2971,13 @@ function SettingsView({
       return;
     }
     const duplicateIds = payload.transactions.filter((item) => snapshot.transactions.some((existing) => existing.id === item.id)).length;
-    const shouldImport = confirm(`Import ${payload.transactions.length} transactions and ${payload.accounts.length} accounts? Duplicate transactions: ${duplicateIds}. Existing data will be merged.`);
-    if (!shouldImport) return;
+    setPendingImport({ payload, duplicateIds });
+  };
+
+  const confirmImportData = async () => {
+    if (!pendingImport) return;
+    const { payload } = pendingImport;
+    setPendingImport(null);
     await db.transaction(
       "rw",
       [db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
@@ -3292,16 +3359,33 @@ function SettingsView({
           </div>
         </div>
       ) : null}
+      {pendingImport ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="confirm-modal">
+            <strong>Import Data</strong>
+            <p>
+              Import {pendingImport.payload.transactions.length} transactions and {pendingImport.payload.accounts.length} accounts.
+              {pendingImport.duplicateIds ? ` ${pendingImport.duplicateIds} duplicate transactions will be merged.` : " Existing data will be kept."}
+            </p>
+            <div className="modal-actions">
+              <button className="secondary-button" onClick={() => setPendingImport(null)}>Cancel</button>
+              <button className="primary-button" onClick={() => void confirmImportData()}>Import</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function AdminView({
   snapshot,
+  notify,
   onLogout,
   onDone,
 }: {
   snapshot: Snapshot;
+  notify: (message: string, tone?: Toast["tone"]) => void;
   onLogout: () => void;
   onDone: () => Promise<void>;
 }) {
@@ -3317,11 +3401,11 @@ function AdminView({
   const uploadLogo = async (file?: File) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      alert("Upload an image file.");
+      notify("Upload an image file.", "error");
       return;
     }
     if (file.size > MAX_LOGO_BYTES) {
-      alert("Logo image is too large. Maximum size is 1 MB.");
+      notify("Logo image is too large. Maximum size is 1 MB.", "error");
       return;
     }
     const reader = new FileReader();

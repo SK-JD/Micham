@@ -1,9 +1,10 @@
-import { ApiError, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
 import { createSession, isEmail, rateLimit, verifyPassword } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "auth/login");
     method(req, "POST");
     const body = bodyObject(req);
     const email = stringField(body, "email").toLowerCase();

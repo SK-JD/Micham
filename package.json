@@ -9,6 +9,7 @@
     "dev:full": "node scripts/dev-server.mjs",
     "build": "tsc -b && vite build",
     "check:api": "tsc -p tsconfig.api.json",
+    "test:hardening": "node scripts/hardening-check.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "supabase:version": "supabase --version",
     "supabase:push": "supabase db push"

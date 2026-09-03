@@ -1,4 +1,4 @@
-import { ApiError, bodyObject, handleError, jsonOk, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
 import { hashPassword, sha256 } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
@@ -31,6 +31,7 @@ function resetPage(token: string, message = "") {
       <h1>Reset password</h1>
       <p>Set a new Micham password. After saving, return to the app and login again.</p>
       ${message ? `<p class="msg">${message}</p>` : ""}
+      <p id="form-message" class="msg"></p>
       <label>New password<input id="password" type="password" minlength="8" autocomplete="new-password" /></label>
       <label>Confirm password<input id="confirm" type="password" minlength="8" autocomplete="new-password" /></label>
       <button id="save">Save password</button>
@@ -38,8 +39,16 @@ function resetPage(token: string, message = "") {
         document.getElementById("save").addEventListener("click", async () => {
           const password = document.getElementById("password").value;
           const confirm = document.getElementById("confirm").value;
-          if (password.length < 8) return alert("Password must be at least 8 characters.");
-          if (password !== confirm) return alert("Passwords do not match.");
+          const message = document.getElementById("form-message");
+          if (password.length < 8) {
+            message.textContent = "Password must be at least 8 characters.";
+            return;
+          }
+          if (password !== confirm) {
+            message.textContent = "Passwords do not match.";
+            return;
+          }
+          message.textContent = "Saving...";
           const response = await fetch("/api/auth/confirm-reset", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -58,6 +67,7 @@ function resetPage(token: string, message = "") {
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "auth/confirm-reset");
     if (!["GET", "POST"].includes(req.method || "")) throw new ApiError(405, "Method not allowed.");
     if (req.method === "GET") {
       const token = String(Array.isArray(req.query?.token) ? req.query?.token[0] : req.query?.token || "").trim();

@@ -87,6 +87,12 @@ export async function requireUser(req: ApiRequest) {
 
 export async function rateLimit(bucket: string, max: number, windowSeconds: number) {
   const db = adminDb();
+  if (Math.random() < 0.02) {
+    await db
+      .from("micham_rate_limits")
+      .delete()
+      .lt("reset_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+  }
   const resetAt = new Date(Date.now() + windowSeconds * 1000).toISOString();
   const { data, error } = await db.rpc("micham_take_rate_limit", {
     bucket_key: bucket,

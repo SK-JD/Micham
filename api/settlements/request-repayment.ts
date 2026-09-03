@@ -1,17 +1,22 @@
-import { ApiError, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { requireUser } from "../_lib/security";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "settlements/request-repayment");
     method(req, "POST");
     const user = await requireUser(req);
-    const body = bodyObject(req);
+    await rateLimit(`settlements:action:${user.id}`, 120, 60 * 60);
+    const body = bodyObject(req, { maxBytes: 128 * 1024 });
     const friendUserId = stringField(body, "friendUserId");
     const settlementEntityId = stringField(body, "settlementEntityId");
     const previousEventId = stringField(body, "previousEventId") || null;
+    const clientMutationId = stringField(body, "clientMutationId");
     const amount = Number(body.amount) || 0;
-    if (!friendUserId || !settlementEntityId || amount <= 0) throw new ApiError(400, "Friend, settlement, and repayment amount are required.");
+    if (!friendUserId || !settlementEntityId || amount <= 0 || !Number.isFinite(amount)) throw new ApiError(400, "Friend, settlement, and repayment amount are required.");
+    if (amount > 999999999) throw new ApiError(400, "Repayment amount is too large.");
+    if (clientMutationId && clientMutationId.length > 140) throw new ApiError(400, "Client mutation ID is too long.");
 
     const db = adminDb();
     const { data: link, error: linkError } = await db
@@ -24,6 +29,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (linkError) throw linkError;
     if (!link) throw new ApiError(403, "Friend must accept the request before sharing settlements.");
 
+    if (clientMutationId) {
+      const { data: existing, error: existingError } = await db
+        .from("micham_settlement_events")
+        .select("*")
+        .eq("requested_by", user.id)
+        .eq("client_mutation_id", clientMutationId)
+        .maybeSingle();
+      if (existingError) throw existingError;
+      if (existing) {
+        jsonOk(res, { event: existing });
+        return;
+      }
+    }
+
     const { data: event, error } = await db
       .from("micham_settlement_events")
       .insert({
@@ -35,6 +54,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         previous_event_id: previousEventId,
         payload: typeof body.payload === "object" && body.payload ? body.payload : {},
         requested_by: user.id,
+        client_mutation_id: clientMutationId || null,
       })
       .select("*")
       .single();

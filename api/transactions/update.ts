@@ -1,12 +1,14 @@
-import { ApiError, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { requireUser } from "../_lib/security";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "transactions/update");
     method(req, "POST");
     const user = await requireUser(req);
-    const body = bodyObject(req);
+    await rateLimit(`transactions:update:${user.id}`, 240, 60 * 60);
+    const body = bodyObject(req, { maxBytes: 256 * 1024 });
     const transactionId = stringField(body, "transactionId");
     const nextPayload = body.nextPayload && typeof body.nextPayload === "object" ? (body.nextPayload as Record<string, unknown>) : undefined;
     const editNote = stringField(body, "editNote");

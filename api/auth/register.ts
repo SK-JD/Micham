@@ -1,5 +1,5 @@
 import { appBaseUrl } from "../_lib/env";
-import { ApiError, bodyObject, handleError, jsonCreated, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ApiError, beginRequest, bodyObject, handleError, jsonCreated, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
 import { sendMail } from "../_lib/mailer";
 import { createConnectionCode, hashPassword, isEmail, randomToken, rateLimit, sha256 } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
@@ -7,6 +7,7 @@ import { verifyEmailTemplate } from "../email-templates/verifyEmail";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "auth/register");
     method(req, "POST");
     const body = bodyObject(req);
     const email = stringField(body, "email").toLowerCase();

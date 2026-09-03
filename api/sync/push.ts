@@ -1,18 +1,26 @@
-import { bodyObject, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { requireUser } from "../_lib/security";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
 const entityTypes = new Set(["accounts", "categories", "transactions", "budgets", "recurringTransactions", "people", "settlements", "repayments"]);
+const maxMutationsPerPush = 200;
 
 function items(value: unknown) {
   return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
 }
 
+function validateEntityId(value: unknown, label: string) {
+  if (typeof value !== "string" || !value.trim() || value.length > 140) throw new ApiError(400, `${label} is invalid.`);
+  return value.trim();
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "sync/push");
     method(req, "POST");
     const user = await requireUser(req);
-    const snapshot = bodyObject(req);
+    await rateLimit(`sync:push:${user.id}`, 120, 60 * 60);
+    const snapshot = bodyObject(req, { maxBytes: 2 * 1024 * 1024 });
     const profile = snapshot.profile && typeof snapshot.profile === "object" ? (snapshot.profile as Record<string, unknown>) : undefined;
     const db = adminDb();
 
@@ -32,18 +40,29 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     const rows: Array<Record<string, unknown>> = [];
-    for (const [entityType, value] of Object.entries(snapshot)) {
-      if (!entityTypes.has(entityType)) continue;
-      for (const item of items(value)) {
-        if (!item.id) continue;
-        rows.push({
-          owner_id: user.id,
-          entity_type: entityType,
-          entity_id: String(item.id),
-          payload: { ...item, syncState: "synced" },
-          deleted_at: item.deletedAt || null,
-        });
-      }
+    const mutations = items(snapshot.mutations);
+    if (mutations.length > maxMutationsPerPush) throw new ApiError(400, `Sync can send at most ${maxMutationsPerPush} changes at once.`);
+
+    const seen = new Set<string>();
+    for (const mutation of mutations) {
+      const entityType = String(mutation.entityType || mutation.entity || "");
+      if (!entityTypes.has(entityType)) throw new ApiError(400, "Sync entity type is invalid.");
+      const entityId = validateEntityId(mutation.entityId, "Sync entity ID");
+      const action = mutation.action === "delete" ? "delete" : "upsert";
+      const clientMutationId = validateEntityId(mutation.clientMutationId, "Client mutation ID");
+      const dedupeKey = `${clientMutationId}:${entityType}:${entityId}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      const payload = mutation.payload && typeof mutation.payload === "object" && !Array.isArray(mutation.payload)
+        ? (mutation.payload as Record<string, unknown>)
+        : {};
+      rows.push({
+        owner_id: user.id,
+        entity_type: entityType,
+        entity_id: entityId,
+        payload: { ...payload, id: entityId, syncState: "synced", clientMutationId },
+        deleted_at: action === "delete" ? new Date().toISOString() : payload.deletedAt || null,
+      });
     }
 
     if (rows.length) {

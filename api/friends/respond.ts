@@ -1,11 +1,13 @@
-import { ApiError, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { requireUser } from "../_lib/security";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
+    beginRequest(req, res, "friends/respond");
     method(req, "POST");
     const user = await requireUser(req);
+    await rateLimit(`friends:action:${user.id}`, 120, 60 * 60);
     const body = bodyObject(req);
     const friendUserId = stringField(body, "friendUserId");
     const action = stringField(body, "action");
@@ -22,10 +24,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (!link || link.status !== "pending") throw new ApiError(404, "Pending friend request was not found.");
     if (link.requested_by === user.id) throw new ApiError(403, "Wait for your friend to respond.");
 
-    const status = action === "accept" ? "connected" : "blocked";
+    const status = action === "accept" ? "connected" : "removed";
     const { error } = await db
       .from("micham_friend_links")
-      .update({ status, responded_at: new Date().toISOString(), blocked_by: action === "reject" ? user.id : null })
+      .update({ status, responded_at: new Date().toISOString(), blocked_by: null })
       .or(`and(owner_id.eq.${user.id},friend_id.eq.${friendUserId}),and(owner_id.eq.${friendUserId},friend_id.eq.${user.id})`);
     if (error) throw error;
     jsonOk(res, { status });
