@@ -1,4 +1,5 @@
 import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ensureFeatureEnabled, ensureUserFeature } from "../_lib/runtimePolicy";
 import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
@@ -7,6 +8,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     beginRequest(req, res, "friends/respond");
     method(req, "POST");
     const user = await requireUser(req);
+    await ensureFeatureEnabled("friends", "Friends are temporarily unavailable.");
+    await ensureUserFeature(user.id, "FRIENDS", "Your current plan does not include friends.");
     await rateLimit(`friends:action:${user.id}`, 120, 60 * 60);
     const body = bodyObject(req);
     const friendUserId = stringField(body, "friendUserId");

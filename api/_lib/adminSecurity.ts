@@ -41,6 +41,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
 export type AdminUser = {
   id: string;
   email: string;
+  login_id?: string | null;
   display_name: string;
   role: AdminRole;
   status: "ACTIVE" | "SUSPENDED";
@@ -114,7 +115,7 @@ export async function requireAdmin(req: ApiRequest, permission: AdminPermission)
 
   const { data: admin, error: adminError } = await db
     .from("micham_admin_users")
-    .select("id, email, display_name, role, status")
+    .select("id, email, login_id, display_name, role, status")
     .eq("id", adminId)
     .maybeSingle();
   if (adminError) throw adminError;

@@ -1,4 +1,5 @@
 import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ensureRuntimeEnabled, ensureUserFeature } from "../_lib/runtimePolicy";
 import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
@@ -7,6 +8,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     beginRequest(req, res, "transactions/update");
     method(req, "POST");
     const user = await requireUser(req);
+    await ensureRuntimeEnabled("sync_enabled", "cloud_sync", "Cloud sync is temporarily unavailable.");
+    await ensureUserFeature(user.id, "CLOUD_SYNC", "Your current plan does not include cloud sync.");
     await rateLimit(`transactions:update:${user.id}`, 240, 60 * 60);
     const body = bodyObject(req, { maxBytes: 256 * 1024 });
     const transactionId = stringField(body, "transactionId");

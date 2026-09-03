@@ -1,4 +1,5 @@
 import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ensureFeatureEnabled, ensureUserFeature, getUserPlanLimit } from "../_lib/runtimePolicy";
 import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
@@ -7,6 +8,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     beginRequest(req, res, "friends/request");
     method(req, "POST");
     const user = await requireUser(req);
+    await ensureFeatureEnabled("friends", "Friends are temporarily unavailable.");
+    await ensureUserFeature(user.id, "FRIENDS", "Your current plan does not include friends.");
     await rateLimit(`friends:request:${user.id}`, 30, 60 * 60);
     const body = bodyObject(req);
     const connectionCode = stringField(body, "connectionCode").toUpperCase();
@@ -31,6 +34,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       .maybeSingle();
     if (blockError) throw blockError;
     if (blocked) throw new ApiError(403, "This friend connection is blocked.");
+
+    const friendLimit = await getUserPlanLimit(user.id, "friends_count");
+    if (typeof friendLimit === "number") {
+      const { count, error: countError } = await db
+        .from("micham_friend_links")
+        .select("id", { count: "exact", head: true })
+        .eq("owner_id", user.id)
+        .eq("status", "connected");
+      if (countError) throw countError;
+      if ((count || 0) >= friendLimit) throw new ApiError(403, "Your current plan has reached the friends limit.", "PLAN_LIMIT_REACHED", false);
+    }
 
     const timestamp = new Date().toISOString();
     const { error } = await db.from("micham_friend_links").upsert(

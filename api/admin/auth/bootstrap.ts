@@ -14,6 +14,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (stringField(body, "setupToken") !== setupToken) throw new ApiError(403, "Invalid admin setup token.");
 
     const email = stringField(body, "email").toLowerCase();
+    const loginId = stringField(body, "loginId").toLowerCase() || email;
     const password = stringField(body, "password");
     const displayName = stringField(body, "displayName") || email.split("@")[0] || "Admin";
     if (!isEmail(email)) throw new ApiError(400, "Enter a valid admin email.");
@@ -28,6 +29,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       .from("micham_admin_users")
       .insert({
         email,
+        login_id: loginId,
         display_name: displayName,
         password_hash: await createAdminPasswordHash(password),
         role: "SUPER_ADMIN",

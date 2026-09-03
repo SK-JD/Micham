@@ -1,4 +1,5 @@
 import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ensureFeatureEnabled, ensureUserFeature } from "../_lib/runtimePolicy";
 import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
@@ -9,6 +10,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     beginRequest(req, res, "friends/mirror");
     method(req, "POST");
     const user = await requireUser(req);
+    await ensureFeatureEnabled("friends", "Friends are temporarily unavailable.");
+    await ensureUserFeature(user.id, "FRIENDS", "Your current plan does not include friends.");
+    await ensureFeatureEnabled("settlements", "Settlements are temporarily unavailable.");
+    await ensureUserFeature(user.id, "SETTLEMENTS", "Your current plan does not include settlements.");
     await rateLimit(`friends:mirror:${user.id}`, 240, 60 * 60);
     const body = bodyObject(req, { maxBytes: 256 * 1024 });
     const connectionCode = stringField(body, "connectionCode").toUpperCase();

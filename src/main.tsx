@@ -856,8 +856,15 @@ function AuthGate({
       }
 
       if (!isValidEmail(normalizedLoginId)) {
-        setFormError("Use your email address to login, or use the admin ID for admin login.");
-        return;
+        try {
+          await loginAdminAccount(normalizedLoginId, password);
+          resetRateLimit(`micham_login_${normalizedLoginId}`);
+          await onAdminLogin();
+          return;
+        } catch {
+          setFormError("Use your account email to login.");
+          return;
+        }
       }
 
       try {
@@ -1060,7 +1067,7 @@ function AuthGate({
           </div>
         ) : (
           <div className="grid gap-4">
-            <TextField label={mode === "register" ? "Email" : "Email or Admin ID"} value={loginId} onChange={setLoginId} placeholder={mode === "register" ? "you@example.com" : "you@example.com"} />
+            <TextField label="Email" value={loginId} onChange={setLoginId} placeholder="you@example.com" />
             <TextField label="Password" value={password} onChange={setPassword} type="password" />
             {mode === "register" ? (
               <>
@@ -3754,7 +3761,7 @@ function AdminView({
               <button className={adminMode === "setup" ? "segment-active" : ""} onClick={() => setAdminMode("setup")}>First setup</button>
             </div>
             {adminError ? <div className="form-error">{adminError}</div> : null}
-            <TextField label="Admin email" value={adminEmail} onChange={setAdminEmail} placeholder="admin@example.com" />
+            <TextField label="Admin login" value={adminEmail} onChange={setAdminEmail} placeholder="Admin@sk" />
             <TextField label="Admin password" value={adminPassword} onChange={setAdminPassword} type="password" />
             {adminMode === "setup" ? (
               <>

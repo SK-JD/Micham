@@ -33,6 +33,12 @@ Serverless endpoints:
 
 Bootstrap is protected by `ADMIN_SETUP_TOKEN` and only works while there are no admin users. Admin sessions are JWTs stored by hash in `micham_admin_sessions`, separate from app user sessions.
 
+Test seed:
+
+- Login ID: `Admin@sk`
+- Role: `SUPER_ADMIN`
+- Internal email: `admin@sk.local`
+
 Frontend surface:
 
 - Login to the existing local admin entry first.
@@ -205,6 +211,11 @@ SMTP variables are still used by the existing account verification, password res
 - Every privileged write endpoint writes an audit log.
 - User suspension revokes active app user sessions.
 - Runtime public config only exposes explicitly public settings.
+- Registration and cloud sync enforce runtime settings/feature flags.
+- Friend APIs enforce the `friends` flag and the `FRIENDS` plan feature.
+- Settlement APIs enforce the `settlements` flag and the `SETTLEMENTS` plan feature.
+- Cloud sync APIs enforce the `cloud_sync` flag and the `CLOUD_SYNC` plan feature.
+- The `friends_count` plan limit is enforced when it is configured as a number. Seeded default is `null`, so it is not enforced until a plan defines it.
 
 ## Current Boundaries
 

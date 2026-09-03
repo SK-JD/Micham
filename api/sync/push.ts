@@ -1,5 +1,5 @@
 import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { ensureRuntimeEnabled } from "../_lib/runtimePolicy";
+import { ensureRuntimeEnabled, ensureUserFeature } from "../_lib/runtimePolicy";
 import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
@@ -21,6 +21,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     method(req, "POST");
     const user = await requireUser(req);
     await ensureRuntimeEnabled("sync_enabled", "cloud_sync", "Cloud sync is temporarily unavailable.");
+    await ensureUserFeature(user.id, "CLOUD_SYNC", "Your current plan does not include cloud sync.");
     await rateLimit(`sync:push:${user.id}`, 120, 60 * 60);
     const snapshot = bodyObject(req, { maxBytes: 2 * 1024 * 1024 });
     const profile = snapshot.profile && typeof snapshot.profile === "object" ? (snapshot.profile as Record<string, unknown>) : undefined;

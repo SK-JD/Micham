@@ -1,4 +1,5 @@
 import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
+import { ensureFeatureEnabled, ensureUserFeature } from "../_lib/runtimePolicy";
 import { rateLimit, requireUser } from "../_lib/security";
 import { adminDb } from "../_lib/supabaseAdmin";
 
@@ -7,6 +8,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     beginRequest(req, res, "settlements/list");
     method(req, "GET");
     const user = await requireUser(req);
+    await ensureFeatureEnabled("settlements", "Settlements are temporarily unavailable.");
+    await ensureUserFeature(user.id, "SETTLEMENTS", "Your current plan does not include settlements.");
     await rateLimit(`settlements:list:${user.id}`, 300, 60 * 60);
     const { data, error } = await adminDb()
       .from("micham_settlement_events")

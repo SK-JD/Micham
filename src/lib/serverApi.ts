@@ -207,6 +207,7 @@ export type AdminPermission =
 export type AdminAccount = {
   id: string;
   email: string;
+  login_id?: string | null;
   display_name: string;
   role: "SUPER_ADMIN" | "ADMIN" | "SUPPORT" | "VIEWER";
   status: "ACTIVE" | "SUSPENDED";
@@ -247,9 +248,9 @@ async function adminFetch<T>(path: string, options: ApiOptions = {}) {
   return apiFetch<T>(path, { ...options, token: options.token ?? getAdminToken() });
 }
 
-export async function bootstrapAdmin(setupToken: string, email: string, password: string, displayName: string) {
+export async function bootstrapAdmin(setupToken: string, email: string, password: string, displayName: string, loginId?: string) {
   return apiFetch<{ admin: AdminAccount }>("/api/admin/auth/bootstrap", {
-    body: { setupToken, email, password, displayName },
+    body: { setupToken, email, password, displayName, loginId },
   });
 }
 
