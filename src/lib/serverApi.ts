@@ -306,6 +306,43 @@ export async function saveAdminSetting(settingKey: string, value: unknown, isPub
   return adminFetch<{ setting: Record<string, unknown> }>("/api/admin/settings/save", { body: { settingKey, value, isPublic, description } });
 }
 
+export async function saveAdminPlan(plan: { code: string; name: string; description?: string; status?: string; isDefault?: boolean; sortOrder?: number; metadata?: Record<string, unknown> }) {
+  return adminFetch<{ plan: Record<string, unknown> }>("/api/admin/plans/save", { body: plan });
+}
+
+export async function saveAdminFeature(feature: { featureKey: string; name: string; description?: string; status?: string }) {
+  return adminFetch<{ feature: Record<string, unknown> }>("/api/admin/features/save", { body: feature });
+}
+
+export async function setAdminPlanFeature(planCode: string, featureKey: string, enabled: boolean, config: Record<string, unknown> = {}) {
+  return adminFetch<{ planFeature: Record<string, unknown> }>("/api/admin/features/set-plan", { body: { planCode, featureKey, enabled, config } });
+}
+
+export async function saveAdminAnnouncement(announcement: {
+  id?: string;
+  title: string;
+  body: string;
+  status?: string;
+  target?: string;
+  targetValue?: string;
+  startsAt?: string;
+  endsAt?: string;
+}) {
+  return adminFetch<{ announcement: Record<string, unknown> }>("/api/admin/announcements/save", { body: announcement });
+}
+
+export async function saveAdminAd(ad: {
+  placementKey: string;
+  name?: string;
+  description?: string;
+  enabled?: boolean;
+  provider?: string;
+  configStatus?: string;
+  config?: Record<string, unknown>;
+}) {
+  return adminFetch<{ placement: Record<string, unknown>; config?: Record<string, unknown> | null }>("/api/admin/ads/save", { body: ad });
+}
+
 export async function requestServerPasswordReset(email: string) {
   return apiFetch<{ ok: true }>("/api/auth/request-reset", { body: { email } });
 }

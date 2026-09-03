@@ -71,7 +71,12 @@ import {
   respondServerFriend,
   revokeAdminUserSessions,
   saveAdminSetting,
+  saveAdminAd,
+  saveAdminAnnouncement,
+  saveAdminFeature,
+  saveAdminPlan,
   setAdminUserStatus,
+  setAdminPlanFeature,
   syncServerSnapshot,
   verifyServerFriend,
   type AdminAccount,
@@ -3503,6 +3508,11 @@ function AdminView({
   const [userSearch, setUserSearch] = useState("");
   const [busy, setBusy] = useState("");
   const [adminError, setAdminError] = useState("");
+  const [planForm, setPlanForm] = useState({ code: "", name: "", description: "", status: "ACTIVE", isDefault: false, sortOrder: "100" });
+  const [featureForm, setFeatureForm] = useState({ featureKey: "", name: "", description: "", status: "ACTIVE", planCode: "FREE", enabled: true });
+  const [settingForm, setSettingForm] = useState({ settingKey: "", value: "true", description: "", isPublic: true });
+  const [announcementForm, setAnnouncementForm] = useState({ title: "", body: "", status: "DRAFT", target: "ALL", targetValue: "", startsAt: "", endsAt: "" });
+  const [adForm, setAdForm] = useState({ placementKey: "", name: "", description: "", enabled: false, provider: "INTERNAL", configStatus: "INACTIVE", config: "{}" });
 
   useEffect(() => setForm(snapshot.config), [snapshot.config]);
 
@@ -3573,6 +3583,131 @@ function AdminView({
       setUsers(result.users);
     } catch (error) {
       notify(error instanceof Error ? error.message : "Users could not be loaded.", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const parseJsonValue = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed;
+    }
+  };
+
+  const parseObjectValue = (value: string) => {
+    const parsed = parseJsonValue(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  };
+
+  const reloadCatalog = async () => {
+    setBusy("catalog");
+    try {
+      setCatalog(await getAdminCatalog());
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Catalog could not be loaded.", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const submitPlan = async () => {
+    setBusy("plan");
+    try {
+      await saveAdminPlan({
+        code: planForm.code,
+        name: planForm.name,
+        description: planForm.description,
+        status: planForm.status,
+        isDefault: planForm.isDefault,
+        sortOrder: Number(planForm.sortOrder) || 100,
+      });
+      setPlanForm({ code: "", name: "", description: "", status: "ACTIVE", isDefault: false, sortOrder: "100" });
+      notify("Plan saved.", "success");
+      await loadAdminConsole();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Plan could not be saved.", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const submitFeature = async () => {
+    setBusy("feature");
+    try {
+      await saveAdminFeature({
+        featureKey: featureForm.featureKey,
+        name: featureForm.name,
+        description: featureForm.description,
+        status: featureForm.status,
+      });
+      if (featureForm.planCode) await setAdminPlanFeature(featureForm.planCode, featureForm.featureKey, featureForm.enabled);
+      setFeatureForm({ featureKey: "", name: "", description: "", status: "ACTIVE", planCode: "FREE", enabled: true });
+      notify("Feature saved.", "success");
+      await loadAdminConsole();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Feature could not be saved.", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const submitSetting = async () => {
+    setBusy("setting");
+    try {
+      await saveAdminSetting(settingForm.settingKey, parseJsonValue(settingForm.value), settingForm.isPublic, settingForm.description);
+      setSettingForm({ settingKey: "", value: "true", description: "", isPublic: true });
+      notify("Setting saved.", "success");
+      await loadAdminConsole();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Setting could not be saved.", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const submitAnnouncement = async () => {
+    setBusy("announcement");
+    try {
+      await saveAdminAnnouncement({
+        title: announcementForm.title,
+        body: announcementForm.body,
+        status: announcementForm.status,
+        target: announcementForm.target,
+        targetValue: announcementForm.targetValue,
+        startsAt: announcementForm.startsAt,
+        endsAt: announcementForm.endsAt,
+      });
+      setAnnouncementForm({ title: "", body: "", status: "DRAFT", target: "ALL", targetValue: "", startsAt: "", endsAt: "" });
+      notify("Announcement saved.", "success");
+      await loadAdminConsole();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Announcement could not be saved.", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const submitAd = async () => {
+    setBusy("ad");
+    try {
+      await saveAdminAd({
+        placementKey: adForm.placementKey,
+        name: adForm.name,
+        description: adForm.description,
+        enabled: adForm.enabled,
+        provider: adForm.provider,
+        configStatus: adForm.configStatus,
+        config: parseObjectValue(adForm.config),
+      });
+      setAdForm({ placementKey: "", name: "", description: "", enabled: false, provider: "INTERNAL", configStatus: "INACTIVE", config: "{}" });
+      notify("Ad placement saved.", "success");
+      await loadAdminConsole();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Ad placement could not be saved.", "error");
     } finally {
       setBusy("");
     }
@@ -3725,21 +3860,100 @@ function AdminView({
           </Panel>
 
           <Panel title="Plans and Controls" icon={<SlidersHorizontal size={18} />}>
+            <div className="admin-management-grid">
+              <div className="admin-manager-card">
+                <h3>Plan</h3>
+                <TextField label="Code" value={planForm.code} onChange={(value) => setPlanForm({ ...planForm, code: value.toUpperCase() })} placeholder="FREE" />
+                <TextField label="Name" value={planForm.name} onChange={(value) => setPlanForm({ ...planForm, name: value })} placeholder="Free" />
+                <TextField label="Description" value={planForm.description} onChange={(value) => setPlanForm({ ...planForm, description: value })} />
+                <div className="admin-inline-grid">
+                  <SelectField label="Status" value={planForm.status} onChange={(value) => setPlanForm({ ...planForm, status: value })}>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                    <option value="ARCHIVED">Archived</option>
+                  </SelectField>
+                  <TextField label="Sort" value={planForm.sortOrder} onChange={(value) => setPlanForm({ ...planForm, sortOrder: value })} type="number" />
+                </div>
+                <label className="admin-check-row">
+                  <input type="checkbox" checked={planForm.isDefault} onChange={(event) => setPlanForm({ ...planForm, isDefault: event.target.checked })} />
+                  Default active plan
+                </label>
+                <LoadingButton className="primary-button" loading={busy === "plan"} onClick={submitPlan} disabled={!planForm.code || !planForm.name}>
+                  Save Plan
+                </LoadingButton>
+              </div>
+
+              <div className="admin-manager-card">
+                <h3>Feature</h3>
+                <TextField label="Feature key" value={featureForm.featureKey} onChange={(value) => setFeatureForm({ ...featureForm, featureKey: value.toUpperCase() })} placeholder="CLOUD_SYNC" />
+                <TextField label="Name" value={featureForm.name} onChange={(value) => setFeatureForm({ ...featureForm, name: value })} />
+                <TextField label="Description" value={featureForm.description} onChange={(value) => setFeatureForm({ ...featureForm, description: value })} />
+                <div className="admin-inline-grid">
+                  <SelectField label="Status" value={featureForm.status} onChange={(value) => setFeatureForm({ ...featureForm, status: value })}>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </SelectField>
+                  <TextField label="Plan code" value={featureForm.planCode} onChange={(value) => setFeatureForm({ ...featureForm, planCode: value.toUpperCase() })} />
+                </div>
+                <label className="admin-check-row">
+                  <input type="checkbox" checked={featureForm.enabled} onChange={(event) => setFeatureForm({ ...featureForm, enabled: event.target.checked })} />
+                  Enabled on plan
+                </label>
+                <LoadingButton className="primary-button" loading={busy === "feature"} onClick={submitFeature} disabled={!featureForm.featureKey || !featureForm.name}>
+                  Save Feature
+                </LoadingButton>
+              </div>
+
+              <div className="admin-manager-card">
+                <h3>Runtime Setting</h3>
+                <TextField label="Setting key" value={settingForm.settingKey} onChange={(value) => setSettingForm({ ...settingForm, settingKey: value })} placeholder="maintenance_mode" />
+                <TextField label="JSON value" value={settingForm.value} onChange={(value) => setSettingForm({ ...settingForm, value })} placeholder="true" />
+                <TextField label="Description" value={settingForm.description} onChange={(value) => setSettingForm({ ...settingForm, description: value })} />
+                <label className="admin-check-row">
+                  <input type="checkbox" checked={settingForm.isPublic} onChange={(event) => setSettingForm({ ...settingForm, isPublic: event.target.checked })} />
+                  Public runtime setting
+                </label>
+                <LoadingButton className="primary-button" loading={busy === "setting"} onClick={submitSetting} disabled={!settingForm.settingKey}>
+                  Save Setting
+                </LoadingButton>
+              </div>
+            </div>
+
             <div className="admin-catalog-grid">
               <div>
-                <h3>Plans</h3>
+                <h3>Current plans</h3>
                 {(catalog?.plans || []).map((plan) => (
-                  <p key={String(plan.id)}><strong>{String(plan.code)}</strong> · {String(plan.name)} · {String(plan.status)}</p>
+                  <button className="runtime-setting-row" key={String(plan.id)} onClick={() => setPlanForm({
+                    code: String(plan.code || ""),
+                    name: String(plan.name || ""),
+                    description: String(plan.description || ""),
+                    status: String(plan.status || "ACTIVE"),
+                    isDefault: plan.is_default === true,
+                    sortOrder: String(plan.sort_order || 100),
+                  })}>
+                    <span>{String(plan.code)}</span>
+                    <strong>{String(plan.status)}</strong>
+                  </button>
                 ))}
               </div>
               <div>
-                <h3>Features</h3>
-                {(catalog?.features || []).slice(0, 8).map((feature) => (
-                  <p key={String(feature.feature_key)}><strong>{String(feature.feature_key)}</strong> · {String(feature.status)}</p>
+                <h3>Current features</h3>
+                {(catalog?.features || []).slice(0, 10).map((feature) => (
+                  <button className="runtime-setting-row" key={String(feature.feature_key)} onClick={() => setFeatureForm({
+                    featureKey: String(feature.feature_key || ""),
+                    name: String(feature.name || ""),
+                    description: String(feature.description || ""),
+                    status: String(feature.status || "ACTIVE"),
+                    planCode: "FREE",
+                    enabled: true,
+                  })}>
+                    <span>{String(feature.feature_key)}</span>
+                    <strong>{String(feature.status)}</strong>
+                  </button>
                 ))}
               </div>
               <div>
-                <h3>Runtime</h3>
+                <h3>Runtime toggles</h3>
                 {(catalog?.settings || []).map((setting) => (
                   <button
                     className="runtime-setting-row"
@@ -3756,6 +3970,106 @@ function AdminView({
                   </button>
                 ))}
               </div>
+            </div>
+          </Panel>
+
+          <Panel title="Announcements and Ads" icon={<Upload size={18} />}>
+            <div className="admin-management-grid">
+              <div className="admin-manager-card">
+                <h3>Announcement</h3>
+                <TextField label="Title" value={announcementForm.title} onChange={(value) => setAnnouncementForm({ ...announcementForm, title: value })} />
+                <label className="grid gap-1">
+                  <span className="field-label">Body</span>
+                  <textarea className="field-input admin-textarea" value={announcementForm.body} onChange={(event) => setAnnouncementForm({ ...announcementForm, body: event.target.value })} />
+                </label>
+                <div className="admin-inline-grid">
+                  <SelectField label="Status" value={announcementForm.status} onChange={(value) => setAnnouncementForm({ ...announcementForm, status: value })}>
+                    <option value="DRAFT">Draft</option>
+                    <option value="SCHEDULED">Scheduled</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="ARCHIVED">Archived</option>
+                  </SelectField>
+                  <SelectField label="Target" value={announcementForm.target} onChange={(value) => setAnnouncementForm({ ...announcementForm, target: value })}>
+                    <option value="ALL">All</option>
+                    <option value="PLAN">Plan</option>
+                    <option value="USER">User</option>
+                  </SelectField>
+                </div>
+                <TextField label="Target value" value={announcementForm.targetValue} onChange={(value) => setAnnouncementForm({ ...announcementForm, targetValue: value })} placeholder="Optional" />
+                <div className="admin-inline-grid">
+                  <TextField label="Starts at" value={announcementForm.startsAt} onChange={(value) => setAnnouncementForm({ ...announcementForm, startsAt: value })} type="datetime-local" />
+                  <TextField label="Ends at" value={announcementForm.endsAt} onChange={(value) => setAnnouncementForm({ ...announcementForm, endsAt: value })} type="datetime-local" />
+                </div>
+                <LoadingButton className="primary-button" loading={busy === "announcement"} onClick={submitAnnouncement} disabled={!announcementForm.title || !announcementForm.body}>
+                  Save Announcement
+                </LoadingButton>
+              </div>
+
+              <div className="admin-manager-card">
+                <h3>Ad Placement</h3>
+                <TextField label="Placement key" value={adForm.placementKey} onChange={(value) => setAdForm({ ...adForm, placementKey: value.toUpperCase() })} placeholder="HOME_BANNER" />
+                <TextField label="Name" value={adForm.name} onChange={(value) => setAdForm({ ...adForm, name: value })} />
+                <TextField label="Description" value={adForm.description} onChange={(value) => setAdForm({ ...adForm, description: value })} />
+                <div className="admin-inline-grid">
+                  <TextField label="Provider" value={adForm.provider} onChange={(value) => setAdForm({ ...adForm, provider: value.toUpperCase() })} />
+                  <SelectField label="Config status" value={adForm.configStatus} onChange={(value) => setAdForm({ ...adForm, configStatus: value })}>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </SelectField>
+                </div>
+                <label className="grid gap-1">
+                  <span className="field-label">Config JSON</span>
+                  <textarea className="field-input admin-textarea" value={adForm.config} onChange={(event) => setAdForm({ ...adForm, config: event.target.value })} />
+                </label>
+                <label className="admin-check-row">
+                  <input type="checkbox" checked={adForm.enabled} onChange={(event) => setAdForm({ ...adForm, enabled: event.target.checked })} />
+                  Placement enabled
+                </label>
+                <LoadingButton className="primary-button" loading={busy === "ad"} onClick={submitAd} disabled={!adForm.placementKey}>
+                  Save Ad Placement
+                </LoadingButton>
+              </div>
+            </div>
+
+            <div className="admin-catalog-grid">
+              <div>
+                <h3>Announcements</h3>
+                {(catalog?.announcements || []).slice(0, 8).map((announcement) => (
+                  <p key={String(announcement.id)}><strong>{String(announcement.title)}</strong> · {String(announcement.status)} · {String(announcement.target)}</p>
+                ))}
+              </div>
+              <div>
+                <h3>Ad placements</h3>
+                {(catalog?.adPlacements || []).map((placement) => (
+                  <button className="runtime-setting-row" key={String(placement.placement_key)} onClick={() => setAdForm({
+                    placementKey: String(placement.placement_key || ""),
+                    name: String(placement.name || ""),
+                    description: String(placement.description || ""),
+                    enabled: placement.enabled === true,
+                    provider: "INTERNAL",
+                    configStatus: "INACTIVE",
+                    config: "{}",
+                  })}>
+                    <span>{String(placement.placement_key)}</span>
+                    <strong>{placement.enabled ? "on" : "off"}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Panel>
+
+          <Panel title="Audit Log" icon={<Download size={18} />}>
+            <div className="admin-user-list">
+              {(dashboard?.recentAudit || []).map((entry) => (
+                <div className="admin-user-row" key={entry.id}>
+                  <div>
+                    <strong>{entry.action}</strong>
+                    <p>{entry.target_type || "system"} · {entry.target_id || "none"} · {formatDate(entry.created_at)}</p>
+                  </div>
+                  <code className="admin-audit-code">{JSON.stringify(entry.metadata || {})}</code>
+                </div>
+              ))}
+              {(dashboard?.recentAudit || []).length === 0 ? <Empty text="No audit records yet." /> : null}
             </div>
           </Panel>
         </>

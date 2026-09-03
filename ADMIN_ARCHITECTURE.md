@@ -38,6 +38,7 @@ Frontend surface:
 - Login to the existing local admin entry first.
 - Use the `Server Admin` panel to run first setup or login to the protected server admin session.
 - Server admin tokens are stored separately from normal user cloud tokens.
+- The server admin console includes dashboard stats, audit preview, user actions, plan and feature forms, runtime setting form/toggles, announcement form, and ad placement form.
 
 Roles:
 
@@ -209,6 +210,7 @@ SMTP variables are still used by the existing account verification, password res
 
 - Existing offline-first data, friend, settlement, and sync flows remain unchanged.
 - The in-app `AdminView` now has a compact server admin console for setup/login, dashboard counts, user status/session actions, default plan assignment, catalog visibility, and basic runtime setting toggles.
+- Phase 3 adds editable management forms for plans, features, runtime settings, announcements, and ad placements.
 - The same `AdminView` still includes local app branding/configuration.
 - Plan limits are stored but not enforced in transaction/friend/sync APIs yet.
 - Ads are stored as placements/configs/policies only.
