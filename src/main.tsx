@@ -52,6 +52,7 @@ import {
   getAdminDashboard,
   getAdminMe,
   getAdminToken,
+  getRuntimeConfig,
   getServerToken,
   listAdminUsers,
   listServerFriends,
@@ -83,6 +84,7 @@ import {
   type AdminCatalog,
   type AdminDashboard,
   type AdminUserRow,
+  type RuntimeConfig,
   type ServerSettlementEvent,
 } from "./lib/serverApi";
 import type {
@@ -108,6 +110,13 @@ const defaultDarkWordmarkUrl = new URL("../Logos/Micham_bottom_wordmark_tagline_
 type View = "dashboard" | "daily" | "add" | "monthly" | "calendar" | "people" | "manage" | "settings" | "admin" | "ai";
 type SessionRole = "guest" | "user" | "admin";
 type Toast = { id: string; tone: "success" | "error" | "warning" | "info"; message: string };
+
+const fallbackRuntimeConfig: RuntimeConfig = {
+  settings: {},
+  flags: {},
+  announcements: [],
+  adPlacements: [],
+};
 
 interface Snapshot {
   config: AppConfig;
@@ -381,6 +390,7 @@ function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [busyMessage, setBusyMessage] = useState("");
   const [showTour, setShowTour] = useState(false);
+  const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(fallbackRuntimeConfig);
   const syncInFlightRef = React.useRef(false);
   const syncFailureCountRef = React.useRef(0);
   const snapshotRef = React.useRef(snapshot);
@@ -439,6 +449,7 @@ function App() {
   useEffect(() => {
     initializeDatabase()
       .then(() => pullCloudAppConfig().catch(() => undefined))
+      .then(() => getRuntimeConfig().then(setRuntimeConfig).catch(() => fallbackRuntimeConfig))
       .then(() => refresh())
       .finally(() => setLoading(false));
   }, []);
@@ -507,6 +518,12 @@ function App() {
   );
   const totalBalance = balances.reduce((sum, item) => sum + item.balance, 0);
   const summary = summarize(snapshot.transactions, selectedDate);
+  const runtimeFlag = (key: string) => runtimeConfig.flags[key]?.enabled !== false;
+  const registrationEnabled = runtimeFlag("registration") && runtimeConfig.settings.registration_enabled !== false;
+  const friendsEnabled = runtimeFlag("friends");
+  const settlementsEnabled = runtimeFlag("settlements");
+  const aiEnabled = snapshot.config.aiEnabled && runtimeFlag("ai_assistant");
+  const maintenanceMode = runtimeConfig.settings.maintenance_mode === true;
   const logoutUser = () => {
     localStorage.removeItem("micham_role");
     localStorage.removeItem("micham_profile_id");
@@ -540,6 +557,7 @@ function App() {
       <Shell snapshot={snapshot}>
         <AuthGate
           config={snapshot.config}
+          registrationEnabled={registrationEnabled}
           notify={notify}
           onLogin={async (profileId) => {
             localStorage.setItem("micham_role", "user");
@@ -595,6 +613,8 @@ function App() {
           {view === "calendar" && (
             <CalendarView snapshot={snapshot} currency={currency} selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
           )}
+          <RuntimeAnnouncements runtimeConfig={runtimeConfig} />
+          {maintenanceMode ? <div className="runtime-banner runtime-banner-warning"><strong>Maintenance mode</strong><span>Some online actions may be temporarily unavailable.</span></div> : null}
           {view === "people" && <PeopleView snapshot={snapshot} currency={currency} notify={notify} onDone={refresh} />}
           {view === "manage" && <ManageView snapshot={snapshot} notify={notify} onDone={refresh} />}
           {view === "settings" && <SettingsView snapshot={snapshot} notify={notify} onDone={refresh} onLogout={logoutUser} onNavigate={setView} onStartTour={() => setShowTour(true)} />}
@@ -604,13 +624,13 @@ function App() {
         <nav className="bottom-nav sticky bottom-0 z-20">
           <div className="bottom-nav-main mx-auto grid max-w-6xl grid-cols-5 gap-1 px-2 py-2 text-xs">
             <NavButton icon={<Home size={18} />} label="Home" active={view === "dashboard"} onClick={() => setView("dashboard")} />
-            <NavButton icon={<Bot size={18} />} label="Chat" active={view === "ai"} disabled={!snapshot.config.aiEnabled} onClick={() => { if (snapshot.config.aiEnabled) setView("ai"); }} />
+            <NavButton icon={<Bot size={18} />} label="Chat" active={view === "ai"} disabled={!aiEnabled} onClick={() => { if (aiEnabled) setView("ai"); }} />
             <button className={`add-nav-button ${view === "add" ? "add-nav-button-active" : ""}`} onClick={() => setView("add")}>
               <Plus size={24} />
               <span>Add</span>
             </button>
             <NavButton icon={<BarChart3 size={18} />} label="Reports" active={view === "monthly"} onClick={() => setView("monthly")} />
-            <NavButton icon={<Users size={18} />} label="Friends" active={view === "people"} onClick={() => setView("people")} />
+            <NavButton icon={<Users size={18} />} label="Friends" active={view === "people"} disabled={!friendsEnabled && !settlementsEnabled} onClick={() => { if (friendsEnabled || settlementsEnabled) setView("people"); }} />
           </div>
         </nav>
       </div>
@@ -810,11 +830,13 @@ function sha256Fallback(bytes: Uint8Array) {
 
 function AuthGate({
   config,
+  registrationEnabled,
   notify,
   onLogin,
   onAdminLogin,
 }: {
   config: AppConfig;
+  registrationEnabled: boolean;
   notify: (message: string, tone?: Toast["tone"]) => void;
   onLogin: (profileId: string) => Promise<void>;
   onAdminLogin: () => Promise<void>;
@@ -833,6 +855,10 @@ function AuthGate({
   const [formSuccess, setFormSuccess] = useState("");
   const [showLocalUse, setShowLocalUse] = useState(false);
   const [busyAction, setBusyAction] = useState<"" | "login" | "register" | "local" | "reset">("");
+
+  useEffect(() => {
+    if (!registrationEnabled && mode === "register") setMode("login");
+  }, [registrationEnabled, mode]);
 
   const login = async () => {
     if (busyAction) return;
@@ -905,6 +931,11 @@ function AuthGate({
 
   const register = async () => {
     if (busyAction) return;
+    if (!registrationEnabled) {
+      setFormError("Account creation is temporarily unavailable.");
+      notify("Account creation is temporarily unavailable.", "warning");
+      return;
+    }
     setBusyAction("register");
     setFormError("");
     setFormSuccess("");
@@ -1010,7 +1041,7 @@ function AuthGate({
       ? "Use your email so this profile can be linked and recovered later."
       : mode === "reset"
         ? "Use your email and connection code to set a new local password."
-        : "Use locally without signup, or login with email/admin ID.";
+        : "Use locally without signup, or login with email.";
 
   return (
     <div className="auth-screen">
@@ -1025,7 +1056,7 @@ function AuthGate({
         </div>
         <div className="auth-tabs">
           <button className={mode === "login" ? "auth-tab-active" : ""} onClick={() => setMode("login")}>Login</button>
-          <button className={mode === "register" ? "auth-tab-active" : ""} onClick={() => setMode("register")}>Create</button>
+          {registrationEnabled ? <button className={mode === "register" ? "auth-tab-active" : ""} onClick={() => setMode("register")}>Create</button> : null}
           <button className={mode === "reset" ? "auth-tab-active" : ""} onClick={() => setMode("reset")}>Reset</button>
         </div>
         {formError ? <div className="form-error">{formError}</div> : null}
@@ -1103,6 +1134,40 @@ function NavButton({
       {icon}
       <span>{label}</span>
     </button>
+  );
+}
+
+function RuntimeAnnouncements({ runtimeConfig }: { runtimeConfig: RuntimeConfig }) {
+  const dismissedKey = "micham_dismissed_announcements";
+  const [dismissed, setDismissed] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(dismissedKey);
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const visible = runtimeConfig.announcements.filter((item) => !dismissed.includes(item.id)).slice(0, 2);
+  if (visible.length === 0) return null;
+  const dismiss = (id: string) => {
+    const next = [...dismissed, id].slice(-50);
+    setDismissed(next);
+    localStorage.setItem(dismissedKey, JSON.stringify(next));
+  };
+  return (
+    <div className="runtime-announcements">
+      {visible.map((announcement) => (
+        <div className="runtime-banner" key={announcement.id}>
+          <div>
+            <strong>{announcement.title}</strong>
+            <span>{announcement.body}</span>
+          </div>
+          <button className="icon-button" title="Dismiss" onClick={() => dismiss(announcement.id)}>
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }
 

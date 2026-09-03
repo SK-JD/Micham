@@ -244,6 +244,21 @@ export type AdminCatalog = {
   announcements: Array<Record<string, unknown>>;
 };
 
+export type RuntimeConfig = {
+  settings: Record<string, unknown>;
+  flags: Record<string, { enabled: boolean; rollout?: Record<string, unknown> }>;
+  announcements: Array<{
+    id: string;
+    title: string;
+    body: string;
+    target: "ALL" | "PLAN" | "USER";
+    target_value?: string | null;
+    starts_at?: string | null;
+    ends_at?: string | null;
+  }>;
+  adPlacements: Array<{ placement_key: string; name: string; enabled: boolean }>;
+};
+
 async function adminFetch<T>(path: string, options: ApiOptions = {}) {
   return apiFetch<T>(path, { ...options, token: options.token ?? getAdminToken() });
 }
@@ -342,6 +357,10 @@ export async function saveAdminAd(ad: {
   config?: Record<string, unknown>;
 }) {
   return adminFetch<{ placement: Record<string, unknown>; config?: Record<string, unknown> | null }>("/api/admin/ads/save", { body: ad });
+}
+
+export async function getRuntimeConfig() {
+  return apiFetch<RuntimeConfig>("/api/config/runtime");
 }
 
 export async function requestServerPasswordReset(email: string) {

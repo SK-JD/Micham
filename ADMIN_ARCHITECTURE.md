@@ -114,6 +114,14 @@ Endpoints:
 
 Public runtime config only returns settings marked `is_public = true`. Admin-only values stay behind admin endpoints.
 
+Frontend behavior:
+
+- The app loads `/api/config/runtime` on startup with local fallback.
+- Active announcements are shown as dismissible in-app banners.
+- `registration_enabled` hides and blocks the Create account tab.
+- `maintenance_mode` shows a warning banner.
+- `friends`, `settlements`, and `ai_assistant` flags disable their corresponding app entry points where applicable.
+
 ### Ads Foundation
 
 Tables:
@@ -222,6 +230,7 @@ SMTP variables are still used by the existing account verification, password res
 - Existing offline-first data, friend, settlement, and sync flows remain unchanged.
 - The in-app `AdminView` now has a compact server admin console for setup/login, dashboard counts, user status/session actions, default plan assignment, catalog visibility, and basic runtime setting toggles.
 - Phase 3 adds editable management forms for plans, features, runtime settings, announcements, and ad placements.
+- Phase 5 adds user-facing runtime config consumption and announcement display.
 - The same `AdminView` still includes local app branding/configuration.
 - Plan limits are stored but not enforced in transaction/friend/sync APIs yet.
 - Ads are stored as placements/configs/policies only.
