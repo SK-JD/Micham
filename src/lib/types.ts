@@ -42,7 +42,7 @@ export interface AppConfig {
   aiEnabled: boolean;
   groqApiKey?: string;
   aiModel: string;
-  themeMode: "light" | "dark";
+  themeMode: "light" | "dark" | "system";
   updatedAt: string;
 }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  ArrowLeft,
   ArrowDownLeft,
   ArrowRightLeft,
   ArrowUpRight,
@@ -10,6 +11,7 @@ import {
   CalendarDays,
   ChevronDown,
   CircleUserRound,
+  Copy,
   Download,
   Eye,
   EyeOff,
@@ -151,7 +153,7 @@ const emptySnapshot: Snapshot = {
     aiEnabled: false,
     groqApiKey: "",
     aiModel: "llama-3.1-8b-instant",
-    themeMode: "light",
+    themeMode: "system",
     updatedAt: nowIso(),
   },
   accounts: [],
@@ -455,6 +457,9 @@ function App() {
   const [busyMessage, setBusyMessage] = useState("");
   const [showTour, setShowTour] = useState(false);
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(fallbackRuntimeConfig);
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+  );
   const syncInFlightRef = React.useRef(false);
   const syncFailureCountRef = React.useRef(0);
   const snapshotRef = React.useRef(snapshot);
@@ -562,13 +567,23 @@ function App() {
   }, [currentProfileId, snapshot.config.syncEnabled, snapshot.profile?.connectedUserId]);
 
   useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const updateSystemTheme = () => setSystemTheme(media.matches ? "dark" : "light");
+    updateSystemTheme();
+    media.addEventListener("change", updateSystemTheme);
+    return () => media.removeEventListener("change", updateSystemTheme);
+  }, []);
+
+  useEffect(() => {
+    const effectiveTheme = snapshot.config.themeMode === "system" ? systemTheme : snapshot.config.themeMode;
     document.documentElement.style.setProperty("--brand", snapshot.config.primaryColor);
     document.documentElement.style.setProperty("--accent", snapshot.config.accentColor);
-    document.documentElement.style.setProperty("--surface", snapshot.config.themeMode === "dark" ? "#071713" : snapshot.config.surfaceColor);
-    document.documentElement.style.setProperty("--text", snapshot.config.themeMode === "dark" ? "#eafff7" : snapshot.config.textColor);
-    document.documentElement.dataset.theme = snapshot.config.themeMode;
+    document.documentElement.style.setProperty("--surface", effectiveTheme === "dark" ? "#071713" : snapshot.config.surfaceColor);
+    document.documentElement.style.setProperty("--text", effectiveTheme === "dark" ? "#eafff7" : snapshot.config.textColor);
+    document.documentElement.dataset.theme = effectiveTheme;
+    document.documentElement.dataset.themeMode = snapshot.config.themeMode;
     document.title = snapshot.config.appName;
-  }, [snapshot.config]);
+  }, [snapshot.config, systemTheme]);
 
   const currency = snapshot.profile?.currency ?? snapshot.config.defaultCurrency;
   const activeAccounts = snapshot.accounts.filter((account) => account.active);
@@ -700,7 +715,7 @@ function App() {
               onProfileRestored={setCurrentProfileId}
             />
           )}
-          {view === "ai" && <AiChatView snapshot={snapshot} currency={currency} notify={notify} />}
+          {view === "ai" && <AiChatView snapshot={snapshot} currency={currency} notify={notify} onNavigate={setView} />}
         </main>
 
         <nav className="bottom-nav sticky bottom-0 z-20">
@@ -2136,26 +2151,32 @@ function CalendarView({
   const days = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
   const dates = Array.from({ length: days }, (_, index) => `${selectedDate.slice(0, 7)}-${String(index + 1).padStart(2, "0")}`);
   return (
-    <div className="grid gap-5">
-      <input className="field-input w-full max-w-xs" type="month" value={selectedDate.slice(0, 7)} onChange={(event) => setSelectedDate(`${event.target.value}-01`)} />
-      <div className="calendar-grid">
-        {dates.map((date) => {
-          const dailyTransactions = snapshot.transactions.filter((item) => sameDay(item.date, date));
-          const dailySpend = dailyTransactions
-            .filter((item) => item.type === "expense")
-            .reduce((sum, item) => sum + item.amount, 0);
-          const dailyIncome = dailyTransactions
-            .filter((item) => item.type === "income")
-            .reduce((sum, item) => sum + item.amount, 0);
-          const calendarTone = dailySpend && dailyIncome ? "calendar-day-mixed" : dailyIncome ? "calendar-day-income" : dailySpend ? "calendar-day-expense" : "";
-          return (
-            <button className={`calendar-day ${calendarTone} ${date === selectedDate ? "calendar-day-active" : ""}`} key={date} onClick={() => setSelectedDate(date)}>
-              <span>{Number(date.slice(-2))}</span>
-              <strong>{dailySpend ? `-${formatMoney(dailySpend, currency)}` : dailyIncome ? `+${formatMoney(dailyIncome, currency)}` : ""}</strong>
-            </button>
-          );
-        })}
+    <div className="app-page calendar-page">
+      <div>
+        <h2 className="page-title"><CalendarDays size={24} /> Calendar</h2>
+        <p className="page-subtitle">Daily income and spending by color.</p>
       </div>
+      <Panel className="calendar-card" title="Month">
+        <input className="field-input calendar-month-input" type="month" value={selectedDate.slice(0, 7)} onChange={(event) => setSelectedDate(`${event.target.value}-01`)} />
+        <div className="calendar-grid">
+          {dates.map((date) => {
+            const dailyTransactions = snapshot.transactions.filter((item) => sameDay(item.date, date));
+            const dailySpend = dailyTransactions
+              .filter((item) => item.type === "expense")
+              .reduce((sum, item) => sum + item.amount, 0);
+            const dailyIncome = dailyTransactions
+              .filter((item) => item.type === "income")
+              .reduce((sum, item) => sum + item.amount, 0);
+            const calendarTone = dailySpend && dailyIncome ? "calendar-day-mixed" : dailyIncome ? "calendar-day-income" : dailySpend ? "calendar-day-expense" : "";
+            return (
+              <button className={`calendar-day ${calendarTone} ${date === selectedDate ? "calendar-day-active" : ""}`} key={date} onClick={() => setSelectedDate(date)}>
+                <span>{Number(date.slice(-2))}</span>
+                <strong>{dailySpend ? `-${formatMoney(dailySpend, currency)}` : dailyIncome ? `+${formatMoney(dailyIncome, currency)}` : ""}</strong>
+              </button>
+            );
+          })}
+        </div>
+      </Panel>
       <Panel title={formatDate(selectedDate)}>
         <TransactionList snapshot={snapshot} currency={currency} transactions={snapshot.transactions.filter((item) => sameDay(item.date, selectedDate))} />
       </Panel>
@@ -3140,10 +3161,14 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
   };
 
   return (
-    <div className="grid gap-5">
-      <Panel title="Accounts">
+    <div className="app-page manage-page">
+      <div>
+        <h2 className="page-title"><SlidersHorizontal size={24} /> Manage</h2>
+        <p className="page-subtitle">Accounts, categories, and budgets in one place.</p>
+      </div>
+      <Panel className="manage-card" title="Accounts">
         <div className="grid gap-3">
-          <div className="grid gap-2 md:grid-cols-[1fr_140px_auto]">
+          <div className="manage-create-form">
             <input className="field-input" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="Cash, Bank, UPI wallet" />
             <input className="field-input" type="number" value={accountOpening} onChange={(event) => setAccountOpening(event.target.value)} placeholder="Opening" />
             <button className="primary-button" onClick={addAccount} disabled={!accountName.trim()}>
@@ -3174,9 +3199,9 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
         </div>
       </Panel>
 
-      <Panel title="Categories">
+      <Panel className="manage-card" title="Categories">
         <div className="grid gap-3">
-          <div className="grid gap-2 md:grid-cols-[1fr_150px_auto]">
+          <div className="manage-create-form">
             <input className="field-input" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="Category name" />
             <SelectField label="Type" value={categoryKind} onChange={(value) => setCategoryKind(value as "expense" | "income")}>
               <option value="expense">Expense</option>
@@ -3207,9 +3232,9 @@ function ManageView({ snapshot, notify, onDone }: { snapshot: Snapshot; notify: 
         </div>
       </Panel>
 
-      <Panel title="Budgets">
+      <Panel className="manage-card" title="Budgets">
         <div className="grid gap-3">
-          <div className="grid gap-2 md:grid-cols-[1fr_160px_auto]">
+          <div className="manage-create-form">
             <SelectField label="Category" value={budgetCategoryId} onChange={setBudgetCategoryId}>
               {snapshot.categories
                 .filter((category) => category.kind === "expense" && category.active)
@@ -3567,16 +3592,33 @@ function SettingsView({
     }
   };
 
-  const toggleDarkMode = async () => {
-    const themeMode = snapshot.config.themeMode === "dark" ? "light" : "dark";
+  const setThemeMode = async (themeMode: AppConfig["themeMode"]) => {
     await db.appConfig.update("primary", { themeMode, updatedAt: nowIso() });
-    notify(`${themeMode === "dark" ? "Dark" : "Light"} mode enabled.`, "success");
+    notify(`${themeMode === "system" ? "System" : themeMode === "dark" ? "Dark" : "Light"} theme enabled.`, "success");
     await onDone();
   };
 
+  const copyConnectionCode = async () => {
+    const code = snapshot.profile?.connectionCode;
+    if (!code) {
+      notify("Connection code is not available.", "warning");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(code);
+      notify("Connection code copied.", "success");
+    } catch {
+      notify(`Connection code: ${code}`, "info");
+    }
+  };
+
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Panel title="Profile">
+    <div className="app-page settings-page">
+      <div>
+        <h2 className="page-title"><CircleUserRound size={24} /> Profile & Settings</h2>
+        <p className="page-subtitle">Profile, sync, app tools, and account safety.</p>
+      </div>
+      <Panel className="settings-card settings-profile-card" title="Profile">
         <div className="settings-profile">
           <div className="settings-profile-hero">
             <div className="profile-avatar">{snapshot.profile?.displayName?.slice(0, 1).toUpperCase() || "M"}</div>
@@ -3599,14 +3641,28 @@ function SettingsView({
           </div>
           <div className="row">
             <span>Connection Code</span>
-            <strong>{snapshot.profile?.connectionCode || "Not created"}</strong>
+            <div className="copy-value">
+              <strong>{snapshot.profile?.connectionCode || "Not created"}</strong>
+              <button className="icon-button" onClick={() => void copyConnectionCode()} type="button" title="Copy connection code">
+                <Copy size={15} />
+              </button>
+            </div>
           </div>
           <div className="row">
             <span>Theme</span>
-            <button className="secondary-button" onClick={toggleDarkMode}>
-              {snapshot.config.themeMode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-              {snapshot.config.themeMode === "dark" ? "Light" : "Dark"}
-            </button>
+            <div className="theme-mode-control">
+              {(["system", "light", "dark"] as AppConfig["themeMode"][]).map((mode) => (
+                <button
+                  className={snapshot.config.themeMode === mode ? "theme-mode-active" : ""}
+                  key={mode}
+                  onClick={() => void setThemeMode(mode)}
+                  type="button"
+                >
+                  {mode === "system" ? <Settings size={15} /> : mode === "light" ? <Sun size={15} /> : <Moon size={15} />}
+                  {mode[0].toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="row">
             <span>Sync</span>
@@ -3627,7 +3683,7 @@ function SettingsView({
         </div>
       </Panel>
 
-      <Panel title="Tools">
+      <Panel className="settings-card" title="Tools">
         <div className="settings-action-grid">
           <button className="more-button" onClick={() => onNavigate("daily")}>
             <CalendarDays size={18} />
@@ -3648,7 +3704,7 @@ function SettingsView({
         </div>
       </Panel>
 
-      <Panel title="Account">
+      <Panel className="settings-card" title="Account">
         {snapshot.profile?.connectedUserId ? (
           <div className="grid gap-3">
             <div className="row">
@@ -3700,7 +3756,7 @@ function SettingsView({
         )}
       </Panel>
 
-      <Panel title="Change Password">
+      <Panel className="settings-card" title="Change Password">
         <div className="grid gap-3">
           <TextField label="Current password" value={currentPassword} onChange={setCurrentPassword} type="password" />
           <TextField label="New password" value={newPassword} onChange={setNewPassword} type="password" />
@@ -3711,7 +3767,7 @@ function SettingsView({
         </div>
       </Panel>
 
-      <Panel title="AI Chat">
+      <Panel className="settings-card" title="AI Chat">
         <div className="grid gap-3">
           <TextField label="Groq API key" value={groqApiKey} onChange={setGroqApiKey} type="password" placeholder="Paste API key" />
           <TextField label="Model" value={aiModel} onChange={setAiModel} placeholder="llama-3.1-8b-instant" />
@@ -3724,7 +3780,7 @@ function SettingsView({
         </div>
       </Panel>
 
-      <Panel title="Import / Export">
+      <Panel className="settings-card" title="Import / Export">
         <div className="settings-action-grid">
           <button className="secondary-button" onClick={exportData}>
             <Download size={18} /> Export JSON
@@ -3739,7 +3795,7 @@ function SettingsView({
         </div>
       </Panel>
 
-      <Panel title="App Version">
+      <Panel className="settings-card" title="App Version">
         <div className="settings-profile">
           <div className="row">
             <span>Version</span>
@@ -4456,7 +4512,17 @@ function AdminView({
   );
 }
 
-function AiChatView({ snapshot, currency, notify }: { snapshot: Snapshot; currency: string; notify: (message: string, tone?: Toast["tone"]) => void }) {
+function AiChatView({
+  snapshot,
+  currency,
+  notify,
+  onNavigate,
+}: {
+  snapshot: Snapshot;
+  currency: string;
+  notify: (message: string, tone?: Toast["tone"]) => void;
+  onNavigate: (view: View) => void;
+}) {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<ChatMessageRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -4583,55 +4649,57 @@ function AiChatView({ snapshot, currency, notify }: { snapshot: Snapshot; curren
   return (
     <div className="ai-page">
       <div className="ai-page-header">
-        <div>
+        <button className="icon-button" onClick={() => onNavigate("daily")} title="Back">
+          <ArrowLeft size={18} />
+        </button>
+        <Logo config={snapshot.config} />
+        <div className="min-w-0 flex-1">
           <h2>Micham assistant</h2>
           <p>Ask about your money</p>
         </div>
-        <button className="secondary-button" onClick={() => void clearChat()} disabled={messages.length === 0 || loading}>
-          Clear Chat
+        <button className="icon-button" onClick={() => void clearChat()} disabled={messages.length === 0 || loading} title="Clear chat">
+          <Trash2 size={17} />
         </button>
       </div>
-      <Panel title="AI Chat">
-        <div className="ai-chat-shell">
-          <div className="ai-message-list">
-            {messages.length === 0 ? (
-              <div className="ai-empty-state">
-                <Bot size={24} />
-                <strong>Your money, explained</strong>
-                <p>Ask about spending, savings, or shared expenses.</p>
-                <button type="button" onClick={() => setQuestion("How much can I safely save this month?")}>How much can I safely save this month?</button>
-                <button type="button" onClick={() => setQuestion("Where is most of my money sitting?")}>Where is most of my money sitting?</button>
-                <button type="button" onClick={() => setQuestion("How should I settle up with my friends?")}>How should I settle up with my friends?</button>
-              </div>
-            ) : null}
-            {messages.map((message) => (
-              <div className={`chat-message ${message.role === "user" ? "chat-message-user" : ""}`} key={message.id}>
-                {message.content}
-              </div>
-            ))}
-          </div>
-          <div className="ai-input-row">
-            <input
-              className="field-input"
-              value={question}
-              onChange={(event) => setQuestion(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") ask();
-              }}
-              placeholder="How much did I spend this month?"
-            />
-            <label className="secondary-button cursor-pointer">
-              <Image size={18} />
-              <input className="hidden" type="file" accept="image/*" onChange={(event) => attachImage(event.target.files?.[0])} />
-            </label>
-            <button className="primary-button" onClick={() => void ask()} disabled={loading || !question.trim() || messages.length + 2 > AI_CHAT_MESSAGE_LIMIT}>
-              <Bot size={18} /> {loading ? "Asking" : "Ask"}
-            </button>
-          </div>
-          <p className="ai-limit-note">{messages.length}/{AI_CHAT_MESSAGE_LIMIT} messages. Clear chat to continue after the limit.</p>
-          {imageContext ? <p className="text-sm text-slate-500">{imageContext}</p> : null}
+      <div className="ai-chat-shell">
+        <div className="ai-message-list">
+          {messages.length === 0 ? (
+            <div className="ai-empty-state">
+              <Bot size={24} />
+              <strong>Your money, explained</strong>
+              <p>Ask about spending, savings, or shared expenses.</p>
+              <button type="button" onClick={() => setQuestion("How much can I safely save this month?")}>How much can I safely save this month?</button>
+              <button type="button" onClick={() => setQuestion("Where is most of my money sitting?")}>Where is most of my money sitting?</button>
+              <button type="button" onClick={() => setQuestion("How should I settle up with my friends?")}>How should I settle up with my friends?</button>
+            </div>
+          ) : null}
+          {messages.map((message) => (
+            <div className={`chat-message ${message.role === "user" ? "chat-message-user" : ""}`} key={message.id}>
+              {message.content}
+            </div>
+          ))}
         </div>
-      </Panel>
+        <div className="ai-composer">
+          <input
+            className="field-input"
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") ask();
+            }}
+            placeholder="Ask about your money..."
+          />
+          <label className="icon-button cursor-pointer">
+            <Image size={18} />
+            <input className="hidden" type="file" accept="image/*" onChange={(event) => attachImage(event.target.files?.[0])} />
+          </label>
+          <button className="ai-send-button" onClick={() => void ask()} disabled={loading || !question.trim() || messages.length + 2 > AI_CHAT_MESSAGE_LIMIT} title="Ask">
+            {loading ? <span className="button-spinner" /> : <ArrowDownLeft size={18} />}
+          </button>
+        </div>
+        <p className="ai-limit-note">{messages.length}/{AI_CHAT_MESSAGE_LIMIT} messages. Clear chat to continue after the limit.</p>
+        {imageContext ? <p className="ai-limit-note">{imageContext}</p> : null}
+      </div>
     </div>
   );
 }
@@ -4649,14 +4717,15 @@ function TransactionList({ snapshot, currency, transactions }: { snapshot: Snaps
   if (transactions.length === 0) return <Empty text="No transactions yet." />;
   return (
     <>
-      <div className="grid gap-2">
+      <div className="transaction-list">
         {transactions.map((transaction) => {
           const account = snapshot.accounts.find((item) => item.id === transaction.accountId);
           const toAccount = snapshot.accounts.find((item) => item.id === transaction.toAccountId);
           const category = snapshot.categories.find((item) => item.id === transaction.categoryId);
+          const amountPrefix = transaction.type === "income" ? "+" : transaction.type === "expense" ? "-" : "";
           return (
             <div
-              className="transaction-row"
+              className={`transaction-row transaction-${transaction.type}`}
               key={transaction.id}
               onDoubleClick={() => setSelectedTransaction(transaction)}
               onPointerCancel={() => clearLongPress(transaction.id)}
@@ -4679,11 +4748,11 @@ function TransactionList({ snapshot, currency, transactions }: { snapshot: Snaps
               <div className="transaction-icon">
                 {transaction.type === "transfer" ? <ArrowRightLeft size={16} /> : transaction.type === "income" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{transaction.note || category?.name || transaction.type}</p>
-                <p className="truncate text-xs text-slate-500">
+              <div className="transaction-copy">
+                <p>{transaction.note || category?.name || transaction.type}</p>
+                <span>
                   {transaction.type === "transfer" ? `${account?.name} to ${toAccount?.name}` : `${account?.name ?? ""} ${category?.name ? `- ${category.name}` : ""}`} · {formatDate(transaction.date)}
-                </p>
+                </span>
                 {transaction.edited && transaction.previousVersion ? (
                   <p className="transaction-edit-note">
                     Edited · before {formatMoney(transaction.previousVersion.amount, currency)} on {formatDate(transaction.previousVersion.date)}
@@ -4704,8 +4773,8 @@ function TransactionList({ snapshot, currency, transactions }: { snapshot: Snaps
                   </button>
                 ) : null}
               </div>
-              <strong className={transaction.type === "income" ? "text-emerald-700" : transaction.type === "expense" ? "text-rose-700" : "text-slate-800"}>
-                {formatMoney(transaction.amount, currency)}
+              <strong className="transaction-amount">
+                {amountPrefix}{formatMoney(transaction.amount, currency)}
               </strong>
             </div>
           );

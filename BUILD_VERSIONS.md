@@ -1,5 +1,14 @@
 # Micham Build Versions
 
+## 0.1.4 - web-2026.09.05.4
+
+Date: 2026-09-05
+
+- Expanded the screenshot-inspired UI pass to Calendar, Manage, Settings, AI Assistant, and shared transaction rows.
+- Added System theme mode so the app can follow the device/browser preference.
+- Added a copy icon action for the profile connection code.
+- Reworked the available balance card shine into a moving sheen instead of a static diagonal shape.
+
 ## 0.1.3 - web-2026.09.05.3
 
 Date: 2026-09-05
