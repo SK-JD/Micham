@@ -1,3 +1,5 @@
+import { appBaseUrl } from "../_lib/env";
+
 export function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -10,6 +12,8 @@ export function escapeHtml(value: string) {
 export function mailShell(title: string, preview: string, body: string) {
   const safeTitle = escapeHtml(title);
   const safePreview = escapeHtml(preview);
+  const publicBaseUrl = appBaseUrl().replace(/\/$/, "");
+  const wordmarkUrl = `${publicBaseUrl}/email-assets/micham-wordmark-dark.svg`;
   return `<!doctype html>
 <html>
   <body style="margin:0;background:#edf8f2;font-family:Inter,Segoe UI,Arial,sans-serif;color:#073426">
@@ -20,13 +24,13 @@ export function mailShell(title: string, preview: string, body: string) {
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #bfe8d5;border-radius:24px;overflow:hidden;box-shadow:0 20px 60px rgba(3,64,45,.12)">
             <tr>
               <td style="background:linear-gradient(135deg,#003c2d,#00c991);padding:28px 28px 22px">
-                <div style="display:flex;align-items:center;gap:12px">
-                  <span style="display:inline-grid;place-items:center;width:48px;height:48px;border-radius:14px;background:#eafff6;color:#00684e;font-weight:900;font-size:26px">M</span>
-                  <span>
-                    <strong style="display:block;color:#b6ffe2;font-size:32px;line-height:1">Micham</strong>
-                    <span style="display:block;color:#eafff6;font-size:12px;margin-top:4px">Micham evlo irukku?</span>
-                  </span>
-                </div>
+                <table role="presentation" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td style="vertical-align:middle">
+                      <img src="${escapeHtml(wordmarkUrl)}" width="220" alt="Micham - Micham evlo irukku?" style="display:block;max-width:220px;width:220px;height:auto;border:0;outline:none;text-decoration:none" />
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
             <tr>
