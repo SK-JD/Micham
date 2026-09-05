@@ -184,11 +184,11 @@ main,
 .splash-screen {
   align-items: center;
   background:
-    radial-gradient(circle at 50% 34%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 32%),
-    linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--brand) 10%, var(--surface)));
+    radial-gradient(circle at 50% 34%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 34%),
+    linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--brand) 12%, var(--surface)));
   display: flex;
   justify-content: center;
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   padding: 2rem;
 }
@@ -200,6 +200,19 @@ main,
   gap: 1rem;
   justify-items: center;
   position: relative;
+}
+
+.splash-mark::after {
+  animation: splash-sheen 1.8s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 44%), transparent);
+  content: "";
+  height: 145%;
+  left: -85%;
+  position: absolute;
+  top: -22%;
+  transform: rotate(14deg);
+  width: 56%;
+  z-index: 2;
 }
 
 .splash-logo {
@@ -226,6 +239,21 @@ main,
   position: absolute;
   top: -22px;
   width: 126px;
+}
+
+@keyframes splash-sheen {
+  0% {
+    left: -85%;
+    opacity: 0;
+  }
+  32% {
+    opacity: 0.75;
+  }
+  72%,
+  100% {
+    left: 130%;
+    opacity: 0;
+  }
 }
 
 .busy-overlay {
@@ -655,10 +683,15 @@ button:disabled {
 
 .settings-page {
   align-items: start;
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
 }
 
 .settings-card {
-  border-radius: 16px;
+  background: color-mix(in srgb, white 93%, var(--panel));
+  border-color: color-mix(in srgb, var(--brand) 22%, var(--border));
+  border-radius: 18px;
+  box-shadow: 0 16px 42px color-mix(in srgb, var(--brand) 7%, transparent);
+  min-width: 0;
 }
 
 .settings-profile-card {
@@ -669,7 +702,7 @@ button:disabled {
 
 .settings-profile {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .settings-profile-hero {
@@ -680,6 +713,26 @@ button:disabled {
   display: flex;
   gap: 0.8rem;
   padding: 0.9rem;
+}
+
+.settings-profile > .row,
+.settings-card .row {
+  background: color-mix(in srgb, var(--panel-muted) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 15%, var(--border));
+  border-radius: 12px;
+  min-width: 0;
+  padding: 0.72rem 0.8rem;
+}
+
+.settings-profile > .row strong,
+.settings-card .row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.settings-card .copy-value {
+  min-width: 0;
 }
 
 .profile-avatar {
@@ -2589,6 +2642,114 @@ button:disabled {
   width: 100%;
 }
 
+.insights-page {
+  gap: 1.25rem;
+}
+
+.insight-stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.insight-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+}
+
+.insight-visual-card {
+  background: color-mix(in srgb, white 92%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--border));
+  border-radius: 18px;
+  box-shadow: 0 16px 42px color-mix(in srgb, var(--brand) 8%, transparent);
+  min-width: 0;
+}
+
+.insight-daily-card {
+  grid-row: span 2;
+}
+
+.insight-daily-bars {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 18%, var(--border));
+  border-radius: 14px;
+  gap: 0.34rem;
+  padding: 1rem 0.75rem 0.75rem;
+}
+
+.insight-daily-bars .daily-bar {
+  background: color-mix(in srgb, var(--brand) 12%, #eef8f4);
+}
+
+.chart-axis-row {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.78rem;
+  justify-content: space-between;
+  margin-top: 0.45rem;
+}
+
+.top-category-layout {
+  align-items: center;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.mini-donut {
+  align-items: center;
+  border-radius: 999px;
+  display: flex;
+  height: 112px;
+  justify-content: center;
+  position: relative;
+  width: 112px;
+}
+
+.mini-donut::after {
+  background: var(--panel);
+  border-radius: inherit;
+  content: "";
+  inset: 24px;
+  position: absolute;
+}
+
+.mini-donut span {
+  font-size: 0.78rem;
+  font-weight: 900;
+  position: relative;
+  z-index: 1;
+}
+
+.category-legend {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.category-legend .legend-row span {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-legend i {
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 9px;
+  width: 9px;
+}
+
+.insight-filter-card {
+  background: color-mix(in srgb, var(--panel) 88%, var(--surface));
+  border-radius: 18px;
+}
+
 .calendar-grid {
   display: grid;
   gap: 0.5rem;
@@ -2720,6 +2881,19 @@ button:disabled {
   margin: 0;
 }
 
+.people-section-card {
+  background: color-mix(in srgb, white 92%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--border));
+  border-radius: 18px;
+  box-shadow: 0 16px 42px color-mix(in srgb, var(--brand) 7%, transparent);
+  min-width: 0;
+}
+
+.people-list-card .panel-title {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .people-action-row {
   display: grid;
   gap: 0.55rem;
@@ -2754,8 +2928,17 @@ button:disabled {
 
 .friend-balance {
   background: color-mix(in srgb, var(--accent) 11%, var(--panel-muted));
-  border-radius: 8px;
-  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+}
+
+.friend-card {
+  align-items: stretch;
+  background: color-mix(in srgb, white 95%, var(--accent));
+  border-color: color-mix(in srgb, var(--brand) 24%, var(--border));
+  border-radius: 16px;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--brand) 5%, transparent);
+  padding: 1rem;
 }
 
 .friend-actions {
@@ -2763,6 +2946,11 @@ button:disabled {
   flex-wrap: wrap;
   gap: 0.4rem;
   grid-column: 1 / -1;
+}
+
+.modal-form-grid {
+  display: grid;
+  gap: 0.85rem;
 }
 
 .verified-friend-banner {
@@ -3156,6 +3344,10 @@ button:disabled {
 
 :root[data-theme="dark"] .home-hero,
 :root[data-theme="dark"] .people-balance-card,
+:root[data-theme="dark"] .people-section-card,
+:root[data-theme="dark"] .insight-visual-card,
+:root[data-theme="dark"] .insight-filter-card,
+:root[data-theme="dark"] .settings-card,
 :root[data-theme="dark"] .mini-stat-card,
 :root[data-theme="dark"] .snapshot-card,
 :root[data-theme="dark"] .smart-insight {
@@ -3172,6 +3364,17 @@ button:disabled {
 
 :root[data-theme="dark"] .snapshot-icon {
   background: color-mix(in srgb, var(--accent) 20%, var(--panel-muted));
+}
+
+:root[data-theme="dark"] .settings-profile > .row,
+:root[data-theme="dark"] .settings-card .row,
+:root[data-theme="dark"] .insight-daily-bars {
+  background: color-mix(in srgb, var(--surface) 48%, var(--panel-muted));
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+
+:root[data-theme="dark"] .mini-donut::after {
+  background: var(--panel);
 }
 
 :root[data-theme="dark"] .app-logo-image {
@@ -3314,6 +3517,16 @@ button:disabled {
   .quick-actions-grid,
   .people-action-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-page,
+  .insight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .top-category-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
   }
 
   .quick-actions-grid .action-tile:nth-child(3) {

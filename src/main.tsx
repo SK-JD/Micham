@@ -112,6 +112,11 @@ const defaultAppLogoUrl = new URL("../Logos/Micham_app_logo.svg", import.meta.ur
 const defaultWordmarkUrl = new URL("../Logos/Micham_bottom_wordmark_tagline.svg", import.meta.url).href;
 const defaultDarkWordmarkUrl = new URL("../Logos/Micham_bottom_wordmark_tagline_dark.svg", import.meta.url).href;
 
+function getEffectiveTheme(themeMode: AppConfig["themeMode"]) {
+  if (themeMode !== "system") return themeMode;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 type View = "dashboard" | "daily" | "add" | "monthly" | "calendar" | "people" | "manage" | "settings" | "admin" | "ai";
 type SessionRole = "guest" | "user" | "admin";
 type Toast = { id: string; tone: "success" | "error" | "warning" | "info"; message: string };
@@ -755,11 +760,12 @@ function Shell({ snapshot, children }: { snapshot: Snapshot; children: React.Rea
 }
 
 function SplashScreen({ config }: { config: AppConfig }) {
+  const wordmarkUrl = getEffectiveTheme(config.themeMode) === "dark" ? defaultDarkWordmarkUrl : defaultWordmarkUrl;
   return (
     <div className="splash-screen">
       <div className="splash-mark">
         <img className="splash-logo" src={config.logoImage || defaultAppLogoUrl} alt={`${config.appName} logo`} />
-        <img className="splash-wordmark" src={config.themeMode === "dark" ? defaultDarkWordmarkUrl : defaultWordmarkUrl} alt={config.appName} />
+        <img className="splash-wordmark" src={wordmarkUrl} alt={config.appName} />
         <span className="splash-pulse" />
       </div>
     </div>
@@ -833,7 +839,7 @@ function Logo({ config }: { config: AppConfig }) {
 }
 
 function Wordmark({ config }: { config: AppConfig }) {
-  const wordmarkUrl = config.themeMode === "dark" ? defaultDarkWordmarkUrl : defaultWordmarkUrl;
+  const wordmarkUrl = getEffectiveTheme(config.themeMode) === "dark" ? defaultDarkWordmarkUrl : defaultWordmarkUrl;
 
   return (
     <div className="wordmark-wrap">
@@ -1990,6 +1996,20 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
     account,
     balance: accountBalance(account, filteredTransactions),
   }));
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const dailyRows = Array.from({ length: daysInMonth }, (_, index) => {
+    const day = `${currentMonth}-${String(index + 1).padStart(2, "0")}`;
+    const amount = filteredTransactions
+      .filter((transaction) => transaction.type === "expense" && sameDay(transaction.date, day))
+      .reduce((sum, transaction) => sum + transaction.amount, 0);
+    return { day: index + 1, amount };
+  });
+  const maxDailySpend = Math.max(...dailyRows.map((item) => item.amount), 1);
+  const maxAccountBalance = Math.max(...accountRows.map((item) => Math.abs(item.balance)), 1);
+  const topSpending = spending.slice(0, 3);
+  const totalTopSpending = Math.max(topSpending.reduce((sum, item) => sum + item.amount, 0), 1);
+  const categoryColors = ["#00815f", "#ff0050", "#a83fd9"];
 
   const downloadReport = () => {
     const filterLabel = [
@@ -2042,12 +2062,89 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
         <h2 className="page-title"><BarChart3 size={24} /> Insights</h2>
         <p className="page-subtitle">Your money patterns at a glance.</p>
       </div>
-      <div className="summary-card-grid">
+      <div className="summary-card-grid insight-stat-grid">
         <StatCard label="Income" value={formatMoney(summary.monthlyIncome, currency)} />
         <StatCard label="Expenses" value={formatMoney(summary.monthlyExpenses, currency)} />
         <StatCard label="Savings" value={formatMoney(summary.monthlySavings, currency)} />
       </div>
-      <Panel title="Report Filters" icon={<SlidersHorizontal size={18} />}>
+      <div className="insight-grid">
+        <Panel className="insight-visual-card insight-daily-card" title="Daily Spending">
+          <div className="daily-bars insight-daily-bars">
+            {dailyRows.map((item) => (
+              <div className="daily-bar" key={item.day} title={`${item.day}: ${formatMoney(item.amount, currency)}`}>
+                <span style={{ height: `${Math.max(5, (item.amount / maxDailySpend) * 100)}%` }} />
+              </div>
+            ))}
+          </div>
+          <div className="chart-axis-row"><span>1 Sep</span><span>Today</span></div>
+        </Panel>
+        <Panel className="insight-visual-card" title="Account Balance">
+          <div className="chart-list">
+            {accountRows.map(({ account, balance }) => {
+              return (
+                <div className="bar-row" key={account.id}>
+                  <div className="bar-row-header">
+                    <span>{account.name}</span>
+                    <strong>{formatMoney(balance, currency)}</strong>
+                  </div>
+                  <div className="bar-track">
+                    <span className={balance < 0 ? "danger-bar" : ""} style={{ width: `${Math.max(6, (Math.abs(balance) / maxAccountBalance) * 100)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+        <Panel className="insight-visual-card" title="Top Categories">
+          {topSpending.length ? (
+            <div className="top-category-layout">
+              <div
+                className="mini-donut"
+                style={{
+                  background: `conic-gradient(${topSpending.map((item, index) => {
+                    const start = topSpending.slice(0, index).reduce((sum, row) => sum + (row.amount / totalTopSpending) * 100, 0);
+                    const end = start + (item.amount / totalTopSpending) * 100;
+                    return `${categoryColors[index]} ${start}% ${end}%`;
+                  }).join(", ")})`,
+                }}
+              >
+                <span>{formatMoney(spending.reduce((sum, item) => sum + item.amount, 0), currency)}</span>
+              </div>
+              <div className="category-legend">
+                {topSpending.map(({ category, amount }, index) => (
+                  <div className="legend-row" key={category.id}>
+                    <span><i style={{ background: categoryColors[index] }} />{category.name}</span>
+                    <strong>{formatMoney(amount, currency)}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : <Empty text="No spending this month." />}
+        </Panel>
+        <Panel className="insight-visual-card" title="Budgets">
+          <div className="grid gap-3">
+            {snapshot.budgets
+              .filter((budget) => budget.active)
+              .map((budget) => {
+                const category = snapshot.categories.find((item) => item.id === budget.categoryId);
+                const usage = budgetUsage(budget, snapshot.transactions);
+                return (
+                  <div key={budget.id}>
+                    <div className="row">
+                      <span>{category?.name ?? "Category"}</span>
+                      <strong>{formatMoney(usage.remaining, currency)} left</strong>
+                    </div>
+                    <div className="progress">
+                      <span className={usage.remaining < 0 ? "danger-bar" : ""} style={{ width: `${Math.min(100, usage.percentage)}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            {snapshot.budgets.length === 0 ? <Empty text="Create budgets in Manage." /> : null}
+          </div>
+        </Panel>
+      </div>
+      <Panel className="insight-filter-card" title="Report Filters" icon={<SlidersHorizontal size={18} />}>
         <div className="report-filter-grid">
           <SelectField label="Type" value={typeFilter} onChange={(value) => setTypeFilter(value as "all" | TransactionType)}>
             <option value="all">All types</option>
@@ -2076,62 +2173,9 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
           </button>
         </div>
       </Panel>
-      <div className="report-section-grid">
-        <Panel title="Category Spending" icon={<BarChart3 size={18} />}>
-          <div className="grid gap-2">
-            {spending.map(({ category, amount }) => (
-              <div className="row" key={category.id}>
-                <span>{category.name}</span>
-                <strong>{formatMoney(amount, currency)}</strong>
-              </div>
-            ))}
-            {spending.length === 0 ? <Empty text="No spending this month." /> : null}
-          </div>
-        </Panel>
-        <Panel title="Account Usage" icon={<WalletCards size={18} />}>
-          <div className="chart-list">
-            {accountRows.map(({ account, balance }) => {
-              const maxBalance = Math.max(...accountRows.map((item) => Math.abs(item.balance)), 1);
-              return (
-                <div className="bar-row" key={account.id}>
-                  <div className="bar-row-header">
-                    <span>{account.name}</span>
-                    <strong>{formatMoney(balance, currency)}</strong>
-                  </div>
-                  <div className="bar-track">
-                    <span className={balance < 0 ? "danger-bar" : ""} style={{ width: `${Math.max(6, (Math.abs(balance) / maxBalance) * 100)}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Panel>
-        <Panel title="Budgets" icon={<WalletCards size={18} />}>
-          <div className="grid gap-3">
-            {snapshot.budgets
-              .filter((budget) => budget.active)
-              .map((budget) => {
-                const category = snapshot.categories.find((item) => item.id === budget.categoryId);
-                const usage = budgetUsage(budget, snapshot.transactions);
-                return (
-                  <div key={budget.id}>
-                    <div className="row">
-                      <span>{category?.name ?? "Category"}</span>
-                      <strong>{formatMoney(usage.remaining, currency)} left</strong>
-                    </div>
-                    <div className="progress">
-                      <span className={usage.remaining < 0 ? "danger-bar" : ""} style={{ width: `${Math.min(100, usage.percentage)}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            {snapshot.budgets.length === 0 ? <Empty text="Create budgets in Manage." /> : null}
-          </div>
-        </Panel>
-        <Panel title="Transactions" icon={<Download size={18} />}>
+      <Panel className="insight-visual-card" title="Transactions" icon={<Download size={18} />}>
           <TransactionList snapshot={snapshot} currency={currency} transactions={filteredTransactions.slice().reverse()} />
-        </Panel>
-      </div>
+      </Panel>
     </div>
   );
 }
@@ -2214,6 +2258,7 @@ function PeopleView({
   const [repaymentNote, setRepaymentNote] = useState("");
   const [friendConfirm, setFriendConfirm] = useState<{ type: "block" | "remove"; person: Person; linked?: boolean } | null>(null);
   const [showAllFriends, setShowAllFriends] = useState(false);
+  const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [selectedFriendId, setSelectedFriendId] = useState(activePeople[0]?.id ?? "");
   const [settlementEvents, setSettlementEvents] = useState<ServerSettlementEvent[]>([]);
   const [eventAccounts, setEventAccounts] = useState<Record<string, string>>({});
@@ -2723,47 +2768,12 @@ function PeopleView({
         <button className="primary-button">
           <ArrowRightLeft size={17} /> Settle up
         </button>
-        <button className="secondary-button" onClick={() => document.getElementById("friend-create-form")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+        <button className="secondary-button" onClick={() => setShowAddFriendModal(true)}>
           <UserPlus size={17} /> Add person
         </button>
       </div>
-      <Panel title="Friends List">
+      <Panel className="people-section-card people-list-card" title="Friends">
         <div className="grid gap-3">
-          <div id="friend-create-form" className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-            <input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Friend name" />
-            <input
-              className="field-input"
-              value={inviteCode}
-              onChange={(event) => {
-                setInviteCode(event.target.value.toUpperCase());
-                setVerifiedFriend(null);
-              }}
-              placeholder="Connection code optional"
-            />
-            {inviteCode.trim() ? (
-              <button className="secondary-button" onClick={verifyFriendCode}>
-                Verify
-              </button>
-            ) : (
-              <button className="primary-button" onClick={addPerson} disabled={!name.trim()}>
-                <UserPlus size={18} /> Add
-              </button>
-            )}
-          </div>
-          {verifiedFriend ? (
-            <div className="verified-friend-banner">
-              <span>Verified user</span>
-              <strong>{verifiedFriend.displayName}</strong>
-              <button className="primary-button" onClick={addPerson}>
-                <UserPlus size={18} /> Send Request
-              </button>
-            </div>
-          ) : null}
-          {inviteCode.trim() && !verifiedFriend ? (
-            <button className="primary-button" onClick={addPerson} disabled>
-              <UserPlus size={18} /> Verify First
-            </button>
-          ) : null}
           <div className="friends-grid">
             {snapshot.people.length === 0 ? <Empty text="No friends added yet." /> : null}
             {visiblePeople.map((person) => {
@@ -2779,6 +2789,39 @@ function PeopleView({
           ) : null}
         </div>
       </Panel>
+      {showAddFriendModal ? (
+        <ListModal title="Add Person" onClose={() => setShowAddFriendModal(false)}>
+          <div id="friend-create-form" className="modal-form-grid">
+            <input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Friend name" />
+            <input
+              className="field-input"
+              value={inviteCode}
+              onChange={(event) => {
+                setInviteCode(event.target.value.toUpperCase());
+                setVerifiedFriend(null);
+              }}
+              placeholder="Connection code optional"
+            />
+            {verifiedFriend ? (
+              <div className="verified-friend-banner">
+                <span>Verified user</span>
+                <strong>{verifiedFriend.displayName}</strong>
+              </div>
+            ) : null}
+            {inviteCode.trim() ? (
+              <button className="secondary-button" onClick={verifyFriendCode}>
+                Verify Connection Code
+              </button>
+            ) : null}
+            <button className="primary-button" onClick={async () => {
+              await addPerson();
+              if (!inviteCode.trim() || verifiedFriend) setShowAddFriendModal(false);
+            }} disabled={!name.trim() || (Boolean(inviteCode.trim()) && !verifiedFriend)}>
+              <UserPlus size={18} /> {inviteCode.trim() ? "Send Request" : "Add Local Person"}
+            </button>
+          </div>
+        </ListModal>
+      ) : null}
       {showAllFriends ? (
         <ListModal title="All Friends" onClose={() => setShowAllFriends(false)}>
           <div className="friends-grid">
@@ -2810,7 +2853,7 @@ function PeopleView({
           </div>
         </div>
       ) : null}
-      <Panel title="Friend Ledger" icon={<Users size={18} />}>
+      <Panel className="people-section-card" title="Open Records" icon={<Users size={18} />}>
         <div className="friend-ledger">
           <SelectField label="Friend" value={selectedFriend?.id ?? ""} onChange={setSelectedFriendId}>
             {activePeople.map((person) => (
@@ -2902,7 +2945,7 @@ function PeopleView({
           </div>
         </Panel>
       ) : null}
-      <Panel title="Owe / Owed">
+      <Panel className="people-section-card" title="Record Shared Money">
         <div className="grid gap-4">
           <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
             <SelectField label="Friend" value={personId} onChange={setPersonId}>
@@ -2957,7 +3000,7 @@ function PeopleView({
           </div>
         </div>
       </Panel>
-      <Panel title="Returned Money" icon={<RefreshCw size={18} />}>
+      <Panel className="people-section-card" title="Settle Returned Money" icon={<RefreshCw size={18} />}>
         <div className="grid gap-4">
           <div className="grid gap-3 md:grid-cols-[1fr_1fr_140px_1fr_auto]">
             <SelectField label="Open record" value={repaymentSettlementId} onChange={setRepaymentSettlementId}>

@@ -1,5 +1,15 @@
 # Micham Build Versions
 
+## 0.1.5 - web-2026.09.05.5
+
+Date: 2026-09-05
+
+- Fixed splash logo/wordmark theme selection when the app follows the device theme.
+- Added animated splash sheen using the app logo and wordmark assets.
+- Rebuilt Insights into summary, daily spending, account balance, top categories, budgets, and filtered export sections.
+- Reworked People so friend creation opens in a modal and the primary tab focuses on balance, friends, and open records.
+- Refined Profile & Settings cards and wrapped long account values to prevent mobile overflow.
+
 ## 0.1.4 - web-2026.09.05.4
 
 Date: 2026-09-05
