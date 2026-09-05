@@ -12,6 +12,8 @@
   --border: #cde8dc;
   --muted: #55756a;
   --brand-gradient: linear-gradient(135deg, #005f46 0%, #008f68 52%, #64dcae 100%);
+  --app-header-height: 74px;
+  --app-bottom-nav-height: 86px;
 }
 
 :root[data-theme="dark"] {
@@ -28,9 +30,28 @@
   box-sizing: border-box;
 }
 
+img,
+canvas {
+  max-width: 100%;
+}
+
+svg {
+  flex-shrink: 0;
+}
+
+html,
+body,
+#root {
+  max-width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+  width: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
+  overscroll-behavior-x: none;
   color: var(--text);
   background: var(--surface);
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
@@ -41,16 +62,36 @@ body {
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+  padding-top: calc(var(--app-header-height) + env(safe-area-inset-top));
+  width: 100%;
+}
+
+.app-shell > header {
+  left: 0;
   padding-top: env(safe-area-inset-top);
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 100%;
 }
 
-main {
-  padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+main,
+.app-shell > main {
+  min-width: 0;
+  overflow-x: clip;
+  padding-bottom: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom) + 1rem);
+  width: 100%;
 }
 
-nav {
+.app-shell > nav {
+  bottom: 0;
+  left: 0;
   padding-bottom: env(safe-area-inset-bottom);
+  position: fixed;
+  right: 0;
+  width: 100%;
 }
 
 .splash-screen {
@@ -220,6 +261,8 @@ nav {
   border-top: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   box-shadow: 0 -18px 42px rgb(0 95 70 / 0.12);
   backdrop-filter: blur(18px);
+  overflow: hidden;
+  transform: translateZ(0);
 }
 
 .app-panel {
@@ -228,6 +271,8 @@ nav {
   border: 1px solid color-mix(in srgb, var(--border) 92%, var(--brand));
   border-radius: 12px;
   box-shadow: 0 14px 34px rgb(0 95 70 / 0.08);
+  min-width: 0;
+  overflow: hidden;
   padding: clamp(1rem, 3vw, 1.25rem);
 }
 
@@ -254,6 +299,7 @@ button:disabled {
   border-radius: 999px;
   color: var(--brand);
   display: inline-flex;
+  flex: 0 0 auto;
   height: 42px;
   justify-content: center;
   width: 42px;
@@ -272,14 +318,16 @@ button:disabled {
 .wordmark-wrap {
   display: grid;
   gap: 0.05rem;
-  max-width: 230px;
+  max-width: min(230px, calc(100vw - 88px));
+  min-width: 0;
+  overflow: hidden;
 }
 
 .wordmark-wrap img {
   background: transparent;
   display: block;
   height: 34px;
-  max-width: 205px;
+  max-width: min(205px, calc(100vw - 96px));
   object-fit: contain;
   object-position: left center;
 }
@@ -483,6 +531,9 @@ button:disabled {
 
 .bottom-nav-main {
   align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
 }
 
 .settings-action-grid {
@@ -1326,6 +1377,17 @@ button:disabled {
   gap: 1rem;
   justify-content: space-between;
   min-height: 42px;
+  min-width: 0;
+}
+
+.row > span {
+  min-width: 0;
+}
+
+.row > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .row:last-child {
@@ -1340,8 +1402,24 @@ button:disabled {
   display: flex;
   gap: 0.75rem;
   min-height: 64px;
+  min-width: 0;
   padding: 0.7rem;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.transaction-row > div:not(.transaction-icon) {
+  min-width: 0;
+}
+
+.transaction-row p,
+.transaction-row span {
+  min-width: 0;
+}
+
+.transaction-row strong {
+  flex: 0 0 auto;
+  max-width: 42%;
+  white-space: nowrap;
 }
 
 .transaction-row:focus-visible,
@@ -1357,6 +1435,7 @@ button:disabled {
   border-radius: 8px;
   color: #475569;
   display: flex;
+  flex: 0 0 36px;
   height: 36px;
   justify-content: center;
   width: 36px;
@@ -1626,6 +1705,7 @@ button:disabled {
   display: flex;
   gap: 1rem;
   justify-content: space-between;
+  min-width: 0;
 }
 
 .legend-dot {
@@ -1647,11 +1727,13 @@ button:disabled {
 .chart-list {
   display: grid;
   gap: 0.85rem;
+  min-width: 0;
 }
 
 .bar-row {
   display: grid;
   gap: 0.35rem;
+  min-width: 0;
 }
 
 .bar-row-header {
@@ -1660,7 +1742,17 @@ button:disabled {
 
 .bar-row-header span {
   color: #334155;
+  min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-row-header strong {
+  flex: 0 0 auto;
+  max-width: 42%;
+  overflow: hidden;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1669,7 +1761,9 @@ button:disabled {
   background: #e2e8f0;
   border-radius: 999px;
   height: 10px;
+  min-width: 0;
   overflow: hidden;
+  width: 100%;
 }
 
 .bar-track span {
@@ -2303,6 +2397,62 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  :root {
+    --app-header-height: 66px;
+    --app-bottom-nav-height: 82px;
+  }
+
+  .app-shell > main {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .app-panel {
+    border-radius: 10px;
+    padding: 1rem;
+  }
+
+  .row {
+    gap: 0.75rem;
+  }
+
+  .row > strong {
+    max-width: 58%;
+  }
+
+  .bar-row-header {
+    gap: 0.7rem;
+  }
+
+  .bar-row-header span {
+    max-width: 62%;
+  }
+
+  .bar-row-header strong {
+    max-width: 38%;
+  }
+
+  .transaction-row {
+    gap: 0.55rem;
+    padding: 0.65rem;
+  }
+
+  .transaction-row strong {
+    max-width: 34%;
+  }
+
+  .bottom-nav-main {
+    gap: 0.2rem;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+
+  .nav-button {
+    min-width: 0;
+    padding-left: 0.1rem;
+    padding-right: 0.1rem;
+  }
+
   .segmented-control button {
     font-size: 0.82rem;
   }
@@ -2317,5 +2467,9 @@ button:disabled {
 
   .nav-button span {
     font-size: 0.68rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }

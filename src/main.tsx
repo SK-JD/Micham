@@ -30,6 +30,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { StatCard } from "./components/StatCard";
+import { buildInfo } from "./lib/buildInfo";
 import { accountBalance, budgetUsage, categorySpend, personBalance, sameDay, summarize } from "./lib/calculations";
 import {
   createConnectionCode,
@@ -163,7 +164,7 @@ const emptySnapshot: Snapshot = {
 
 const LOGIN_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
 const AI_LIMIT = { max: 10, windowMs: 60 * 1000 };
-const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+const MAX_IMPORT_BYTES = 25 * 1024 * 1024;
 const MAX_LOGO_BYTES = 1024 * 1024;
 const MAX_RECEIPT_SOURCE_BYTES = 6 * 1024 * 1024;
 const MAX_RECEIPT_COMPRESSED_BYTES = 900 * 1024;
@@ -216,6 +217,62 @@ async function compressImageFile(file: File, options: { maxSide: number; quality
   if (!blob) throw new Error("Image compression failed.");
   if (blob.size > options.maxBytes) throw new Error("Image is still too large after compression.");
   return blobToDataUrl(blob);
+}
+
+function downloadBlob(content: BlobPart, type: string, filename: string) {
+  const blob = new Blob([content], { type });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function escapeHtml(value: string | number | undefined | null) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function excelSheet(title: string, headers: string[], rows: Array<Array<string | number | undefined | null>>) {
+  const headerHtml = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("");
+  const rowHtml = rows
+    .map((row) => `<tr>${row.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`)
+    .join("");
+  return `
+    <div class="sheet">
+      <h2>${escapeHtml(title)}</h2>
+      <table>
+        <thead><tr>${headerHtml}</tr></thead>
+        <tbody>${rowHtml || `<tr><td colspan="${headers.length}">No data</td></tr>`}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function excelWorkbook(title: string, sheets: string[]) {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="ProgId" content="Excel.Sheet" />
+  <style>
+    body { font-family: Arial, sans-serif; color: #0f172a; }
+    h1 { color: #005f46; }
+    h2 { color: #005f46; margin-top: 24px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+    th { background: #dff7ec; color: #063d2f; font-weight: 700; }
+    th, td { border: 1px solid #b9d8cc; padding: 8px; text-align: left; }
+    .sheet { page-break-after: always; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(title)}</h1>
+  ${sheets.join("")}
+</body>
+</html>`;
 }
 
 function checkRateLimit(key: string, max: number, windowMs: number) {
@@ -617,7 +674,17 @@ function App() {
           {maintenanceMode ? <div className="runtime-banner runtime-banner-warning"><strong>Maintenance mode</strong><span>Some online actions may be temporarily unavailable.</span></div> : null}
           {view === "people" && <PeopleView snapshot={snapshot} currency={currency} notify={notify} onDone={refresh} />}
           {view === "manage" && <ManageView snapshot={snapshot} notify={notify} onDone={refresh} />}
-          {view === "settings" && <SettingsView snapshot={snapshot} notify={notify} onDone={refresh} onLogout={logoutUser} onNavigate={setView} onStartTour={() => setShowTour(true)} />}
+          {view === "settings" && (
+            <SettingsView
+              snapshot={snapshot}
+              notify={notify}
+              onDone={refresh}
+              onLogout={logoutUser}
+              onNavigate={setView}
+              onStartTour={() => setShowTour(true)}
+              onProfileRestored={setCurrentProfileId}
+            />
+          )}
           {view === "ai" && <AiChatView snapshot={snapshot} currency={currency} notify={notify} />}
         </main>
 
@@ -1810,13 +1877,17 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
   }));
 
   const downloadReport = () => {
-    const escapeCsv = (value: string | number | undefined) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-    const rows = filteredTransactions.map((transaction) => {
+    const filterLabel = [
+      `Type: ${typeFilter === "all" ? "All types" : typeFilter}`,
+      `Category: ${categoryFilter === "all" ? "All categories" : snapshot.categories.find((item) => item.id === categoryFilter)?.name ?? "Unknown"}`,
+      `Account: ${accountFilter === "all" ? "All accounts" : snapshot.accounts.find((item) => item.id === accountFilter)?.name ?? "Unknown"}`,
+    ].join(" | ");
+    const transactionRows = filteredTransactions.map((transaction) => {
       const account = snapshot.accounts.find((item) => item.id === transaction.accountId);
       const toAccount = snapshot.accounts.find((item) => item.id === transaction.toAccountId);
       const category = snapshot.categories.find((item) => item.id === transaction.categoryId);
       return [
-        transaction.date,
+        formatDate(transaction.date),
         transaction.type,
         transaction.amount,
         account?.name,
@@ -1824,15 +1895,30 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
         category?.name,
         transaction.note,
         transaction.receiptName,
-      ].map(escapeCsv).join(",");
+      ];
     });
-    const csv = ["Date,Type,Amount,Account,To Account,Category,Note,Receipt", ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `${snapshot.config.appName.toLowerCase()}-report.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    const budgetRows = snapshot.budgets
+      .filter((budget) => budget.active)
+      .map((budget) => {
+        const category = snapshot.categories.find((item) => item.id === budget.categoryId);
+        const usage = budgetUsage(budget, filteredTransactions);
+        return [category?.name, budget.amount, usage.spent, usage.remaining, `${Math.round(usage.percentage)}%`];
+      });
+    const workbook = excelWorkbook(`${snapshot.config.appName} Report`, [
+      excelSheet("Summary", ["Metric", "Value"], [
+        ["Generated", formatDate(nowIso())],
+        ["Filters", filterLabel],
+        ["Income", formatMoney(summary.monthlyIncome, currency)],
+        ["Expenses", formatMoney(summary.monthlyExpenses, currency)],
+        ["Savings", formatMoney(summary.monthlySavings, currency)],
+        ["Transactions", filteredTransactions.length],
+      ]),
+      excelSheet("Transactions", ["Date", "Type", "Amount", "Account", "To Account", "Category", "Note", "Receipt"], transactionRows),
+      excelSheet("Category Spending", ["Category", "Amount"], spending.map(({ category, amount }) => [category.name, amount])),
+      excelSheet("Account Usage", ["Account", "Balance"], accountRows.map(({ account, balance }) => [account.name, balance])),
+      excelSheet("Budgets", ["Category", "Budget", "Spent", "Remaining", "Used"], budgetRows),
+    ]);
+    downloadBlob(workbook, "application/vnd.ms-excel;charset=utf-8", `${snapshot.config.appName.toLowerCase()}-filtered-report.xls`);
   };
 
   return (
@@ -3086,13 +3172,15 @@ function SettingsView({
   onLogout,
   onNavigate,
   onStartTour,
+  onProfileRestored,
 }: {
   snapshot: Snapshot;
   notify: (message: string, tone?: Toast["tone"]) => void;
-  onDone: () => Promise<void>;
+  onDone: (profileId?: string) => Promise<void>;
   onLogout: () => void;
   onNavigate: (view: View) => void;
   onStartTour: () => void;
+  onProfileRestored: (profileId: string) => void;
 }) {
   const [groqApiKey, setGroqApiKey] = useState(snapshot.config.groqApiKey ?? "");
   const [aiModel, setAiModel] = useState(snapshot.config.aiModel);
@@ -3122,18 +3210,14 @@ function SettingsView({
       repayments: snapshot.repayments,
       config: exportableConfig,
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `${snapshot.config.appName.toLowerCase()}-export.json`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadBlob(JSON.stringify(payload, null, 2), "application/json", `${snapshot.config.appName.toLowerCase()}-backup.json`);
+    notify("Backup file downloaded.", "success");
   };
 
   const importData = async (file?: File) => {
     if (!file) return;
     if (file.size > MAX_IMPORT_BYTES) {
-      notify("Import file is too large. Maximum size is 5 MB.", "error");
+      notify("Import file is too large. Maximum size is 25 MB.", "error");
       return;
     }
     let payload: ImportPayload;
@@ -3143,7 +3227,7 @@ function SettingsView({
       notify("Import file is not valid JSON.", "error");
       return;
     }
-    if (!payload.accounts || !payload.transactions || !payload.categories) {
+    if (!Array.isArray(payload.accounts) || !Array.isArray(payload.transactions) || !Array.isArray(payload.categories)) {
       notify("Import file is not valid.", "error");
       return;
     }
@@ -3157,8 +3241,10 @@ function SettingsView({
     setPendingImport(null);
     await db.transaction(
       "rw",
-      [db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
+      [db.profiles, db.appConfig, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
       async () => {
+        if (payload.profile) await db.profiles.put(payload.profile);
+        if (payload.config) await db.appConfig.put({ ...payload.config, groqApiKey: undefined, updatedAt: nowIso() });
         await db.accounts.bulkPut(payload.accounts);
         await db.categories.bulkPut(payload.categories);
         await db.transactions.bulkPut(payload.transactions);
@@ -3169,8 +3255,13 @@ function SettingsView({
         await db.repayments.bulkPut(payload.repayments ?? []);
       },
     );
+    if (payload.profile?.id) {
+      localStorage.setItem("micham_role", "user");
+      localStorage.setItem("micham_profile_id", payload.profile.id);
+      onProfileRestored(payload.profile.id);
+    }
     notify("Import completed.", "success");
-    await onDone();
+    await onDone(payload.profile?.id);
   };
 
   const updateConfigToggle = async (key: "syncEnabled" | "aiEnabled", value: boolean) => {
@@ -3517,6 +3608,23 @@ function SettingsView({
           </button>
         </div>
       </Panel>
+
+      <Panel title="App Version">
+        <div className="settings-profile">
+          <div className="row">
+            <span>Version</span>
+            <strong>{buildInfo.version}</strong>
+          </div>
+          <div className="row">
+            <span>Build</span>
+            <strong>{buildInfo.build}</strong>
+          </div>
+          <div className="row">
+            <span>Channel</span>
+            <strong>{buildInfo.channel}</strong>
+          </div>
+        </div>
+      </Panel>
       {deleteConfirm ? (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="confirm-dialog">
@@ -3543,6 +3651,7 @@ function SettingsView({
             <p>
               Import {pendingImport.payload.transactions.length} transactions and {pendingImport.payload.accounts.length} accounts.
               {pendingImport.duplicateIds ? ` ${pendingImport.duplicateIds} duplicate transactions will be merged.` : " Existing data will be kept."}
+              {pendingImport.payload.profile ? " The exported profile will also be restored." : ""}
             </p>
             <div className="modal-actions">
               <button className="secondary-button" onClick={() => setPendingImport(null)}>Cancel</button>
