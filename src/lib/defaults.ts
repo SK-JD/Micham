@@ -23,7 +23,7 @@ export const defaultConfig: AppConfig = {
   aiEnabled: false,
   groqApiKey: "",
   aiModel: "llama-3.1-8b-instant",
-  themeMode: "system",
+  themeMode: "light",
   updatedAt: nowIso(),
 };
 

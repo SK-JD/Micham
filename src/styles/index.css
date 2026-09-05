@@ -191,6 +191,20 @@ main,
   min-height: 100dvh;
   overflow: hidden;
   padding: 2rem;
+  position: relative;
+}
+
+.splash-screen::before {
+  animation: splash-sheen 1.8s ease-in-out infinite;
+  background: linear-gradient(105deg, transparent 28%, color-mix(in srgb, var(--accent) 18%, white) 48%, transparent 68%);
+  content: "";
+  height: 130%;
+  left: -70%;
+  opacity: 0;
+  position: absolute;
+  top: -15%;
+  transform: skewX(-16deg);
+  width: 52%;
 }
 
 .splash-mark {
@@ -200,19 +214,7 @@ main,
   gap: 1rem;
   justify-items: center;
   position: relative;
-}
-
-.splash-mark::after {
-  animation: splash-sheen 1.8s ease-in-out infinite;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 44%), transparent);
-  content: "";
-  height: 145%;
-  left: -85%;
-  position: absolute;
-  top: -22%;
-  transform: rotate(14deg);
-  width: 56%;
-  z-index: 2;
+  z-index: 1;
 }
 
 .splash-logo {
@@ -243,15 +245,15 @@ main,
 
 @keyframes splash-sheen {
   0% {
-    left: -85%;
+    left: -70%;
     opacity: 0;
   }
   32% {
-    opacity: 0.75;
+    opacity: 0.58;
   }
   72%,
   100% {
-    left: 130%;
+    left: 125%;
     opacity: 0;
   }
 }
@@ -666,7 +668,7 @@ button:disabled {
   position: fixed;
   right: max(1rem, env(safe-area-inset-right));
   width: 52px;
-  z-index: 21;
+  z-index: 80;
 }
 
 .ai-fab-active {
@@ -713,6 +715,10 @@ button:disabled {
   display: flex;
   gap: 0.8rem;
   padding: 0.9rem;
+}
+
+.settings-edit-button {
+  margin-left: auto;
 }
 
 .settings-profile > .row,
@@ -882,18 +888,40 @@ button:disabled {
 
 .quick-transaction-form {
   display: grid;
-  gap: 1rem;
+  gap: 1.1rem;
 }
 
 .quick-field-grid {
   display: grid;
-  gap: 0.75rem;
-  grid-template-columns: minmax(180px, 1.3fr) minmax(160px, 0.8fr) repeat(2, minmax(160px, 1fr)) minmax(120px, auto);
+  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .transaction-sheet {
-  border-radius: 20px;
-  padding: 1rem;
+  background: color-mix(in srgb, white 94%, var(--panel));
+  border-color: color-mix(in srgb, var(--brand) 24%, var(--border));
+  border-radius: 22px;
+  box-shadow: 0 24px 70px color-mix(in srgb, var(--brand) 10%, transparent);
+  padding: 1.15rem;
+}
+
+.quick-field-grid .amount-input,
+.quick-field-grid > .primary-button {
+  grid-column: 1 / -1;
+}
+
+.quick-field-grid .amount-input {
+  background: transparent;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  font-size: clamp(2.2rem, 12vw, 3rem);
+  font-weight: 900;
+  min-height: 72px;
+  padding-left: 0;
+}
+
+.quick-field-grid > .primary-button {
+  min-height: 54px;
 }
 
 @media (min-width: 760px) {
@@ -907,6 +935,14 @@ button:disabled {
 
   .transaction-extra-grid {
     grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  }
+
+  .quick-field-grid {
+    grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(160px, 220px));
+  }
+
+  .quick-field-grid .amount-input {
+    grid-column: 1 / -1;
   }
 
   .manage-create-form {
@@ -2897,7 +2933,7 @@ button:disabled {
 .people-action-row {
   display: grid;
   gap: 0.55rem;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .friend-row {
@@ -3514,9 +3550,16 @@ button:disabled {
     font-size: clamp(0.9rem, 5vw, 1.1rem);
   }
 
-  .quick-actions-grid,
+  .quick-actions-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .people-action-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .people-action-row > :first-child {
+    grid-column: 1 / -1;
   }
 
   .settings-page,
@@ -3541,7 +3584,6 @@ button:disabled {
   .activity-toolbar,
   .ai-input-row,
   .ai-composer,
-  .quick-field-grid,
   .report-filter-grid {
     grid-template-columns: 1fr;
   }

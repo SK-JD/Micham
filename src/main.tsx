@@ -128,6 +128,8 @@ const fallbackRuntimeConfig: RuntimeConfig = {
   adPlacements: [],
 };
 
+const CURRENCY_OPTIONS = ["INR", "USD", "EUR", "GBP", "AED", "SGD", "MYR"] as const;
+
 interface Snapshot {
   config: AppConfig;
   profile?: Profile;
@@ -158,7 +160,7 @@ const emptySnapshot: Snapshot = {
     aiEnabled: false,
     groqApiKey: "",
     aiModel: "llama-3.1-8b-instant",
-    themeMode: "system",
+    themeMode: "light",
     updatedAt: nowIso(),
   },
   accounts: [],
@@ -606,7 +608,7 @@ function App() {
   const registrationEnabled = runtimeFlag("registration") && runtimeConfig.settings.registration_enabled !== false;
   const friendsEnabled = runtimeFlag("friends");
   const settlementsEnabled = runtimeFlag("settlements");
-  const aiEnabled = snapshot.config.aiEnabled && runtimeFlag("ai_assistant");
+  const aiEnabled = snapshot.config.aiEnabled;
   const maintenanceMode = runtimeConfig.settings.maintenance_mode === true;
   const logoutUser = () => {
     localStorage.removeItem("micham_role");
@@ -736,7 +738,7 @@ function App() {
           </div>
         </nav>
         {aiEnabled ? (
-          <button className={`ai-fab ${view === "ai" ? "ai-fab-active" : ""}`} onClick={() => setView("ai")} title="Micham assistant">
+          <button className={`ai-fab ${view === "ai" ? "ai-fab-active" : ""}`} onClick={() => setView("ai")} title="Micham assistant" type="button">
             <Bot size={22} />
           </button>
         ) : null}
@@ -1211,7 +1213,7 @@ function AuthGate({
             {mode === "register" ? (
               <>
                 <TextField label="Display name" value={displayName} onChange={setDisplayName} placeholder="Your name" />
-                <TextField label="Currency" value={currency} onChange={setCurrency} placeholder="INR" />
+                <CurrencySelect value={currency} onChange={setCurrency} />
               </>
             ) : null}
             <LoadingButton className="primary-button" loading={busyAction === (mode === "register" ? "register" : "login")} onClick={mode === "register" ? register : login} disabled={!loginId || !password}>
@@ -1361,7 +1363,7 @@ function Onboarding({ config, onDone }: { config: AppConfig; onDone: () => Promi
       <Panel title="Offline Setup">
         <div className="grid gap-4">
           <TextField label="Display name" value={displayName} onChange={setDisplayName} placeholder="Your name" />
-          <TextField label="Currency" value={currency} onChange={setCurrency} placeholder="INR" />
+          <CurrencySelect value={currency} onChange={setCurrency} />
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
               <label className="field-label">Accounts</label>
@@ -2259,6 +2261,8 @@ function PeopleView({
   const [friendConfirm, setFriendConfirm] = useState<{ type: "block" | "remove"; person: Person; linked?: boolean } | null>(null);
   const [showAllFriends, setShowAllFriends] = useState(false);
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
+  const [showRecordMoneyModal, setShowRecordMoneyModal] = useState(false);
+  const [showSettleMoneyModal, setShowSettleMoneyModal] = useState(false);
   const [selectedFriendId, setSelectedFriendId] = useState(activePeople[0]?.id ?? "");
   const [settlementEvents, setSettlementEvents] = useState<ServerSettlementEvent[]>([]);
   const [eventAccounts, setEventAccounts] = useState<Record<string, string>>({});
@@ -2765,11 +2769,14 @@ function PeopleView({
         <p>{openRecordCount} open record{openRecordCount === 1 ? "" : "s"}{primaryFriend ? ` with ${primaryFriend.localDisplayName}` : ""}</p>
       </section>
       <div className="people-action-row">
-        <button className="primary-button">
+        <button className="primary-button" onClick={() => setShowSettleMoneyModal(true)}>
           <ArrowRightLeft size={17} /> Settle up
         </button>
         <button className="secondary-button" onClick={() => setShowAddFriendModal(true)}>
           <UserPlus size={17} /> Add person
+        </button>
+        <button className="secondary-button" onClick={() => setShowRecordMoneyModal(true)}>
+          <Plus size={17} /> Record owe
         </button>
       </div>
       <Panel className="people-section-card people-list-card" title="Friends">
@@ -2945,7 +2952,8 @@ function PeopleView({
           </div>
         </Panel>
       ) : null}
-      <Panel className="people-section-card" title="Record Shared Money">
+      {showRecordMoneyModal ? (
+        <ListModal title="Record Shared Money" onClose={() => setShowRecordMoneyModal(false)}>
         <div className="grid gap-4">
           <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
             <SelectField label="Friend" value={personId} onChange={setPersonId}>
@@ -2980,7 +2988,10 @@ function PeopleView({
             <input className="field-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" />
             <input className="field-input" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
           </div>
-          <button className="primary-button" onClick={addSettlement} disabled={!personId || !amount}>
+          <button className="primary-button" onClick={async () => {
+            await addSettlement();
+            if (personId && amount) setShowRecordMoneyModal(false);
+          }} disabled={!personId || !amount}>
             Record Owe / Owed
           </button>
           <div className="grid gap-2">
@@ -2999,8 +3010,10 @@ function PeopleView({
             {snapshot.settlements.length === 0 ? <Empty text="No owe/owed records yet." /> : null}
           </div>
         </div>
-      </Panel>
-      <Panel className="people-section-card" title="Settle Returned Money" icon={<RefreshCw size={18} />}>
+        </ListModal>
+      ) : null}
+      {showSettleMoneyModal ? (
+        <ListModal title="Settle Returned Money" onClose={() => setShowSettleMoneyModal(false)}>
         <div className="grid gap-4">
           <div className="grid gap-3 md:grid-cols-[1fr_1fr_140px_1fr_auto]">
             <SelectField label="Open record" value={repaymentSettlementId} onChange={setRepaymentSettlementId}>
@@ -3023,7 +3036,10 @@ function PeopleView({
             </SelectField>
             <input className="field-input" type="number" value={repaymentAmount} onChange={(event) => setRepaymentAmount(event.target.value)} placeholder="Returned" />
             <input className="field-input" value={repaymentNote} onChange={(event) => setRepaymentNote(event.target.value)} placeholder="Cash returned, UPI paid..." />
-            <button className="primary-button" onClick={addRepayment} disabled={!repaymentSettlementId || !repaymentAmount}>
+            <button className="primary-button" onClick={async () => {
+              await addRepayment();
+              if (repaymentSettlementId && repaymentAmount) setShowSettleMoneyModal(false);
+            }} disabled={!repaymentSettlementId || !repaymentAmount}>
               Update
             </button>
           </div>
@@ -3071,7 +3087,8 @@ function PeopleView({
             {snapshot.settlements.length === 0 ? <Empty text="No owe/owed history yet." /> : null}
           </div>
         </div>
-      </Panel>
+        </ListModal>
+      ) : null}
     </div>
   );
 }
@@ -3380,12 +3397,20 @@ function SettingsView({
   const savedLocalEmail = snapshot.profile?.loginId.startsWith("local:") ? snapshot.profile.loginId.slice("local:".length) : "";
   const [syncEmail, setSyncEmail] = useState(savedLocalEmail);
   const [syncPassword, setSyncPassword] = useState("");
+  const [profileName, setProfileName] = useState(snapshot.profile?.displayName ?? "");
+  const [profileCurrency, setProfileCurrency] = useState(snapshot.profile?.currency ?? snapshot.config.defaultCurrency);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busyAction, setBusyAction] = useState<"" | "sync" | "password" | "delete">("");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [pendingImport, setPendingImport] = useState<{ payload: ImportPayload; duplicateIds: number } | null>(null);
+
+  useEffect(() => {
+    setProfileName(snapshot.profile?.displayName ?? "");
+    setProfileCurrency(snapshot.profile?.currency ?? snapshot.config.defaultCurrency);
+  }, [snapshot.profile?.id, snapshot.profile?.displayName, snapshot.profile?.currency, snapshot.config.defaultCurrency]);
 
   const exportData = async () => {
     const { groqApiKey: _groqApiKey, ...exportableConfig } = snapshot.config;
@@ -3655,6 +3680,24 @@ function SettingsView({
     }
   };
 
+  const saveProfile = async () => {
+    if (!snapshot.profile) return;
+    const name = profileName.trim();
+    if (!name) {
+      notify("Enter your profile name.", "error");
+      return;
+    }
+    await db.profiles.update(snapshot.profile.id, {
+      displayName: name,
+      currency: profileCurrency || snapshot.config.defaultCurrency,
+      updatedAt: nowIso(),
+      syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    });
+    notify("Profile updated.", "success");
+    setShowProfileEdit(false);
+    await onDone();
+  };
+
   return (
     <div className="app-page settings-page">
       <div>
@@ -3669,6 +3712,9 @@ function SettingsView({
               <strong>{snapshot.profile?.displayName}</strong>
               <p>{snapshot.profile?.connectedUserId ? "Cloud account" : "Local profile"}</p>
             </div>
+            <button className="small-button settings-edit-button" onClick={() => setShowProfileEdit(true)} type="button">
+              Edit
+            </button>
           </div>
           <div className="row">
             <span>Name</span>
@@ -3725,6 +3771,15 @@ function SettingsView({
           {snapshot.config.aiEnabled ? <p className="text-sm text-slate-600">AI Chat is enabled.</p> : null}
         </div>
       </Panel>
+      {showProfileEdit ? (
+        <ListModal title="Edit Profile" onClose={() => setShowProfileEdit(false)}>
+          <div className="modal-form-grid">
+            <TextField label="Name" value={profileName} onChange={setProfileName} placeholder="Your name" />
+            <CurrencySelect value={profileCurrency} onChange={setProfileCurrency} />
+            <button className="primary-button" onClick={() => void saveProfile()}>Save Profile</button>
+          </div>
+        </ListModal>
+      ) : null}
 
       <Panel className="settings-card" title="Tools">
         <div className="settings-action-grid">
@@ -5141,6 +5196,18 @@ function SelectField({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function CurrencySelect({ label = "Currency", value, onChange }: { label?: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <SelectField label={label} value={value || "INR"} onChange={onChange}>
+      {CURRENCY_OPTIONS.map((currency) => (
+        <option key={currency} value={currency}>
+          {currency}
+        </option>
+      ))}
+    </SelectField>
   );
 }
 

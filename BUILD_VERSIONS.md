@@ -1,5 +1,17 @@
 # Micham Build Versions
 
+## 0.1.6 - web-2026.09.05.6
+
+Date: 2026-09-05
+
+- Preserved local theme, sync, and AI preferences when cloud app configuration refreshes.
+- Changed the default app theme preference from System to Light.
+- Reworked splash shine into a full-screen sweep behind the logo and wordmark.
+- Added profile edit flow with selectable currency.
+- Kept the AI floating button hidden when AI is disabled and visible when AI Chat is enabled in Settings.
+- Moved People record/settle workflows into modals for a more compact main Friends tab.
+- Refined Add Transaction into an amount-first compact sheet layout.
+
 ## 0.1.5 - web-2026.09.05.5
 
 Date: 2026-09-05
