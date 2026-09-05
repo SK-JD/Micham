@@ -1,5 +1,15 @@
 # Micham Build Versions
 
+## 0.1.3 - web-2026.09.05.3
+
+Date: 2026-09-05
+
+- Corrected the responsive shell so desktop/web uses a wide workspace instead of a forced phone frame.
+- Kept the mobile-first card language while allowing dashboard, reports, activity, add transaction, and friends sections to adapt by viewport.
+- Fixed bottom navigation clipping for the raised Add action.
+- Added an animated sheen to the available balance card.
+- Added stronger overflow guards for report rows, account balances, and transaction content.
+
 ## 0.1.2 - web-2026.09.05.2
 
 Date: 2026-09-05

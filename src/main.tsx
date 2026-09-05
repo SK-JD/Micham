@@ -5,6 +5,7 @@ import {
   ArrowRightLeft,
   ArrowUpRight,
   BarChart3,
+  Bell,
   Bot,
   CalendarDays,
   ChevronDown,
@@ -645,18 +646,26 @@ function App() {
   return (
     <Shell snapshot={snapshot}>
       <div className="app-shell grid grid-rows-[auto_1fr_auto]">
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <Wordmark config={snapshot.config} />
+        <header className="app-header">
+          <div className="app-topbar">
+            <div className="brand-lockup">
+              <Logo config={snapshot.config} />
+              <div>
+                <strong>{snapshot.config.appName}</strong>
+                <span>Money, clearly</span>
+              </div>
             </div>
+            <button className="icon-button notification-button" title="Notifications">
+              <Bell size={18} />
+              <span />
+            </button>
             <button className="profile-button" title="Settings" onClick={() => setView("settings")}>
               <CircleUserRound size={22} />
             </button>
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl px-4 py-5">
+        <main className="app-main">
           {view === "dashboard" && (
             <Dashboard
               snapshot={snapshot}
@@ -703,7 +712,7 @@ function App() {
               <span>Add</span>
             </button>
             <NavButton icon={<BarChart3 size={18} />} label="Insights" active={view === "monthly"} onClick={() => setView("monthly")} />
-            <NavButton icon={<Users size={18} />} label="Friends" active={view === "people"} disabled={!friendsEnabled && !settlementsEnabled} onClick={() => { if (friendsEnabled || settlementsEnabled) setView("people"); }} />
+            <NavButton icon={<Users size={18} />} label="People" active={view === "people"} disabled={!friendsEnabled && !settlementsEnabled} onClick={() => { if (friendsEnabled || settlementsEnabled) setView("people"); }} />
           </div>
         </nav>
         {aiEnabled ? (
@@ -1394,65 +1403,92 @@ function Dashboard({
   onDone: () => Promise<void>;
   onNavigate: (view: View) => void;
 }) {
+  const firstName = snapshot.profile?.displayName?.split(" ")[0] || "there";
+  const topAccounts = balances.slice(0, 3);
+  const recentTransactions = snapshot.transactions.slice(-3).reverse();
   return (
-    <div className="grid gap-5">
+    <div className="app-page home-page">
+      <div className="page-kicker">Good afternoon, {firstName}</div>
       <section className="home-hero">
+        <div className="hero-month-pill">{new Date().toLocaleString("en", { month: "long" })}</div>
         <div>
-          <p className="text-sm font-semibold opacity-80">Available balance</p>
+          <p>Available balance</p>
           <h2>{formatMoney(totalBalance, currency)}</h2>
-          <p className="text-sm opacity-80">
-            Income {formatMoney(summary.monthlyIncome, currency)} · Expenses {formatMoney(summary.monthlyExpenses, currency)}
-          </p>
         </div>
-        <button className="hero-add-button" onClick={() => onNavigate("add")}>
-          <Plus size={22} /> Add Transaction
-        </button>
+        <div className="hero-mini-grid">
+          <div>
+            <span>Income</span>
+            <strong>{formatMoney(summary.monthlyIncome, currency)}</strong>
+          </div>
+          <div>
+            <span>Expenses</span>
+            <strong>{formatMoney(summary.monthlyExpenses, currency)}</strong>
+          </div>
+        </div>
       </section>
 
       <div className="quick-actions-grid">
         <button className="action-tile action-expense" onClick={() => onNavigate("add")}>
           <ArrowUpRight size={20} />
-          <span>Add Expense</span>
+          <span>Expense</span>
         </button>
         <button className="action-tile action-income" onClick={() => onNavigate("add")}>
           <ArrowDownLeft size={20} />
-          <span>Add Income</span>
+          <span>Income</span>
         </button>
         <button className="action-tile action-transfer" onClick={() => onNavigate("add")}>
           <ArrowRightLeft size={20} />
           <span>Transfer</span>
         </button>
-        {snapshot.config.aiEnabled ? (
-          <button className="action-tile action-ai" onClick={() => onNavigate("ai")}>
-            <Bot size={20} />
-            <span>AI Chat</span>
-          </button>
-        ) : null}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Month savings" value={formatMoney(summary.monthlySavings, currency)} icon={<WalletCards size={20} />} />
-        <StatCard label="Today spent" value={formatMoney(summary.todaySpend, currency)} icon={<CalendarDays size={20} />} />
-        <StatCard label="Accounts" value={String(balances.length)} icon={<WalletCards size={20} />} />
+      <div className="section-head home-month-head">
+        <span>This month</span>
+        <button onClick={() => onNavigate("monthly")}>Insights</button>
+      </div>
+      <div className="mini-stat-grid home-month-stats">
+        <div className="mini-stat-card">
+          <span>Saved</span>
+          <strong>{formatMoney(summary.monthlySavings, currency)}</strong>
+          <p>{summary.monthlyIncome ? Math.max(0, Math.round((summary.monthlySavings / summary.monthlyIncome) * 100)) : 0}% of income</p>
+        </div>
+        <div className="mini-stat-card">
+          <span>Spent today</span>
+          <strong>{formatMoney(summary.todaySpend, currency)}</strong>
+          <p>{summary.todaySpend ? "Tracked today" : "No expenses yet"}</p>
+        </div>
       </div>
 
-      <DashboardCharts snapshot={snapshot} currency={currency} />
-
-      <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
-        <Panel title="Accounts">
-          <div className="grid gap-2">
-            {balances.map(({ account, balance }) => (
-              <div className="row" key={account.id}>
-                <span>{account.name}</span>
-                <strong>{formatMoney(balance, currency)}</strong>
-              </div>
-            ))}
+      <div className="section-head home-account-head">
+        <span>Account snapshot</span>
+        <button onClick={() => onNavigate("manage")}>All accounts</button>
+      </div>
+      <section className="snapshot-card home-account-snapshot">
+        {topAccounts.map(({ account, balance }) => (
+          <div className="snapshot-row" key={account.id}>
+            <span className="snapshot-icon"><WalletCards size={15} /></span>
+            <div>
+              <strong>{account.name}</strong>
+              <i><span style={{ width: `${Math.max(8, Math.min(100, Math.abs(balance / Math.max(totalBalance || 1, 1)) * 100))}%` }} /></i>
+            </div>
+            <b>{formatMoney(balance, currency)}</b>
           </div>
-        </Panel>
-        <Panel title="Recent Transactions">
-          <TransactionList snapshot={snapshot} currency={currency} transactions={snapshot.transactions.slice(-6).reverse()} />
-        </Panel>
+        ))}
+        {topAccounts.length === 0 ? <Empty text="Create accounts to see the snapshot." /> : null}
+      </section>
+
+      <div className="section-head home-activity-head">
+        <span>Recent activity</span>
+        <button onClick={() => onNavigate("daily")}>See all</button>
       </div>
+      <div className="home-activity-list">
+        <TransactionList snapshot={snapshot} currency={currency} transactions={recentTransactions} />
+      </div>
+
+      <button className="smart-insight" onClick={() => onNavigate(snapshot.config.aiEnabled ? "ai" : "monthly")}>
+        <span><Bot size={16} /> Smart insight</span>
+        <p>Your cash flow is positive. Check Insights for patterns or ask the assistant for guidance.</p>
+      </button>
     </div>
   );
 }
@@ -1563,10 +1599,10 @@ function AddView({
   onDone: () => Promise<void>;
 }) {
   return (
-    <div className="mx-auto grid max-w-3xl gap-5">
+    <div className="app-page add-page">
       <div>
         <h2 className="page-title"><Plus size={24} /> Add Transaction</h2>
-        <p className="text-sm text-slate-500">Record expense, income, or transfer quickly.</p>
+        <p className="page-subtitle">Record expense, income, or transfer quickly.</p>
       </div>
       <QuickTransaction snapshot={snapshot} notify={notify} onDone={onDone} />
     </div>
@@ -1748,8 +1784,8 @@ function QuickTransaction({
   };
 
   return (
-    <Panel title="Quick Add" icon={<Plus size={18} />}>
-      <div className="grid gap-4">
+    <Panel className="transaction-sheet" title="Quick Add" icon={<Plus size={18} />}>
+      <div className="quick-transaction-form">
         <div className="segmented-control">
           {(["expense", "income", "transfer"] as TransactionType[]).map((item) => (
             <button className={type === item ? "segment-active" : ""} key={item} onClick={() => setType(item)}>
@@ -1758,7 +1794,7 @@ function QuickTransaction({
             </button>
           ))}
         </div>
-        <div className="grid gap-3 md:grid-cols-[1fr_150px_1fr_1fr_auto]">
+        <div className="quick-field-grid">
           <input className="amount-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" />
           <input className="field-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
           <SelectField label="Account" value={accountId} onChange={setAccountId}>
@@ -1895,10 +1931,10 @@ function DailyView({
   });
   const daySummary = summarize(snapshot.transactions, selectedDate);
   return (
-    <div className="grid gap-5">
+    <div className="app-page activity-page">
       <div>
         <h2 className="page-title"><CalendarDays size={24} /> Activity</h2>
-        <p className="text-sm text-slate-500">Every movement, in one place.</p>
+        <p className="page-subtitle">Every movement, in one place.</p>
       </div>
       <div className="activity-toolbar">
         <input className="field-input" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
@@ -1911,7 +1947,7 @@ function DailyView({
           </button>
         ))}
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="summary-card-grid">
         <StatCard label="Income" value={formatMoney(daySummary.dailyIncome, currency)} />
         <StatCard label="Expenses" value={formatMoney(daySummary.dailyExpenses, currency)} />
         <StatCard label="Net" value={formatMoney(daySummary.dailyIncome - daySummary.dailyExpenses, currency)} />
@@ -1986,18 +2022,18 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
   };
 
   return (
-    <div className="grid gap-5">
+    <div className="app-page insights-page">
       <div>
         <h2 className="page-title"><BarChart3 size={24} /> Insights</h2>
-        <p className="text-sm text-slate-500">Your money patterns at a glance.</p>
+        <p className="page-subtitle">Your money patterns at a glance.</p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="summary-card-grid">
         <StatCard label="Income" value={formatMoney(summary.monthlyIncome, currency)} />
         <StatCard label="Expenses" value={formatMoney(summary.monthlyExpenses, currency)} />
         <StatCard label="Savings" value={formatMoney(summary.monthlySavings, currency)} />
       </div>
       <Panel title="Report Filters" icon={<SlidersHorizontal size={18} />}>
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+        <div className="report-filter-grid">
           <SelectField label="Type" value={typeFilter} onChange={(value) => setTypeFilter(value as "all" | TransactionType)}>
             <option value="all">All types</option>
             <option value="expense">Expense</option>
@@ -2025,7 +2061,7 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
           </button>
         </div>
       </Panel>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="report-section-grid">
         <Panel title="Category Spending" icon={<BarChart3 size={18} />}>
           <div className="grid gap-2">
             {spending.map(({ category, amount }) => (
@@ -2647,11 +2683,32 @@ function PeopleView({
     await onDone();
   };
 
+  const totalPeopleBalance = activePeople.reduce((sum, person) => sum + personBalance(person, snapshot.settlements), 0);
+  const openRecordCount = snapshot.settlements.filter((settlement) => !settlement.deletedAt && settlement.repaidAmount < settlement.originalAmount).length;
+  const primaryFriend = activePeople.find((person) => personBalance(person, snapshot.settlements) !== 0) || activePeople[0];
+
   return (
-    <div className="grid gap-5">
+    <div className="app-page people-page">
+      <div>
+        <h2 className="page-title">People</h2>
+        <p className="page-subtitle">Shared money without the confusion.</p>
+      </div>
+      <section className="people-balance-card">
+        <span>Overall balance</span>
+        <strong>{totalPeopleBalance >= 0 ? `You are owed ${formatMoney(totalPeopleBalance, currency)}` : `You owe ${formatMoney(Math.abs(totalPeopleBalance), currency)}`}</strong>
+        <p>{openRecordCount} open record{openRecordCount === 1 ? "" : "s"}{primaryFriend ? ` with ${primaryFriend.localDisplayName}` : ""}</p>
+      </section>
+      <div className="people-action-row">
+        <button className="primary-button">
+          <ArrowRightLeft size={17} /> Settle up
+        </button>
+        <button className="secondary-button" onClick={() => document.getElementById("friend-create-form")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+          <UserPlus size={17} /> Add person
+        </button>
+      </div>
       <Panel title="Friends List">
         <div className="grid gap-3">
-          <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+          <div id="friend-create-form" className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
             <input className="field-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Friend name" />
             <input
               className="field-input"
@@ -4752,9 +4809,9 @@ function TransactionDetailsModal({
   );
 }
 
-function Panel({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, icon, children, className = "" }: { title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <section className="app-panel">
+    <section className={`app-panel ${className}`}>
       <h2 className="panel-title">{icon}{title}</h2>
       {children}
     </section>
