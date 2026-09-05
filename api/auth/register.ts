@@ -1,10 +1,10 @@
-import { appBaseUrl } from "../_lib/env";
-import { ApiError, beginRequest, bodyObject, handleError, jsonCreated, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { sendMail } from "../_lib/mailer";
-import { ensureRuntimeEnabled } from "../_lib/runtimePolicy";
-import { createConnectionCode, hashPassword, isEmail, randomToken, rateLimit, sha256 } from "../_lib/security";
-import { adminDb } from "../_lib/supabaseAdmin";
-import { verifyEmailTemplate } from "../email-templates/verifyEmail";
+import { appBaseUrl } from "../_lib/env.js";
+import { ApiError, beginRequest, bodyObject, handleError, jsonCreated, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http.js";
+import { sendMail } from "../_lib/mailer.js";
+import { ensureRuntimeEnabled } from "../_lib/runtimePolicy.js";
+import { createConnectionCode, hashPassword, isEmail, randomToken, rateLimit, sha256 } from "../_lib/security.js";
+import { adminDb } from "../_lib/supabaseAdmin.js";
+import { verifyEmailTemplate } from "../email-templates/verifyEmail.js";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {

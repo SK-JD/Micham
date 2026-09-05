@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import WebSocket from "ws";
-import { requiredEnv } from "./env";
+import { requiredEnv } from "./env.js";
 
 if (!globalThis.WebSocket) {
   globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;

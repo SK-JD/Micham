@@ -1,7 +1,7 @@
-import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse, authToken } from "../../_lib/http";
-import { auditAdmin, requireAdmin } from "../../_lib/adminSecurity";
-import { adminDb } from "../../_lib/supabaseAdmin";
-import { sha256 } from "../../_lib/security";
+import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse, authToken } from "../../_lib/http.js";
+import { auditAdmin, requireAdmin } from "../../_lib/adminSecurity.js";
+import { adminDb } from "../../_lib/supabaseAdmin.js";
+import { sha256 } from "../../_lib/security.js";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {

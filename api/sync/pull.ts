@@ -1,7 +1,7 @@
-import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { ensureRuntimeEnabled, ensureUserFeature } from "../_lib/runtimePolicy";
-import { rateLimit, requireUser } from "../_lib/security";
-import { adminDb } from "../_lib/supabaseAdmin";
+import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http.js";
+import { ensureRuntimeEnabled, ensureUserFeature } from "../_lib/runtimePolicy.js";
+import { rateLimit, requireUser } from "../_lib/security.js";
+import { adminDb } from "../_lib/supabaseAdmin.js";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {

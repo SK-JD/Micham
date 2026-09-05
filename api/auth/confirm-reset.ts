@@ -1,6 +1,6 @@
-import { ApiError, beginRequest, bodyObject, handleError, jsonOk, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { hashPassword, sha256 } from "../_lib/security";
-import { adminDb } from "../_lib/supabaseAdmin";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, stringField, type ApiRequest, type ApiResponse } from "../_lib/http.js";
+import { hashPassword, sha256 } from "../_lib/security.js";
+import { adminDb } from "../_lib/supabaseAdmin.js";
 
 function html(res: ApiResponse, status: number, body: string) {
   res.setHeader("Cache-Control", "no-store");

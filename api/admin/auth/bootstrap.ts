@@ -1,7 +1,7 @@
-import { ApiError, beginRequest, bodyObject, handleError, jsonCreated, method, stringField, type ApiRequest, type ApiResponse } from "../../_lib/http";
-import { adminDb } from "../../_lib/supabaseAdmin";
-import { auditAdmin, createAdminPasswordHash } from "../../_lib/adminSecurity";
-import { isEmail } from "../../_lib/security";
+import { ApiError, beginRequest, bodyObject, handleError, jsonCreated, method, stringField, type ApiRequest, type ApiResponse } from "../../_lib/http.js";
+import { adminDb } from "../../_lib/supabaseAdmin.js";
+import { auditAdmin, createAdminPasswordHash } from "../../_lib/adminSecurity.js";
+import { isEmail } from "../../_lib/security.js";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {

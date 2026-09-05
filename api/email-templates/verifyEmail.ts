@@ -1,4 +1,4 @@
-import { buttonLink, escapeHtml, mailShell } from "./layout";
+import { buttonLink, escapeHtml, mailShell } from "./layout.js";
 
 export function verifyEmailTemplate(displayName: string, verifyUrl: string) {
   const text = `Hi ${displayName}, verify your Micham account: ${verifyUrl}`;

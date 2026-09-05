@@ -1,4 +1,4 @@
-import { appBaseUrl } from "../_lib/env";
+import { appBaseUrl } from "../_lib/env.js";
 
 export function escapeHtml(value: string) {
   return value

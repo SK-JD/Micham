@@ -1,4 +1,4 @@
-import { escapeHtml, mailShell } from "./layout";
+import { escapeHtml, mailShell } from "./layout.js";
 
 export function exportReadyTemplate(displayName: string) {
   const text = `Hi ${displayName}, your Micham data export is attached.`;

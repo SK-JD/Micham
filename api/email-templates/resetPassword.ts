@@ -1,4 +1,4 @@
-import { buttonLink, escapeHtml, mailShell } from "./layout";
+import { buttonLink, escapeHtml, mailShell } from "./layout.js";
 
 export function resetPasswordTemplate(displayName: string, resetUrl: string) {
   const text = `Hi ${displayName}, reset your Micham password: ${resetUrl}`;

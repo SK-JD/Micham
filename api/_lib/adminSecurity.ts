@@ -1,8 +1,8 @@
 import { SignJWT, jwtVerify } from "jose";
-import { ApiError, authToken, type ApiRequest } from "./http";
-import { requiredEnv } from "./env";
-import { adminDb } from "./supabaseAdmin";
-import { hashPassword, sha256, verifyPassword } from "./security";
+import { ApiError, authToken, type ApiRequest } from "./http.js";
+import { requiredEnv } from "./env.js";
+import { adminDb } from "./supabaseAdmin.js";
+import { hashPassword, sha256, verifyPassword } from "./security.js";
 
 const ADMIN_SESSION_HOURS = 12;
 

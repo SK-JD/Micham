@@ -1,6 +1,6 @@
-import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { auditAdmin, requireAdmin } from "../_lib/adminSecurity";
-import { adminDb } from "../_lib/supabaseAdmin";
+import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http.js";
+import { auditAdmin, requireAdmin } from "../_lib/adminSecurity.js";
+import { adminDb } from "../_lib/supabaseAdmin.js";
 
 async function countRows(table: string, filter?: (query: any) => any) {
   let query = adminDb().from(table).select("*", { count: "exact", head: true });

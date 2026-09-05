@@ -1,8 +1,8 @@
-import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { sendMail } from "../_lib/mailer";
-import { rateLimit, requireUser } from "../_lib/security";
-import { adminDb } from "../_lib/supabaseAdmin";
-import { exportReadyTemplate } from "../email-templates/exportReady";
+import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http.js";
+import { sendMail } from "../_lib/mailer.js";
+import { rateLimit, requireUser } from "../_lib/security.js";
+import { adminDb } from "../_lib/supabaseAdmin.js";
+import { exportReadyTemplate } from "../email-templates/exportReady.js";
 
 function xmlCell(value: unknown) {
   const text = typeof value === "string" ? value : JSON.stringify(value ?? "");

@@ -1,9 +1,9 @@
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { createHash, randomBytes } from "node:crypto";
-import { ApiError, type ApiRequest, authToken } from "./http";
-import { adminDb } from "./supabaseAdmin";
-import { requiredEnv } from "./env";
+import { ApiError, type ApiRequest, authToken } from "./http.js";
+import { adminDb } from "./supabaseAdmin.js";
+import { requiredEnv } from "./env.js";
 
 const SESSION_DAYS = 30;
 

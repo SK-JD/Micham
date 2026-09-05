@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { smtpConfigured } from "./env";
+import { smtpConfigured } from "./env.js";
 
 export type MailMessage = {
   to: string;

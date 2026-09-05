@@ -1,9 +1,9 @@
-import { appBaseUrl } from "../_lib/env";
-import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { sendMail } from "../_lib/mailer";
-import { resetPasswordTemplate } from "../email-templates/resetPassword";
-import { isEmail, randomToken, rateLimit, sha256 } from "../_lib/security";
-import { adminDb } from "../_lib/supabaseAdmin";
+import { appBaseUrl } from "../_lib/env.js";
+import { ApiError, beginRequest, bodyObject, handleError, jsonOk, method, stringField, type ApiRequest, type ApiResponse } from "../_lib/http.js";
+import { sendMail } from "../_lib/mailer.js";
+import { resetPasswordTemplate } from "../email-templates/resetPassword.js";
+import { isEmail, randomToken, rateLimit, sha256 } from "../_lib/security.js";
+import { adminDb } from "../_lib/supabaseAdmin.js";
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {

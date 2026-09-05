@@ -1,6 +1,6 @@
-import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http";
-import { requireUser } from "../_lib/security";
-import { adminDb } from "../_lib/supabaseAdmin";
+import { beginRequest, handleError, jsonOk, method, type ApiRequest, type ApiResponse } from "../_lib/http.js";
+import { requireUser } from "../_lib/security.js";
+import { adminDb } from "../_lib/supabaseAdmin.js";
 
 type SubscriptionWithPlan = {
   id: string;

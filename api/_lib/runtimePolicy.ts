@@ -1,5 +1,5 @@
-import { ApiError } from "./http";
-import { adminDb } from "./supabaseAdmin";
+import { ApiError } from "./http.js";
+import { adminDb } from "./supabaseAdmin.js";
 
 function isDisabled(value: unknown) {
   return value === false || value === "false";
