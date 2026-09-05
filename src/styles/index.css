@@ -536,6 +536,29 @@ button:disabled {
   width: 100%;
 }
 
+.ai-fab {
+  align-items: center;
+  background: var(--brand-gradient);
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, white);
+  border-radius: 999px;
+  bottom: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom) + 1rem);
+  box-shadow: 0 18px 34px color-mix(in srgb, var(--brand) 28%, transparent);
+  color: white;
+  display: inline-flex;
+  height: 52px;
+  justify-content: center;
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  width: 52px;
+  z-index: 21;
+}
+
+.ai-fab-active {
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 18px 34px color-mix(in srgb, var(--brand) 28%, transparent);
+}
+
 .settings-action-grid {
   display: grid;
   gap: 0.75rem;
@@ -590,6 +613,35 @@ button:disabled {
   display: grid;
   gap: 0.75rem;
   padding: 0.85rem;
+}
+
+.activity-toolbar {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+}
+
+.filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.filter-pills button {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 800;
+  min-height: 38px;
+  padding: 0.45rem 0.8rem;
+}
+
+.filter-pills .filter-pill-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: white;
 }
 
 .home-hero {
@@ -1124,6 +1176,59 @@ button:disabled {
   width: 100%;
 }
 
+.split-inline-card {
+  background: color-mix(in srgb, var(--panel-muted) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, var(--brand));
+  border-radius: 12px;
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.9rem;
+}
+
+.split-inline-head {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.split-inline-head strong {
+  color: var(--text);
+  display: block;
+}
+
+.split-inline-head p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin: 0.15rem 0 0;
+}
+
+.person-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.person-chip {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  display: inline-flex;
+  font-size: 0.85rem;
+  font-weight: 750;
+  gap: 0.35rem;
+  min-height: 36px;
+  padding: 0.45rem 0.7rem;
+}
+
+.person-chip-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: white;
+}
+
 .receipt-link {
   align-items: center;
   background: transparent;
@@ -1652,6 +1757,98 @@ button:disabled {
 .chat-message-user {
   background: color-mix(in srgb, var(--brand) 14%, white);
   justify-self: end;
+}
+
+.ai-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.ai-page-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.ai-page-header h2 {
+  font-size: 1.35rem;
+  font-weight: 900;
+  margin: 0;
+}
+
+.ai-page-header p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  margin: 0.15rem 0 0;
+  text-transform: uppercase;
+}
+
+.ai-chat-shell {
+  display: grid;
+  gap: 1rem;
+  min-height: min(620px, calc(100dvh - var(--app-header-height) - var(--app-bottom-nav-height) - 8rem));
+}
+
+.ai-message-list {
+  align-content: start;
+  display: grid;
+  gap: 0.85rem;
+  min-height: 320px;
+}
+
+.ai-empty-state {
+  align-content: center;
+  display: grid;
+  gap: 0.7rem;
+  justify-items: center;
+  min-height: 320px;
+  text-align: center;
+}
+
+.ai-empty-state > svg {
+  background: color-mix(in srgb, var(--accent) 18%, white);
+  border-radius: 18px;
+  color: var(--brand);
+  height: 58px;
+  padding: 0.9rem;
+  width: 58px;
+}
+
+.ai-empty-state strong {
+  font-size: 1.15rem;
+}
+
+.ai-empty-state p {
+  color: var(--muted);
+  margin: 0 0 0.45rem;
+  max-width: 320px;
+}
+
+.ai-empty-state button {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-weight: 650;
+  padding: 0.8rem 0.95rem;
+  text-align: left;
+  width: min(100%, 340px);
+}
+
+.ai-input-row {
+  align-items: center;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.ai-limit-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: -0.35rem 0 0;
 }
 
 .progress {
@@ -2410,6 +2607,18 @@ button:disabled {
   .app-panel {
     border-radius: 10px;
     padding: 1rem;
+  }
+
+  .activity-toolbar,
+  .ai-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-fab {
+    bottom: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom) + 0.85rem);
+    height: 48px;
+    right: max(0.85rem, env(safe-area-inset-right));
+    width: 48px;
   }
 
   .row {

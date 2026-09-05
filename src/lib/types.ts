@@ -161,6 +161,12 @@ export interface Repayment extends BaseEntity {
   confirmedBy?: string;
 }
 
+export interface ChatMessageRecord extends BaseEntity {
+  ownerProfileId?: string;
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface SyncOperation extends BaseEntity {
   entity: string;
   entityId: string;
@@ -184,5 +190,6 @@ export interface ImportPayload {
   people: Person[];
   settlements: Settlement[];
   repayments?: Repayment[];
+  chatMessages?: ChatMessageRecord[];
   config: AppConfig;
 }

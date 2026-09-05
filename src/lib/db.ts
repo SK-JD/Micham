@@ -9,6 +9,7 @@ import type {
   Repayment,
   RecurringTransaction,
   Settlement,
+  ChatMessageRecord,
   SyncOperation,
   Transaction,
 } from "./types";
@@ -25,6 +26,7 @@ class MichamDatabase extends Dexie {
   people!: Table<Person, string>;
   settlements!: Table<Settlement, string>;
   repayments!: Table<Repayment, string>;
+  chatMessages!: Table<ChatMessageRecord, string>;
   syncQueue!: Table<SyncOperation, string>;
 
   constructor() {
@@ -89,6 +91,20 @@ class MichamDatabase extends Dexie {
       people: "id, ownerProfileId, connectedUserId, friendUserId, active, updatedAt",
       settlements: "id, ownerProfileId, personId, direction, linkedSettlementId, date, updatedAt",
       repayments: "id, ownerProfileId, settlementId, personId, linkedRepaymentId, date, updatedAt",
+      syncQueue: "id, entity, entityId, action, updatedAt",
+    });
+    this.version(6).stores({
+      appConfig: "id, updatedAt",
+      profiles: "id, loginId, connectedUserId, setupComplete, updatedAt",
+      accounts: "id, ownerProfileId, active, updatedAt",
+      categories: "id, ownerProfileId, kind, parentId, active, updatedAt",
+      transactions: "id, ownerProfileId, type, accountId, toAccountId, categoryId, date, updatedAt",
+      budgets: "id, ownerProfileId, categoryId, active, updatedAt",
+      recurringTransactions: "id, ownerProfileId, accountId, categoryId, active, nextDate, updatedAt",
+      people: "id, ownerProfileId, connectedUserId, friendUserId, active, updatedAt",
+      settlements: "id, ownerProfileId, personId, direction, linkedSettlementId, date, updatedAt",
+      repayments: "id, ownerProfileId, settlementId, personId, linkedRepaymentId, date, updatedAt",
+      chatMessages: "id, ownerProfileId, role, createdAt, updatedAt",
       syncQueue: "id, entity, entityId, action, updatedAt",
     });
   }

@@ -7,7 +7,7 @@ src/main.tsx
   UI screens, navigation, local workflows, friend ledger, settings
 
 src/lib/db.ts
-  IndexedDB schema for local-first storage
+  IndexedDB schema for local-first storage, including local assistant chat history
 
 src/lib/serverApi.ts
   Browser/mobile client for serverless API routes
@@ -112,6 +112,28 @@ Receiver accepts
 Receiver rejects
   -> event becomes rejected
   -> sender pending repayment becomes rejected
+```
+
+## Split Expense Flow
+
+```text
+Add Transaction
+  -> choose Expense
+  -> enable Split with people
+  -> choose one or more people
+  -> save expense transaction
+  -> app creates owe records for selected people
+  -> split is off by default and hidden for income/transfer
+```
+
+## AI Assistant Flow
+
+```text
+Floating assistant button
+  -> opens assistant screen when AI is enabled
+  -> stores chat messages locally in IndexedDB
+  -> blocks new messages after 10 total chat messages
+  -> Clear Chat deletes local assistant records for the current profile
 ```
 
 ## Delete Account Flow

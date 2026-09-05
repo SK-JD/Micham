@@ -99,6 +99,7 @@ import type {
   Repayment,
   RecurringTransaction,
   Settlement,
+  ChatMessageRecord,
   Transaction,
   TransactionType,
 } from "./lib/types";
@@ -164,6 +165,7 @@ const emptySnapshot: Snapshot = {
 
 const LOGIN_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
 const AI_LIMIT = { max: 10, windowMs: 60 * 1000 };
+const AI_CHAT_MESSAGE_LIMIT = 10;
 const MAX_IMPORT_BYTES = 25 * 1024 * 1024;
 const MAX_LOGO_BYTES = 1024 * 1024;
 const MAX_RECEIPT_SOURCE_BYTES = 6 * 1024 * 1024;
@@ -313,7 +315,7 @@ function uniqueById<T extends { id: string }>(items: T[]) {
 
 async function claimUnownedData(profileId: string) {
   const timestamp = nowIso();
-  const [accounts, transactions, budgets, recurring, people, settlements, repayments] = await Promise.all([
+  const [accounts, transactions, budgets, recurring, people, settlements, repayments, chatMessages] = await Promise.all([
     db.accounts.toArray(),
     db.transactions.toArray(),
     db.budgets.toArray(),
@@ -321,10 +323,11 @@ async function claimUnownedData(profileId: string) {
     db.people.toArray(),
     db.settlements.toArray(),
     db.repayments.toArray(),
+    db.chatMessages.toArray(),
   ]);
   await db.transaction(
     "rw",
-    [db.accounts, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
+    [db.accounts, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments, db.chatMessages],
     async () => {
       await db.accounts.bulkPut(accounts.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
       await db.transactions.bulkPut(transactions.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
@@ -333,12 +336,13 @@ async function claimUnownedData(profileId: string) {
       await db.people.bulkPut(people.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
       await db.settlements.bulkPut(settlements.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
       await db.repayments.bulkPut(repayments.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
+      await db.chatMessages.bulkPut(chatMessages.filter((item) => !item.ownerProfileId).map((item) => ({ ...item, ownerProfileId: profileId, updatedAt: timestamp })));
     },
   );
 }
 
 async function clearLocalProfileData(profileId: string) {
-  const [accounts, categories, transactions, budgets, recurring, people, settlements, repayments] = await Promise.all([
+  const [accounts, categories, transactions, budgets, recurring, people, settlements, repayments, chatMessages] = await Promise.all([
     db.accounts.where("ownerProfileId").equals(profileId).primaryKeys(),
     db.categories.where("ownerProfileId").equals(profileId).primaryKeys(),
     db.transactions.where("ownerProfileId").equals(profileId).primaryKeys(),
@@ -347,10 +351,11 @@ async function clearLocalProfileData(profileId: string) {
     db.people.where("ownerProfileId").equals(profileId).primaryKeys(),
     db.settlements.where("ownerProfileId").equals(profileId).primaryKeys(),
     db.repayments.where("ownerProfileId").equals(profileId).primaryKeys(),
+    db.chatMessages.where("ownerProfileId").equals(profileId).primaryKeys(),
   ]);
   await db.transaction(
     "rw",
-    [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
+    [db.profiles, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments, db.chatMessages],
     async () => {
       await db.accounts.bulkDelete(accounts as string[]);
       await db.categories.bulkDelete(categories as string[]);
@@ -360,6 +365,7 @@ async function clearLocalProfileData(profileId: string) {
       await db.people.bulkDelete(people as string[]);
       await db.settlements.bulkDelete(settlements as string[]);
       await db.repayments.bulkDelete(repayments as string[]);
+      await db.chatMessages.bulkDelete(chatMessages as string[]);
       await db.profiles.delete(profileId);
     },
   );
@@ -691,15 +697,20 @@ function App() {
         <nav className="bottom-nav sticky bottom-0 z-20">
           <div className="bottom-nav-main mx-auto grid max-w-6xl grid-cols-5 gap-1 px-2 py-2 text-xs">
             <NavButton icon={<Home size={18} />} label="Home" active={view === "dashboard"} onClick={() => setView("dashboard")} />
-            <NavButton icon={<Bot size={18} />} label="Chat" active={view === "ai"} disabled={!aiEnabled} onClick={() => { if (aiEnabled) setView("ai"); }} />
+            <NavButton icon={<CalendarDays size={18} />} label="Activity" active={view === "daily"} onClick={() => setView("daily")} />
             <button className={`add-nav-button ${view === "add" ? "add-nav-button-active" : ""}`} onClick={() => setView("add")}>
               <Plus size={24} />
               <span>Add</span>
             </button>
-            <NavButton icon={<BarChart3 size={18} />} label="Reports" active={view === "monthly"} onClick={() => setView("monthly")} />
+            <NavButton icon={<BarChart3 size={18} />} label="Insights" active={view === "monthly"} onClick={() => setView("monthly")} />
             <NavButton icon={<Users size={18} />} label="Friends" active={view === "people"} disabled={!friendsEnabled && !settlementsEnabled} onClick={() => { if (friendsEnabled || settlementsEnabled) setView("people"); }} />
           </div>
         </nav>
+        {aiEnabled ? (
+          <button className={`ai-fab ${view === "ai" ? "ai-fab-active" : ""}`} onClick={() => setView("ai")} title="Micham assistant">
+            <Bot size={22} />
+          </button>
+        ) : null}
       </div>
       {busyMessage ? <BusyOverlay message={busyMessage} /> : null}
       {showTour ? <UserTour onClose={() => {
@@ -1558,67 +1569,7 @@ function AddView({
         <p className="text-sm text-slate-500">Record expense, income, or transfer quickly.</p>
       </div>
       <QuickTransaction snapshot={snapshot} notify={notify} onDone={onDone} />
-      <SplitExpensePanel snapshot={snapshot} notify={notify} onDone={onDone} />
     </div>
-  );
-}
-
-function SplitExpensePanel({
-  snapshot,
-  notify,
-  onDone,
-}: {
-  snapshot: Snapshot;
-  notify: (message: string, tone?: Toast["tone"]) => void;
-  onDone: () => Promise<void>;
-}) {
-  const activePeople = snapshot.people.filter((person) => person.active && (person.status === "local" || person.status === "connected"));
-  const [personId, setPersonId] = useState(activePeople[0]?.id ?? "");
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
-
-  const saveSplit = async () => {
-    if (!personId) {
-      notify("Add a friend/person before saving a split.", "error");
-      return;
-    }
-    const timestamp = nowIso();
-    await db.settlements.put({
-      id: createId(),
-      ownerProfileId: snapshot.profile?.id,
-      personId,
-      direction: "to_me",
-      originalAmount: Number(amount) || 0,
-      repaidAmount: 0,
-      date: timestamp,
-      note: note || "Split expense",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      syncState: snapshot.config.syncEnabled ? "queued" : "local",
-    });
-    setAmount("");
-    setNote("");
-    notify("Split saved.", "success");
-    await onDone();
-  };
-
-  return (
-    <Panel title="Split Expense" icon={<Users size={18} />}>
-      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-        <SelectField label="Person" value={personId} onChange={setPersonId}>
-          {activePeople.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.localDisplayName}
-            </option>
-          ))}
-        </SelectField>
-        <input className="field-input" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Share amount" />
-        <button className="primary-button" onClick={saveSplit} disabled={!personId || !amount}>
-          Save Split
-        </button>
-      </div>
-      <input className="field-input mt-3" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Dinner split, trip, rent..." />
-    </Panel>
   );
 }
 
@@ -1645,6 +1596,12 @@ function QuickTransaction({
   const [receiptProcessing, setReceiptProcessing] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [budgetWarning, setBudgetWarning] = useState<{ categoryName: string; overBy: number } | null>(null);
+  const activePeople = useMemo(
+    () => snapshot.people.filter((person) => person.active && (person.status === "local" || person.status === "connected")),
+    [snapshot.people],
+  );
+  const [splitEnabled, setSplitEnabled] = useState(false);
+  const [splitPersonIds, setSplitPersonIds] = useState<string[]>([]);
 
   useEffect(() => {
     setCategoryId(type === "income" ? incomeCategory?.id ?? "" : expenseCategory?.id ?? "");
@@ -1654,6 +1611,21 @@ function QuickTransaction({
     if (!activeAccounts.some((account) => account.id === accountId)) setAccountId(activeAccounts[0]?.id ?? "");
     if (!activeAccounts.some((account) => account.id === toAccountId)) setToAccountId(activeAccounts[1]?.id ?? activeAccounts[0]?.id ?? "");
   }, [activeAccounts, accountId, toAccountId]);
+
+  useEffect(() => {
+    if (type !== "expense") {
+      setSplitEnabled(false);
+      setSplitPersonIds([]);
+    }
+  }, [type]);
+
+  useEffect(() => {
+    setSplitPersonIds((items) => items.filter((id) => activePeople.some((person) => person.id === id)));
+  }, [activePeople]);
+
+  const toggleSplitPerson = (personId: string) => {
+    setSplitPersonIds((items) => (items.includes(personId) ? items.filter((id) => id !== personId) : [...items, personId]));
+  };
 
   const save = async (forceOverBudget = false) => {
     if (!snapshot.profile?.id) {
@@ -1682,10 +1654,16 @@ function QuickTransaction({
         }
       }
     }
+    if (splitEnabled && splitPersonIds.length === 0) {
+      notify?.("Choose at least one person for the split.", "error");
+      return;
+    }
     const timestamp = nowIso();
     const transactionDate = `${date}T${new Date().toTimeString().slice(0, 8)}`;
-    await db.transactions.put({
-      id: createId(),
+    const transactionId = createId();
+    const splitShare = splitEnabled && splitPersonIds.length ? numericAmount / (splitPersonIds.length + 1) : 0;
+    const transaction: Transaction = {
+      id: transactionId,
       ownerProfileId: snapshot.profile?.id,
       type,
       amount: numericAmount,
@@ -1696,15 +1674,47 @@ function QuickTransaction({
       note,
       receiptName: receiptName || undefined,
       receiptData: receiptData || undefined,
+      personIds: splitEnabled ? splitPersonIds : undefined,
       createdAt: timestamp,
       updatedAt: timestamp,
       syncState: snapshot.config.syncEnabled ? "queued" : "local",
+    };
+    const splitSettlements: Settlement[] = splitEnabled
+      ? splitPersonIds.map((personId) => ({
+          id: createId(),
+          ownerProfileId: snapshot.profile?.id,
+          personId,
+          direction: "to_me",
+          originalAmount: Number(splitShare.toFixed(2)),
+          repaidAmount: 0,
+          accountId,
+          categoryId,
+          transactionId,
+          date: transactionDate,
+          note: note || "Split expense",
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          syncState: snapshot.config.syncEnabled ? "queued" : "local",
+        }))
+      : [];
+    await db.transaction("rw", db.transactions, db.settlements, async () => {
+      await db.transactions.put(transaction);
+      if (splitSettlements.length) await db.settlements.bulkPut(splitSettlements);
     });
     setAmount("");
     setNote("");
     setReceiptName("");
     setReceiptData("");
-    notify?.(overBudget ? "Expense saved over budget." : `${type[0].toUpperCase() + type.slice(1)} saved.`, overBudget ? "warning" : "success");
+    setSplitEnabled(false);
+    setSplitPersonIds([]);
+    notify?.(
+      overBudget
+        ? "Expense saved over budget."
+        : splitSettlements.length
+          ? `Expense saved and split with ${splitSettlements.length} person(s).`
+          : `${type[0].toUpperCase() + type.slice(1)} saved.`,
+      overBudget ? "warning" : "success",
+    );
     await onDone();
   };
 
@@ -1804,6 +1814,39 @@ function QuickTransaction({
             {receiptData ? <img className="receipt-preview" src={receiptData} alt={receiptName || "Receipt preview"} /> : null}
           </div>
         </div>
+        {type === "expense" ? (
+          <div className="split-inline-card">
+            <div className="split-inline-head">
+              <div>
+                <strong>Split with people</strong>
+                <p>Create owe records from this expense.</p>
+              </div>
+              <label className="switch">
+                <input checked={splitEnabled} type="checkbox" onChange={(event) => setSplitEnabled(event.target.checked)} />
+                <span />
+              </label>
+            </div>
+            {splitEnabled ? (
+              activePeople.length ? (
+                <div className="person-chip-grid">
+                  {activePeople.map((person) => (
+                    <button
+                      className={`person-chip ${splitPersonIds.includes(person.id) ? "person-chip-active" : ""}`}
+                      key={person.id}
+                      type="button"
+                      onClick={() => toggleSplitPerson(person.id)}
+                    >
+                      <Users size={15} />
+                      {person.nickname || person.localDisplayName}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <Empty text="Add people in Friends before splitting." />
+              )
+            ) : null}
+          </div>
+        ) : null}
       </div>
       {budgetWarning ? (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -1842,11 +1885,32 @@ function DailyView({
   selectedDate: string;
   setSelectedDate: (date: string) => void;
 }) {
-  const transactions = snapshot.transactions.filter((item) => sameDay(item.date, selectedDate));
+  const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
+  const [search, setSearch] = useState("");
+  const transactions = snapshot.transactions.filter((item) => {
+    const account = snapshot.accounts.find((accountItem) => accountItem.id === item.accountId);
+    const category = snapshot.categories.find((categoryItem) => categoryItem.id === item.categoryId);
+    const text = `${item.note} ${account?.name ?? ""} ${category?.name ?? ""}`.toLowerCase();
+    return sameDay(item.date, selectedDate) && (typeFilter === "all" || item.type === typeFilter) && text.includes(search.trim().toLowerCase());
+  });
   const daySummary = summarize(snapshot.transactions, selectedDate);
   return (
     <div className="grid gap-5">
-      <input className="field-input w-full max-w-xs" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
+      <div>
+        <h2 className="page-title"><CalendarDays size={24} /> Activity</h2>
+        <p className="text-sm text-slate-500">Every movement, in one place.</p>
+      </div>
+      <div className="activity-toolbar">
+        <input className="field-input" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
+        <input className="field-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search transactions" />
+      </div>
+      <div className="filter-pills">
+        {(["all", "expense", "income", "transfer"] as Array<"all" | TransactionType>).map((item) => (
+          <button className={typeFilter === item ? "filter-pill-active" : ""} key={item} onClick={() => setTypeFilter(item)}>
+            {item === "all" ? "All" : item[0].toUpperCase() + item.slice(1)}
+          </button>
+        ))}
+      </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Income" value={formatMoney(daySummary.dailyIncome, currency)} />
         <StatCard label="Expenses" value={formatMoney(daySummary.dailyExpenses, currency)} />
@@ -1923,6 +1987,10 @@ function MonthlyView({ snapshot, currency }: { snapshot: Snapshot; currency: str
 
   return (
     <div className="grid gap-5">
+      <div>
+        <h2 className="page-title"><BarChart3 size={24} /> Insights</h2>
+        <p className="text-sm text-slate-500">Your money patterns at a glance.</p>
+      </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Income" value={formatMoney(summary.monthlyIncome, currency)} />
         <StatCard label="Expenses" value={formatMoney(summary.monthlyExpenses, currency)} />
@@ -3196,6 +3264,9 @@ function SettingsView({
 
   const exportData = async () => {
     const { groqApiKey: _groqApiKey, ...exportableConfig } = snapshot.config;
+    const chatMessages = snapshot.profile?.id
+      ? await db.chatMessages.where("ownerProfileId").equals(snapshot.profile.id).toArray()
+      : [];
     const payload: ImportPayload = {
       exportedAt: nowIso(),
       app: snapshot.config.appName,
@@ -3208,6 +3279,7 @@ function SettingsView({
       people: snapshot.people,
       settlements: snapshot.settlements,
       repayments: snapshot.repayments,
+      chatMessages,
       config: exportableConfig,
     };
     downloadBlob(JSON.stringify(payload, null, 2), "application/json", `${snapshot.config.appName.toLowerCase()}-backup.json`);
@@ -3241,7 +3313,7 @@ function SettingsView({
     setPendingImport(null);
     await db.transaction(
       "rw",
-      [db.profiles, db.appConfig, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments],
+      [db.profiles, db.appConfig, db.accounts, db.categories, db.transactions, db.budgets, db.recurringTransactions, db.people, db.settlements, db.repayments, db.chatMessages],
       async () => {
         if (payload.profile) await db.profiles.put(payload.profile);
         if (payload.config) await db.appConfig.put({ ...payload.config, groqApiKey: undefined, updatedAt: nowIso() });
@@ -3253,6 +3325,7 @@ function SettingsView({
         await db.people.bulkPut(payload.people ?? []);
         await db.settlements.bulkPut(payload.settlements ?? []);
         await db.repayments.bulkPut(payload.repayments ?? []);
+        await db.chatMessages.bulkPut(payload.chatMessages ?? []);
       },
     );
     if (payload.profile?.id) {
@@ -4328,12 +4401,53 @@ function AdminView({
 
 function AiChatView({ snapshot, currency, notify }: { snapshot: Snapshot; currency: string; notify: (message: string, tone?: Toast["tone"]) => void }) {
   const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [messages, setMessages] = useState<ChatMessageRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [imageContext, setImageContext] = useState("");
 
+  useEffect(() => {
+    let cancelled = false;
+    void db.chatMessages
+      .where("ownerProfileId")
+      .equals(snapshot.profile?.id ?? "")
+      .sortBy("createdAt")
+      .then((items) => {
+        if (!cancelled) setMessages(items);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshot.profile?.id]);
+
+  const addChatMessage = async (role: "user" | "assistant", content: string) => {
+    const timestamp = nowIso();
+    const message: ChatMessageRecord = {
+      id: createId(),
+      ownerProfileId: snapshot.profile?.id,
+      role,
+      content,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      syncState: "local",
+    };
+    await db.chatMessages.put(message);
+    setMessages((items) => [...items, message]);
+  };
+
+  const clearChat = async () => {
+    if (!snapshot.profile?.id) return;
+    const keys = await db.chatMessages.where("ownerProfileId").equals(snapshot.profile.id).primaryKeys();
+    await db.chatMessages.bulkDelete(keys);
+    setMessages([]);
+    notify("Chat cleared.", "success");
+  };
+
   const ask = async () => {
     if (!question.trim()) return;
+    if (messages.length + 2 > AI_CHAT_MESSAGE_LIMIT) {
+      notify("Chat limit reached. Clear the chat to ask more.", "warning");
+      return;
+    }
     if (!snapshot.config.groqApiKey) {
       notify("Add the Groq API key in Settings.", "error");
       return;
@@ -4368,7 +4482,7 @@ function AiChatView({ snapshot, currency, notify }: { snapshot: Snapshot; curren
     }));
     const context = { currency, balances, monthSummary, spending, people, recentTransactions };
     const userMessage = question.trim();
-    setMessages((items) => [...items, { role: "user", content: userMessage }]);
+    await addChatMessage("user", userMessage);
     setQuestion("");
     setLoading(true);
 
@@ -4394,12 +4508,9 @@ function AiChatView({ snapshot, currency, notify }: { snapshot: Snapshot; curren
       });
       if (!response.ok) throw new Error(`Groq request failed: ${response.status}`);
       const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-      setMessages((items) => [...items, { role: "assistant", content: data.choices?.[0]?.message?.content ?? "No answer returned." }]);
+      await addChatMessage("assistant", data.choices?.[0]?.message?.content ?? "No answer returned.");
     } catch (error) {
-      setMessages((items) => [
-        ...items,
-        { role: "assistant", content: error instanceof Error ? error.message : "AI request failed." },
-      ]);
+      await addChatMessage("assistant", error instanceof Error ? error.message : "AI request failed.");
     } finally {
       setLoading(false);
       setImageContext("");
@@ -4413,18 +4524,36 @@ function AiChatView({ snapshot, currency, notify }: { snapshot: Snapshot; curren
   };
 
   return (
-    <div className="grid gap-5">
+    <div className="ai-page">
+      <div className="ai-page-header">
+        <div>
+          <h2>Micham assistant</h2>
+          <p>Ask about your money</p>
+        </div>
+        <button className="secondary-button" onClick={() => void clearChat()} disabled={messages.length === 0 || loading}>
+          Clear Chat
+        </button>
+      </div>
       <Panel title="AI Chat">
-        <div className="grid min-h-[420px] grid-rows-[1fr_auto] gap-4">
-          <div className="grid content-start gap-3">
-            {messages.length === 0 ? <Empty text="Ask about spending, savings, balances, categories, or people." /> : null}
-            {messages.map((message, index) => (
-              <div className={`chat-message ${message.role === "user" ? "chat-message-user" : ""}`} key={index}>
+        <div className="ai-chat-shell">
+          <div className="ai-message-list">
+            {messages.length === 0 ? (
+              <div className="ai-empty-state">
+                <Bot size={24} />
+                <strong>Your money, explained</strong>
+                <p>Ask about spending, savings, or shared expenses.</p>
+                <button type="button" onClick={() => setQuestion("How much can I safely save this month?")}>How much can I safely save this month?</button>
+                <button type="button" onClick={() => setQuestion("Where is most of my money sitting?")}>Where is most of my money sitting?</button>
+                <button type="button" onClick={() => setQuestion("How should I settle up with my friends?")}>How should I settle up with my friends?</button>
+              </div>
+            ) : null}
+            {messages.map((message) => (
+              <div className={`chat-message ${message.role === "user" ? "chat-message-user" : ""}`} key={message.id}>
                 {message.content}
               </div>
             ))}
           </div>
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+          <div className="ai-input-row">
             <input
               className="field-input"
               value={question}
@@ -4438,10 +4567,11 @@ function AiChatView({ snapshot, currency, notify }: { snapshot: Snapshot; curren
               <Image size={18} />
               <input className="hidden" type="file" accept="image/*" onChange={(event) => attachImage(event.target.files?.[0])} />
             </label>
-            <button className="primary-button" onClick={ask} disabled={loading || !question.trim()}>
+            <button className="primary-button" onClick={() => void ask()} disabled={loading || !question.trim() || messages.length + 2 > AI_CHAT_MESSAGE_LIMIT}>
               <Bot size={18} /> {loading ? "Asking" : "Ask"}
             </button>
           </div>
+          <p className="ai-limit-note">{messages.length}/{AI_CHAT_MESSAGE_LIMIT} messages. Clear chat to continue after the limit.</p>
           {imageContext ? <p className="text-sm text-slate-500">{imageContext}</p> : null}
         </div>
       </Panel>

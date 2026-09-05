@@ -1,5 +1,15 @@
 # Micham Build Versions
 
+## 0.1.2 - web-2026.09.05.2
+
+Date: 2026-09-05
+
+- Updated primary navigation to Home, Activity, Add, Insights, and People.
+- Moved AI Assistant out of bottom navigation into a floating action button.
+- Added local chat history storage with a 10-message limit and Clear Chat cleanup.
+- Moved split expense into Add Transaction as an optional disabled-by-default section with multi-person selection.
+- Added mobile UI polish for split chips and the assistant screen.
+
 ## 0.1.1 - web-2026.09.05.1
 
 Date: 2026-09-05
