@@ -3718,15 +3718,17 @@ function SettingsView({
           </div>
           <div className="row">
             <span>Name</span>
-            <strong>{snapshot.profile?.displayName}</strong>
+            <strong className="compact-value">{snapshot.profile?.displayName}</strong>
           </div>
           <div className="row">
             <span>Email</span>
-            <strong>{snapshot.profile?.loginId.startsWith("local:") ? snapshot.profile.loginId.slice("local:".length) : snapshot.profile?.loginId === "local-device" ? "Local only" : snapshot.profile?.loginId}</strong>
+            <strong className="compact-value" title={snapshot.profile?.loginId}>
+              {snapshot.profile?.loginId.startsWith("local:") ? snapshot.profile.loginId.slice("local:".length) : snapshot.profile?.loginId === "local-device" ? "Local only" : snapshot.profile?.loginId}
+            </strong>
           </div>
           <div className="row">
             <span>Currency</span>
-            <strong>{snapshot.profile?.currency}</strong>
+            <strong className="compact-value">{snapshot.profile?.currency}</strong>
           </div>
           <div className="row">
             <span>Connection Code</span>
@@ -3879,16 +3881,22 @@ function SettingsView({
       </Panel>
 
       <Panel className="settings-card" title="Import / Export">
-        <div className="settings-action-grid">
-          <button className="secondary-button" onClick={exportData}>
-            <Download size={18} /> Export JSON
+        <div className="settings-file-actions">
+          <button className="settings-action-card" onClick={exportData}>
+            <Download size={20} />
+            <strong>Export backup</strong>
+            <span>Save app data as JSON</span>
           </button>
-          <label className="secondary-button cursor-pointer">
-            <Upload size={18} /> Import JSON
+          <label className="settings-action-card cursor-pointer">
+            <Upload size={20} />
+            <strong>Import backup</strong>
+            <span>Restore exported app data</span>
             <input className="hidden" type="file" accept="application/json" onChange={(event) => importData(event.target.files?.[0])} />
           </label>
-          <button className="secondary-button danger-button" onClick={onLogout}>
-            <LogOut size={18} /> Logout
+          <button className="settings-action-card settings-action-danger" onClick={onLogout}>
+            <LogOut size={20} />
+            <strong>Logout</strong>
+            <span>Leave this profile</span>
           </button>
         </div>
       </Panel>
@@ -3909,6 +3917,7 @@ function SettingsView({
           </div>
         </div>
       </Panel>
+      <div className="app-credit">Made with <span aria-label="heart">❤️</span> by SURIYAKANTH</div>
       {deleteConfirm ? (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="confirm-dialog">

@@ -1,5 +1,14 @@
 # Micham Build Versions
 
+## 0.1.7 - web-2026.09.05.7
+
+Date: 2026-09-05
+
+- Fixed Profile rows so long emails and values stay compact with ellipsis instead of awkward multiline wrapping.
+- Reworked Import / Export / Logout into clearer settings action cards.
+- Added the app credit line: Made with a red heart by SURIYAKANTH.
+- Prepared a fresh debug APK from this source state.
+
 ## 0.1.6 - web-2026.09.05.6
 
 Date: 2026-09-05

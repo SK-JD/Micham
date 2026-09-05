@@ -723,22 +723,105 @@ button:disabled {
 
 .settings-profile > .row,
 .settings-card .row {
+  align-items: center;
   background: color-mix(in srgb, var(--panel-muted) 62%, transparent);
   border: 1px solid color-mix(in srgb, var(--brand) 15%, var(--border));
   border-radius: 12px;
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: minmax(88px, auto) minmax(0, 1fr);
   min-width: 0;
   padding: 0.72rem 0.8rem;
+}
+
+.settings-profile > .row > span,
+.settings-card .row > span {
+  color: var(--muted);
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .settings-profile > .row strong,
 .settings-card .row strong {
   min-width: 0;
-  overflow-wrap: anywhere;
   text-align: right;
+}
+
+.compact-value {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-card .copy-value {
   min-width: 0;
+}
+
+.settings-file-actions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-action-card {
+  align-content: center;
+  background: color-mix(in srgb, var(--panel-muted) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 20%, var(--border));
+  border-radius: 14px;
+  color: var(--text);
+  display: grid;
+  gap: 0.28rem;
+  justify-items: start;
+  min-height: 86px;
+  min-width: 0;
+  padding: 0.8rem;
+  text-align: left;
+}
+
+.settings-action-card svg {
+  color: var(--brand);
+}
+
+.settings-action-card strong,
+.settings-action-card span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.settings-action-card strong {
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.settings-action-card span {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.settings-action-danger {
+  border-color: color-mix(in srgb, #ef4444 36%, var(--border));
+  color: #dc2626;
+}
+
+.settings-action-danger svg {
+  color: #dc2626;
+}
+
+.app-credit {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  grid-column: 1 / -1;
+  padding: 0.35rem 0 calc(env(safe-area-inset-bottom) + 0.25rem);
+  text-align: center;
+}
+
+.app-credit span {
+  color: #ef4444;
 }
 
 .profile-avatar {
@@ -3565,6 +3648,14 @@ button:disabled {
   .settings-page,
   .insight-grid {
     grid-template-columns: 1fr;
+  }
+
+  .settings-file-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-action-danger {
+    grid-column: 1 / -1;
   }
 
   .top-category-layout {
