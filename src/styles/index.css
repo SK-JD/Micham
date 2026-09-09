@@ -16,6 +16,336 @@
   --app-bottom-nav-height: 86px;
 }
 
+/* Current mobile-first UI pass */
+.auth-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.activity-mode-tabs {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: 1fr 1fr;
+  padding: 0.25rem;
+}
+
+.activity-mode-tabs button {
+  align-items: center;
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-weight: 850;
+  gap: 0.45rem;
+  justify-content: center;
+  min-height: 42px;
+}
+
+.activity-mode-tabs .activity-mode-active {
+  background: var(--brand);
+  color: white;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+
+.activity-calendar-card,
+.activity-money-grid > div,
+.activity-record-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.activity-calendar-card {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.activity-calendar-card > strong {
+  font-size: 1rem;
+}
+
+.activity-calendar-weekdays,
+.activity-calendar-grid {
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.activity-calendar-weekdays span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.activity-day {
+  align-items: center;
+  aspect-ratio: 1;
+  background: color-mix(in srgb, var(--accent-soft) 42%, white);
+  border-radius: 14px;
+  color: var(--text);
+  display: grid;
+  font-weight: 850;
+  justify-items: center;
+  min-width: 0;
+  position: relative;
+}
+
+.activity-day i {
+  background: var(--brand);
+  border-radius: 999px;
+  bottom: 0.35rem;
+  height: 4px;
+  position: absolute;
+  width: 4px;
+}
+
+.activity-day-active {
+  background: color-mix(in srgb, var(--accent) 26%, white);
+  color: var(--brand);
+}
+
+.activity-calendar-card p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.activity-search,
+.people-search {
+  border-radius: 999px;
+}
+
+.activity-money-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.activity-money-grid > div {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.85rem;
+}
+
+.activity-money-grid span,
+.friend-balance-grid span,
+.people-balance-mini-grid span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.activity-money-grid strong,
+.friend-balance-grid strong {
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.activity-record-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.activity-record-card {
+  align-items: center;
+  color: var(--text);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.95rem 1rem;
+  text-align: left;
+}
+
+.activity-record-card p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0.2rem 0 0;
+}
+
+.activity-record-card > span {
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.sr-only {
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.settings-tabs,
+.manage-tabs {
+  gap: 0.45rem;
+  padding: 0.1rem 0 0.45rem;
+  scrollbar-width: none;
+}
+
+.settings-tabs::-webkit-scrollbar,
+.manage-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-tab,
+.manage-tab {
+  min-height: 40px;
+  padding: 0.5rem 0.95rem;
+  white-space: nowrap;
+}
+
+.settings-tab-active,
+.manage-tab-active {
+  background: var(--brand);
+  border-color: var(--accent);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--brand) 14%, transparent);
+  color: white;
+}
+
+.people-page .people-section-card {
+  background: var(--panel);
+  border-radius: 24px;
+}
+
+.people-balance-mini-grid {
+  background: color-mix(in srgb, var(--accent-soft) 54%, white);
+  border-radius: 18px;
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: 1fr 1fr;
+  padding: 0.75rem;
+}
+
+.people-balance-mini-grid div {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.people-balance-mini-grid strong {
+  font-size: 0.95rem;
+}
+
+.people-action-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.friend-card {
+  align-items: stretch;
+  background: var(--panel);
+  border-color: color-mix(in srgb, var(--brand) 24%, var(--border));
+  border-radius: 22px;
+  box-shadow: var(--shadow-sm);
+  padding: 0.85rem;
+}
+
+.friend-avatar {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 999px;
+  color: var(--brand);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-weight: 950;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.friend-card-copy {
+  min-width: 0;
+}
+
+.friend-title-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.friend-title-line strong {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.friend-card-chevron {
+  color: var(--muted);
+  margin-left: auto;
+  transform: rotate(-90deg);
+}
+
+.friend-balance-grid {
+  background: color-mix(in srgb, var(--accent-soft) 54%, white);
+  border-radius: 18px;
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0.75rem;
+}
+
+.friend-balance-grid div {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.settings-tool-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.settings-tool-list .more-button {
+  align-items: center;
+  border-radius: 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-content: start;
+  min-height: 72px;
+  text-align: left;
+}
+
+.settings-tool-list .more-button span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.settings-tool-list .more-button small,
+.settings-muted-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.settings-muted-note {
+  margin: 0.75rem 0 0;
+}
+
+:root[data-theme="dark"] .activity-day {
+  background: color-mix(in srgb, var(--accent-soft) 12%, #08251d);
+}
+
+:root[data-theme="dark"] .friend-balance-grid,
+:root[data-theme="dark"] .people-balance-mini-grid {
+  background: color-mix(in srgb, var(--accent-soft) 9%, #08251d);
+}
+
+@media (max-width: 520px) {
+  .activity-money-grid,
+  .friend-balance-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .activity-record-card {
+    padding: 0.85rem;
+  }
+}
+
 :root[data-theme="dark"] {
   --surface: #071713;
   --text: #eafff7;
@@ -130,6 +460,15 @@ main,
   min-width: 0;
 }
 
+.topbar-wordmark {
+  display: block;
+  height: clamp(38px, 8vw, 50px);
+  max-width: min(210px, 52vw);
+  object-fit: contain;
+  object-position: left center;
+  width: auto;
+}
+
 .brand-lockup strong {
   color: var(--text);
   display: block;
@@ -231,6 +570,39 @@ main,
   max-width: min(300px, 78vw);
   object-fit: contain;
   z-index: 1;
+}
+
+.startup-error-screen {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 32%),
+    #f3fbf7;
+  color: #052d22;
+  display: flex;
+  min-height: 100dvh;
+  padding: 1.25rem;
+}
+
+.startup-error-card {
+  background: white;
+  border: 1px solid #b7ead8;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgb(0 95 70 / 16%);
+  margin: 0 auto;
+  max-width: 420px;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+.startup-error-card h1 {
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem;
+}
+
+.startup-error-card p {
+  color: #42675c;
+  line-height: 1.5;
+  margin: 0;
 }
 
 .splash-pulse {
@@ -729,7 +1101,7 @@ button:disabled {
   border-radius: 12px;
   display: grid;
   gap: 0.85rem;
-  grid-template-columns: minmax(88px, auto) minmax(0, 1fr);
+  grid-template-columns: minmax(104px, auto) minmax(0, 1fr);
   min-width: 0;
   padding: 0.72rem 0.8rem;
 }
@@ -745,23 +1117,32 @@ button:disabled {
 .settings-card .row strong {
   min-width: 0;
   text-align: right;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .compact-value {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .settings-card .copy-value {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
   min-width: 0;
+}
+
+.settings-card .copy-value strong {
+  max-width: min(100%, 22rem);
 }
 
 .settings-file-actions {
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .settings-action-card {
@@ -805,6 +1186,7 @@ button:disabled {
 .settings-action-danger {
   border-color: color-mix(in srgb, #ef4444 36%, var(--border));
   color: #dc2626;
+  grid-column: 1 / -1;
 }
 
 .settings-action-danger svg {
@@ -989,7 +1371,7 @@ button:disabled {
 }
 
 .quick-field-grid .amount-input,
-.quick-field-grid > .primary-button {
+.transaction-save-button {
   grid-column: 1 / -1;
 }
 
@@ -1003,7 +1385,7 @@ button:disabled {
   padding-left: 0;
 }
 
-.quick-field-grid > .primary-button {
+.transaction-save-button {
   min-height: 54px;
 }
 
@@ -1602,6 +1984,40 @@ button:disabled {
   font-weight: 650;
 }
 
+.form-message {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.form-message span {
+  min-width: 0;
+}
+
+.form-message button,
+.toast button {
+  align-items: center;
+  border-radius: 999px;
+  color: currentColor;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 1.1rem;
+  font-weight: 900;
+  height: 24px;
+  justify-content: center;
+  line-height: 1;
+  opacity: 0.72;
+  width: 24px;
+}
+
+.form-message button:hover,
+.toast button:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  opacity: 1;
+}
+
 .form-error {
   background: #fef2f2;
   border: 1px solid #fecaca;
@@ -1609,7 +2025,6 @@ button:disabled {
   color: #991b1b;
   font-size: 0.9rem;
   font-weight: 650;
-  margin-bottom: 1rem;
   padding: 0.75rem 0.85rem;
 }
 
@@ -1620,7 +2035,6 @@ button:disabled {
   color: #047857;
   font-size: 0.9rem;
   font-weight: 750;
-  margin-bottom: 1rem;
   padding: 0.75rem 0.85rem;
 }
 
@@ -1745,6 +2159,14 @@ button:disabled {
   right: 0;
   top: calc(100% + 0.35rem);
   z-index: 50;
+}
+
+.picker-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 750;
+  padding: 0.8rem;
+  text-align: center;
 }
 
 .picker-option {
@@ -2066,6 +2488,15 @@ button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.transaction-edit-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.transaction-edit-form .amount-input {
+  min-height: 66px;
+}
+
 .transaction-detail-grid > div,
 .transaction-detail-note,
 .transaction-receipt-section {
@@ -2107,9 +2538,9 @@ button:disabled {
 
 .history-table {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 14px;
   display: grid;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .history-row {
@@ -3016,7 +3447,7 @@ button:disabled {
 .people-action-row {
   display: grid;
   gap: 0.55rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .friend-row {
@@ -3171,9 +3602,74 @@ button:disabled {
   grid-template-columns: 1fr auto;
 }
 
+.friend-ledger-button {
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+  width: 100%;
+}
+
+.friend-ledger-button:hover,
+.friend-ledger-button:focus-visible {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--border));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--brand) 8%, transparent);
+  transform: translateY(-1px);
+}
+
 .friend-ledger-row span {
   color: var(--text);
   font-weight: 900;
+}
+
+.settlement-detail-modal {
+  display: grid;
+  gap: 1rem;
+}
+
+.settlement-detail-summary {
+  align-items: center;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 12%, var(--panel)), color-mix(in srgb, var(--accent) 10%, var(--panel)));
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 16px;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+.settlement-detail-summary span,
+.settlement-detail-summary p,
+.form-hint {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.settlement-detail-summary strong {
+  color: var(--text);
+  display: block;
+  font-size: 1.8rem;
+  line-height: 1.2;
+  margin: 0.2rem 0;
+}
+
+.receipt-preview-row {
+  align-items: start;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.receipt-preview-row img {
+  max-height: 280px;
+  width: 100%;
+}
+
+.modal-actions-spread {
+  justify-content: space-between;
 }
 
 .approval-card {
@@ -3191,6 +3687,14 @@ button:disabled {
   }
 
   .approval-card {
+    grid-template-columns: 1fr;
+  }
+
+  .people-action-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .receipt-preview-row {
     grid-template-columns: 1fr;
   }
 }
@@ -3301,6 +3805,11 @@ button:disabled {
   gap: 0.7rem;
   padding: 0.85rem 0.95rem;
   box-shadow: 0 18px 45px rgb(15 23 42 / 18%);
+}
+
+.toast > span {
+  flex: 1;
+  min-width: 0;
 }
 
 .toast::before {
@@ -3612,9 +4121,9 @@ button:disabled {
     padding: 0.65rem 1rem;
   }
 
-  .brand-lockup span {
-    font-size: 0.54rem;
-    letter-spacing: 0.14em;
+  .topbar-wordmark {
+    height: 42px;
+    max-width: min(190px, 48vw);
   }
 
   .summary-card-grid {
@@ -3650,12 +4159,70 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .settings-profile > .row,
+  .settings-card .row {
+    align-items: start;
+    gap: 0.4rem;
+    grid-template-columns: 1fr;
+  }
+
+  .settings-profile > .row strong,
+  .settings-card .row strong {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .settings-card .copy-value {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .theme-mode-control {
+    width: 100%;
+  }
+
   .settings-file-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .settings-action-danger {
     grid-column: 1 / -1;
+  }
+
+  .history-table {
+    border: 0;
+    gap: 0.6rem;
+    overflow: visible;
+  }
+
+  .history-head {
+    display: none;
+  }
+
+  .history-row {
+    background: color-mix(in srgb, var(--panel-muted) 62%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    gap: 0.35rem 0.7rem;
+    grid-template-columns: 1fr auto;
+    min-width: 0;
+    padding: 0.75rem;
+  }
+
+  .history-row span:first-child {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .history-row span:nth-child(2) {
+    grid-column: 1 / -1;
+    order: -1;
+    overflow-wrap: anywhere;
+  }
+
+  .history-row strong {
+    font-size: 0.82rem;
   }
 
   .top-category-layout {
@@ -3740,11 +4307,4096 @@ button:disabled {
     padding: 0.3rem;
   }
 
-  .nav-button span {
+.nav-button span {
     font-size: 0.68rem;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+}
+
+.settings-tabs,
+.manage-tabs {
+  display: flex;
+  gap: 0.6rem;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.15rem 0 0.55rem;
+  scrollbar-width: thin;
+}
+
+.settings-tab,
+.manage-tab {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-weight: 800;
+  gap: 0.35rem;
+  min-height: 42px;
+  padding: 0.55rem 1rem;
+}
+
+.settings-tab-active,
+.manage-tab-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.subpage-title-row {
+  align-items: center;
+  display: flex;
+  gap: 0.8rem;
+}
+
+.back-button {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.person-profile-card {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 0.65rem;
+  justify-items: center;
+  padding: 1.2rem;
+  text-align: center;
+}
+
+.person-profile-avatar {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 999px;
+  color: white;
+  display: inline-flex;
+  font-size: 1.1rem;
+  font-weight: 900;
+  height: 58px;
+  justify-content: center;
+  width: 58px;
+}
+
+.connection-code-pill {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 80%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 800;
+  gap: 0.35rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 0.35rem 0.65rem;
+}
+
+.person-balance-chip {
+  background: color-mix(in srgb, var(--accent-soft) 78%, white 8%);
+  border-radius: 18px;
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.9rem;
+  width: min(100%, 380px);
+}
+
+.person-balance-chip span,
+.section-kicker {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.person-balance-chip strong {
+  font-size: clamp(1.7rem, 6vw, 2.4rem);
+}
+
+.person-metrics {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+
+.person-metrics div,
+.nickname-card {
+  background: color-mix(in srgb, var(--panel-muted) 72%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 0.75rem;
+}
+
+.person-metrics span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.person-metrics strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.compact-section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.nickname-card {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.person-record-row {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  display: flex;
+  gap: 0.8rem;
+  justify-content: space-between;
+  padding: 0.9rem;
+  text-align: left;
+  width: 100%;
+}
+
+.person-record-row p {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.person-danger-row {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.friend-card-clickable {
+  cursor: pointer;
+}
+
+.friend-card-clickable:focus-visible,
+.friend-card-clickable:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.manage-page .manage-card {
+  border-radius: 22px;
+}
+
+.manage-page .manage-create-form {
+  background: color-mix(in srgb, var(--accent-soft) 74%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 0.9rem;
+}
+
+.settings-page .settings-card {
+  border-radius: 22px;
+}
+
+.settings-file-actions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.settings-action-card {
+  align-items: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  color: var(--text);
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.9rem;
+  text-align: left;
+}
+
+.settings-action-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.settings-action-danger {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .person-danger-row {
+    grid-template-columns: 1fr;
+  }
+
+  .person-metrics {
+    gap: 0.45rem;
+  }
+
+  .settings-tabs,
+  .manage-tabs {
+    margin-left: -0.1rem;
+    padding-bottom: 0.45rem;
+  }
+}
+
+/* Final mobile-first screen polish. Keep this at the end so legacy screen styles do not override it. */
+.auth-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-tabs,
+.manage-tabs {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  margin-inline: -0.15rem;
+  overflow-x: auto;
+  padding: 0.15rem 0.15rem 0.7rem;
+  scrollbar-width: none;
+}
+
+.settings-tabs::-webkit-scrollbar,
+.manage-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-tab,
+.manage-tab {
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  min-height: 44px;
+  padding: 0.6rem 1.05rem;
+}
+
+.settings-tab-active,
+.manage-tab-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+.settings-page .settings-card,
+.manage-page .manage-card,
+.people-page .panel,
+.activity-calendar-card,
+.activity-money-grid > div,
+.activity-record-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-tool-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.settings-tool-list .more-button {
+  align-items: center;
+  border-radius: 22px;
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 76px;
+  padding: 1rem;
+  text-align: left;
+}
+
+.settings-tool-list .more-button small,
+.settings-muted-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.activity-page {
+  gap: 0.9rem;
+}
+
+.activity-mode-tabs {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0.25rem;
+}
+
+.activity-mode-tabs button {
+  align-items: center;
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-weight: 850;
+  gap: 0.45rem;
+  justify-content: center;
+  min-height: 42px;
+}
+
+.activity-mode-tabs .activity-mode-active {
+  background: var(--brand);
+  color: #fff;
+}
+
+.activity-calendar-card {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.activity-calendar-weekdays,
+.activity-calendar-grid {
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.activity-calendar-weekdays span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.activity-day {
+  align-items: center;
+  aspect-ratio: 1;
+  background: color-mix(in srgb, var(--accent-soft) 44%, white);
+  border-radius: 15px;
+  color: var(--text);
+  display: grid;
+  font-weight: 850;
+  justify-items: center;
+  min-width: 0;
+  position: relative;
+}
+
+.activity-day i {
+  background: var(--brand);
+  border-radius: 999px;
+  bottom: 0.32rem;
+  height: 4px;
+  position: absolute;
+  width: 4px;
+}
+
+.activity-day-income i {
+  background: #059669;
+}
+
+.activity-day-expense i {
+  background: #e11d48;
+}
+
+.activity-day-mixed i {
+  background: linear-gradient(90deg, #059669 0 50%, #e11d48 50% 100%);
+  width: 12px;
+}
+
+.activity-day-active {
+  background: color-mix(in srgb, var(--accent) 32%, white);
+  color: var(--brand);
+}
+
+.activity-search,
+.people-search {
+  border-radius: 999px;
+}
+
+.activity-money-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.activity-money-grid > div {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.85rem;
+}
+
+.activity-record-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.activity-record-card {
+  align-items: center;
+  color: var(--text);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.95rem 1rem;
+  text-align: left;
+}
+
+.activity-record-card p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0.18rem 0 0;
+}
+
+.people-page {
+  gap: 0.95rem;
+}
+
+.people-balance-card {
+  border-radius: 22px;
+  padding: 1rem;
+}
+
+.people-balance-mini-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.85rem;
+}
+
+.people-balance-mini-grid div,
+.friend-balance-grid div {
+  background: color-mix(in srgb, var(--accent-soft) 56%, white);
+  border-radius: 18px;
+  display: grid;
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+}
+
+.people-action-row {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.people-action-row .secondary-button {
+  justify-content: center;
+  min-height: 52px;
+}
+
+.friend-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.friend-card-main {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.friend-avatar {
+  background: color-mix(in srgb, var(--accent) 36%, white);
+  border-radius: 999px;
+  color: var(--brand);
+  font-weight: 950;
+}
+
+.friend-title-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.friend-card-copy p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 0.18rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.friend-card-chevron {
+  color: var(--muted);
+  transform: rotate(-90deg);
+}
+
+.friend-balance-grid {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.friend-actions:empty {
+  display: none;
+}
+
+.person-profile-card {
+  border-radius: 24px;
+}
+
+.person-danger-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ai-page {
+  min-height: 100%;
+  padding-bottom: calc(var(--app-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+.ai-chat-shell {
+  min-height: calc(100dvh - var(--app-header-height) - var(--app-bottom-nav-height));
+}
+
+.ai-message-list {
+  padding-bottom: 1rem;
+}
+
+.ai-composer {
+  margin-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+:root[data-theme="dark"] .activity-day,
+:root[data-theme="dark"] .people-balance-mini-grid div,
+:root[data-theme="dark"] .friend-balance-grid div {
+  background: color-mix(in srgb, var(--accent-soft) 10%, #08251d);
+}
+
+@media (max-width: 520px) {
+  .people-action-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .people-action-row .secondary-button {
+    font-size: 0.82rem;
+    padding-inline: 0.55rem;
+  }
+
+  .friend-balance-grid,
+  .activity-money-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Reference-asset screen pass: profile, add transaction, insights, and friends. */
+.illustrated-page-head {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 72px;
+  position: relative;
+}
+
+.add-illustrated-head {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.settings-illustrated-head {
+  background: transparent;
+  border-radius: 0;
+  min-height: 54px;
+}
+
+.page-head-icon-cluster {
+  align-items: center;
+  background:
+    radial-gradient(circle at 74% 22%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 28%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 85%, white), color-mix(in srgb, var(--panel) 92%, white));
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  border-radius: 24px;
+  color: var(--brand);
+  display: grid;
+  grid-template-columns: auto auto;
+  height: 64px;
+  justify-content: center;
+  min-width: 94px;
+  padding: 0 1rem;
+  position: relative;
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--brand) 9%, transparent);
+}
+
+.page-head-icon-cluster svg:last-child {
+  align-self: end;
+  background: var(--brand-gradient);
+  border-radius: 999px;
+  color: #fff;
+  margin-left: -0.3rem;
+  padding: 0.25rem;
+  box-sizing: content-box;
+}
+
+.page-back-button {
+  background: color-mix(in srgb, var(--accent-soft) 60%, white);
+  border: 0;
+}
+
+.transaction-sheet {
+  border-radius: 26px;
+  overflow: hidden;
+}
+
+.transaction-sheet .panel-title {
+  display: none;
+}
+
+.quick-transaction-form {
+  gap: 0.85rem;
+}
+
+.quick-transaction-form .segmented-control {
+  background: color-mix(in srgb, var(--panel-muted) 72%, transparent);
+  border: 0;
+  border-radius: 18px;
+  gap: 0.5rem;
+  padding: 0.35rem;
+}
+
+.quick-transaction-form .segmented-control button {
+  background: color-mix(in srgb, var(--panel) 74%, transparent);
+  border: 1px solid transparent;
+  border-radius: 16px;
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: auto minmax(0, max-content);
+  min-height: 64px;
+  padding: 0.65rem;
+}
+
+.quick-transaction-form .segmented-control .segment-active {
+  background: color-mix(in srgb, var(--accent) 18%, white);
+  border-color: var(--accent);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--brand);
+}
+
+.quick-field-grid {
+  background: color-mix(in srgb, var(--panel) 86%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.quick-field-grid .amount-input {
+  grid-column: 1 / -1;
+  min-height: 58px;
+}
+
+.transaction-extra-grid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.receipt-control {
+  background: transparent;
+}
+
+.receipt-control .secondary-button {
+  border-style: dashed;
+  justify-content: flex-start;
+  min-height: 72px;
+}
+
+.split-inline-card {
+  border-radius: 18px;
+}
+
+.transaction-save-button {
+  min-height: 54px;
+}
+
+.people-balance-card {
+  background:
+    radial-gradient(circle at 85% 15%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 30%),
+    linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, var(--accent-soft)), color-mix(in srgb, var(--accent-soft) 58%, var(--panel)));
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--brand) 8%, transparent);
+  padding: 1rem;
+}
+
+.people-balance-card > span,
+.people-list-card .panel-title {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.people-action-row .primary-button,
+.people-action-row .secondary-button {
+  border-radius: 16px;
+  min-height: 50px;
+}
+
+.people-action-row .secondary-button:first-child {
+  background: var(--brand-gradient);
+  border-color: transparent;
+  color: white;
+  grid-column: 1 / -1;
+}
+
+.people-search {
+  min-height: 48px;
+}
+
+.people-list-card .panel-header {
+  align-items: center;
+}
+
+.people-list-card .panel-header::after {
+  color: var(--muted);
+  content: attr(data-count);
+}
+
+.friend-card {
+  border-radius: 18px;
+}
+
+.friend-card .status-pill {
+  font-size: 0.65rem;
+  padding: 0.18rem 0.45rem;
+}
+
+.friend-balance-grid div {
+  text-align: center;
+}
+
+.person-profile-card {
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 38%),
+    var(--panel);
+  gap: 0.6rem;
+}
+
+.person-profile-avatar {
+  height: 56px;
+  width: 56px;
+}
+
+.person-balance-chip {
+  background: color-mix(in srgb, var(--accent) 28%, white);
+}
+
+.person-record-row {
+  border-radius: 20px;
+}
+
+.insight-stat-grid .stat-card,
+.insight-visual-card,
+.insight-filter-card {
+  border-radius: 18px;
+}
+
+.insight-daily-card {
+  overflow: hidden;
+}
+
+.insight-daily-bars {
+  align-items: end;
+  min-height: 148px;
+}
+
+.daily-bar {
+  border-radius: 999px;
+}
+
+.daily-bar span {
+  border-radius: 999px 999px 0 0;
+}
+
+.picker-empty {
+  align-items: center;
+  color: var(--muted);
+  display: grid;
+  gap: 0.7rem;
+  justify-items: center;
+  padding: 1rem;
+  text-align: center;
+}
+
+.picker-empty button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--brand);
+  font-weight: 850;
+  padding: 0.5rem 0.85rem;
+}
+
+:root[data-theme="dark"] .page-back-button,
+:root[data-theme="dark"] .quick-transaction-form .segmented-control .segment-active,
+:root[data-theme="dark"] .person-balance-chip {
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+}
+
+:root[data-theme="dark"] .people-balance-card {
+  background:
+    radial-gradient(circle at 88% 20%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--panel) 88%, #001d16), color-mix(in srgb, var(--brand) 22%, var(--panel)));
+}
+
+@media (max-width: 640px) {
+  .illustrated-page-head {
+    min-height: 58px;
+  }
+
+  .add-illustrated-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .page-head-icon-cluster {
+    height: 52px;
+    min-width: 66px;
+    padding: 0 0.7rem;
+  }
+
+  .page-head-icon-cluster svg:first-child {
+    height: 24px;
+    width: 24px;
+  }
+
+  .page-head-icon-cluster svg:last-child {
+    height: 16px;
+    width: 16px;
+  }
+
+  .quick-transaction-form .segmented-control {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .quick-transaction-form .segmented-control button {
+    font-size: 0.85rem;
+    min-height: 58px;
+    padding: 0.55rem 0.35rem;
+  }
+
+  .quick-field-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Final settings icon pass */
+.settings-tabs .settings-tab {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.settings-tabs .settings-tab svg {
+  flex: 0 0 auto;
+  stroke-width: 2.15;
+}
+
+.settings-tabs .settings-tab-active svg {
+  filter: drop-shadow(0 7px 14px rgba(0, 129, 95, 0.2));
+}
+
+.settings-page .settings-card .panel-title {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.settings-page .settings-card .panel-title svg {
+  color: var(--accent);
+  flex: 0 0 auto;
+  stroke-width: 2.2;
+}
+
+:root[data-theme="dark"] .settings-page .settings-card .panel-title svg {
+  color: var(--accent-2);
+}
+
+/* Reference UI structure pass */
+.transaction-type-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.transaction-type-cards button {
+  align-items: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  text-align: left;
+}
+
+.transaction-type-cards button > span:last-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.transaction-type-cards strong {
+  font-size: clamp(1rem, 1.8vw, 1.25rem);
+}
+
+.transaction-type-cards small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.transaction-type-icon,
+.receipt-icon-badge,
+.split-icon-badge,
+.settings-subcard-head > svg,
+.people-balance-mini-grid svg {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 72%, white);
+  border-radius: 999px;
+  color: var(--brand);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 52px;
+  justify-content: center;
+  width: 52px;
+}
+
+.transaction-type-cards .segment-active .transaction-type-icon {
+  background: var(--brand-gradient);
+  color: #fff;
+  box-shadow: 0 18px 34px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.add-amount-shell {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 0.7rem;
+  grid-column: 1 / -1;
+  padding-bottom: 1rem;
+}
+
+.add-amount-shell > span,
+.field-with-leading-icon > span {
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.add-amount-shell > div {
+  align-items: center;
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.add-amount-shell svg {
+  color: var(--text);
+}
+
+.add-amount-shell strong {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 68%, white);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--brand);
+  display: inline-flex;
+  min-height: 48px;
+  padding: 0 1rem;
+}
+
+.field-with-leading-icon {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.field-with-leading-icon > div {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 58px;
+  padding: 0 0.8rem;
+}
+
+.field-with-leading-icon > div > svg {
+  color: var(--brand);
+}
+
+.field-with-leading-icon .field-input,
+.field-with-leading-icon .picker-button {
+  background: transparent;
+  border: 0;
+  min-height: 54px;
+  padding-inline: 0;
+}
+
+.field-with-leading-icon .select-field > span:empty {
+  display: none;
+}
+
+.manage-inline-button {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel-muted) 72%, white);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--text);
+  display: flex;
+  font-weight: 900;
+  gap: 0.7rem;
+  justify-content: center;
+  min-height: 58px;
+  padding: 0.8rem 1rem;
+}
+
+.manage-inline-button svg:last-child {
+  margin-left: auto;
+  transform: rotate(-90deg);
+}
+
+.receipt-control .secondary-button {
+  align-items: center;
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.receipt-control .secondary-button span:not(.receipt-icon-badge) {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.receipt-control .secondary-button strong {
+  color: var(--text);
+}
+
+.receipt-control .secondary-button small,
+.receipt-control .secondary-button em {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.split-inline-head {
+  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.transaction-save-button {
+  font-size: 1rem;
+  gap: 0.65rem;
+}
+
+.profile-figma-card .panel-title {
+  font-size: 1.45rem;
+}
+
+.profile-figma-card .panel-title::after {
+  content: none;
+  display: none;
+}
+
+.profile-detail-list {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.profile-detail-row {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: auto minmax(90px, 0.75fr) minmax(0, 1fr) auto;
+  min-height: 68px;
+  padding: 0.9rem 1rem;
+  text-align: left;
+}
+
+.profile-detail-row:last-child {
+  border-bottom: 0;
+}
+
+.profile-detail-row > svg {
+  background: color-mix(in srgb, var(--accent-soft) 72%, white);
+  border-radius: 999px;
+  box-sizing: content-box;
+  color: var(--brand);
+  padding: 0.42rem;
+}
+
+.profile-detail-row > span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.profile-detail-row strong {
+  overflow-wrap: anywhere;
+}
+
+.profile-detail-action {
+  border: 0;
+  width: 100%;
+}
+
+.settings-subcard {
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  display: grid;
+  gap: 1rem;
+  padding: 0.85rem;
+}
+
+.settings-subcard-head {
+  align-items: center;
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.settings-subcard-head strong {
+  display: block;
+  font-size: 1.1rem;
+}
+
+.settings-subcard-head p {
+  color: var(--muted);
+  margin: 0.15rem 0 0;
+}
+
+.settings-toggle-list {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.settings-toggle-row {
+  align-items: center;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 0.8rem 0.9rem;
+}
+
+.settings-toggle-row:last-child {
+  border-bottom: 0;
+}
+
+.settings-toggle-row > svg {
+  color: var(--brand);
+}
+
+.settings-toggle-row div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.settings-toggle-row span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.settings-signout-button {
+  align-items: center;
+  background: color-mix(in srgb, #fff1f2 80%, white);
+  border: 1px solid #fb7185;
+  border-radius: 18px;
+  color: #dc2626;
+  display: flex;
+  font-weight: 950;
+  gap: 0.7rem;
+  justify-content: center;
+  min-height: 56px;
+  width: 100%;
+}
+
+.people-search-wrap {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 0 1rem;
+}
+
+.people-search-wrap svg {
+  color: var(--muted);
+}
+
+.people-search-wrap .field-input {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding-inline: 0;
+}
+
+.people-balance-card p {
+  color: var(--muted);
+  font-size: 1rem;
+  margin: 0.35rem 0 1rem;
+}
+
+.people-balance-mini-grid div {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  border-radius: 20px;
+  display: grid;
+  gap: 0.25rem 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 1rem;
+  text-align: left;
+}
+
+.people-balance-mini-grid div:last-child {
+  background: linear-gradient(90deg, color-mix(in srgb, #fff1f2 72%, var(--panel)), color-mix(in srgb, var(--accent-soft) 55%, var(--panel)));
+}
+
+.people-balance-mini-grid strong,
+.people-balance-mini-grid span {
+  grid-column: 2;
+}
+
+.friends-empty-state {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  justify-items: center;
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+
+.friends-empty-state img {
+  max-height: 118px;
+  opacity: 0.88;
+}
+
+.friends-empty-state strong {
+  font-size: 1.15rem;
+}
+
+.friends-empty-state p {
+  color: var(--muted);
+  margin: 0;
+  max-width: 360px;
+}
+
+:root[data-theme="dark"] .transaction-type-icon,
+:root[data-theme="dark"] .receipt-icon-badge,
+:root[data-theme="dark"] .split-icon-badge,
+:root[data-theme="dark"] .settings-subcard-head > svg,
+:root[data-theme="dark"] .people-balance-mini-grid svg,
+:root[data-theme="dark"] .profile-detail-row > svg {
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  color: var(--accent-2);
+}
+
+:root[data-theme="dark"] .settings-signout-button {
+  background: color-mix(in srgb, #450a0a 28%, var(--panel));
+}
+
+@media (max-width: 760px) {
+  .transaction-type-cards button {
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 88px;
+  }
+
+  .transaction-type-icon {
+    height: 48px;
+    width: 48px;
+  }
+
+  .profile-detail-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .profile-detail-row > span {
+    grid-column: 2;
+  }
+
+  .profile-detail-row strong {
+    grid-column: 2 / -1;
+  }
+
+  .profile-detail-row > .icon-button,
+  .profile-detail-row > svg:last-child {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+
+.insight-metric-grid {
+  align-items: stretch;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.insight-metric-card {
+  background:
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--accent-soft) 70%, transparent), transparent 38%),
+    var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 0.35rem;
+  min-height: 132px;
+  padding: 1rem;
+}
+
+.insight-metric-card small {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.insight-metric-card strong {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.insight-metric-card p,
+.panel-helper {
+  color: var(--muted);
+  margin: -0.25rem 0 0.65rem;
+}
+
+.metric-icon {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  height: 48px;
+  justify-content: center;
+  width: 48px;
+}
+
+.metric-income {
+  background: color-mix(in srgb, var(--accent-soft) 80%, white);
+  color: var(--brand);
+}
+
+.metric-expense {
+  background: #ffe4e6;
+  color: #e11d48;
+}
+
+.metric-savings {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.insight-daily-card .panel-title,
+.insight-link-card .panel-title,
+.insight-transactions-card .panel-title {
+  font-size: 1.1rem;
+}
+
+.insight-micro-stats {
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--panel));
+  border-radius: 18px;
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1rem;
+  padding: 0.85rem;
+}
+
+.insight-micro-stats div {
+  align-items: center;
+  display: grid;
+  gap: 0.2rem 0.6rem;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.insight-micro-stats svg {
+  background: var(--brand-gradient);
+  border-radius: 999px;
+  color: #fff;
+  grid-row: span 2;
+  padding: 0.45rem;
+  box-sizing: content-box;
+}
+
+.insight-micro-stats span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.insight-empty-illustration {
+  align-items: center;
+  display: grid;
+  gap: 0.55rem;
+  justify-items: center;
+  min-height: 190px;
+  text-align: center;
+}
+
+.insight-empty-illustration img {
+  height: 96px;
+  opacity: 0.9;
+}
+
+.insight-empty-illustration strong {
+  font-size: 1rem;
+}
+
+.insight-empty-illustration p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.insight-empty-action {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--panel));
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 18px;
+  color: var(--text);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 1rem;
+  text-align: left;
+}
+
+.insight-empty-action > svg {
+  background: var(--brand-gradient);
+  border-radius: 999px;
+  color: white;
+  padding: 0.55rem;
+  box-sizing: content-box;
+}
+
+.insight-empty-action span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.insight-empty-action small {
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .insight-metric-card,
+:root[data-theme="dark"] .insight-empty-action,
+:root[data-theme="dark"] .insight-micro-stats {
+  background: color-mix(in srgb, var(--panel) 88%, var(--accent) 8%);
+}
+
+@media (max-width: 640px) {
+  .insight-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .insight-metric-card {
+    min-height: 118px;
+    padding: 0.75rem;
+  }
+
+  .metric-icon {
+    height: 40px;
+    width: 40px;
+  }
+
+  .insight-metric-card strong {
+    font-size: 1.2rem;
+  }
+
+  .insight-metric-card p {
+    font-size: 0.74rem;
+  }
+}
+
+.people-page {
+  gap: 1rem;
+}
+
+.people-page .people-list-card {
+  padding: 1.2rem;
+}
+
+.people-page .people-list-card .panel-title {
+  justify-content: space-between;
+}
+
+.friend-card {
+  background:
+    radial-gradient(circle at 88% 12%, color-mix(in srgb, var(--accent-soft) 80%, transparent), transparent 30%),
+    var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem;
+}
+
+.friend-card-main {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.friend-avatar {
+  background: color-mix(in srgb, var(--accent-soft) 85%, white);
+  color: var(--brand);
+  height: 48px;
+  width: 48px;
+}
+
+.friend-card-chevron {
+  color: var(--muted);
+}
+
+.friend-balance-grid {
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--panel));
+  border-radius: 18px;
+  gap: 0.25rem;
+  margin-top: 0.9rem;
+  padding: 0.6rem;
+}
+
+.friend-balance-grid div {
+  background: transparent;
+  border-radius: 14px;
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.45rem;
+}
+
+.friend-balance-grid span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.friend-balance-grid strong {
+  font-size: 0.9rem;
+}
+
+.person-profile-card {
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  justify-items: center;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.person-profile-card > strong {
+  align-items: center;
+  display: inline-flex;
+  font-size: 1.25rem;
+  gap: 0.25rem;
+}
+
+.connection-code-pill {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--panel));
+  border: 0;
+  border-radius: 999px;
+  color: var(--brand);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 900;
+  gap: 0.45rem;
+  padding: 0.45rem 0.8rem;
+}
+
+.person-metrics {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+
+.person-metrics div {
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--panel));
+  border-radius: 18px;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem 0.5rem;
+}
+
+.person-metrics span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.person-metrics strong {
+  font-size: 1rem;
+}
+
+.compact-section {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.section-kicker {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.nickname-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+
+.friend-mini-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.person-danger-row {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.person-danger-row .secondary-button {
+  min-height: 48px;
+}
+
+:root[data-theme="dark"] .friend-card,
+:root[data-theme="dark"] .person-profile-card,
+:root[data-theme="dark"] .nickname-card {
+  background: color-mix(in srgb, var(--panel) 88%, var(--accent) 8%);
+}
+
+/* Compact product UI pass: remove oversized hero spacing and noisy decorative treatment. */
+.app-shell {
+  overflow-x: hidden;
+}
+
+.app-page.add-page,
+.app-page.people-page,
+.app-page.insights-page,
+.app-page.settings-page {
+  gap: 0.75rem;
+  max-width: 920px;
+  overflow-x: hidden;
+  padding-inline: clamp(1rem, 3vw, 1.35rem);
+  padding-top: 0.75rem;
+}
+
+.illustrated-page-head,
+.settings-illustrated-head,
+.people-illustrated-head,
+.add-illustrated-head {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  gap: 0.55rem;
+  min-height: auto;
+  padding: 0;
+}
+
+.page-head-icon-cluster {
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--panel));
+  border-radius: 18px;
+  box-shadow: none;
+  height: 46px;
+  min-width: 58px;
+  padding: 0 0.65rem;
+}
+
+.page-head-icon-cluster svg:first-child {
+  height: 23px;
+  width: 23px;
+}
+
+.page-head-icon-cluster svg:last-child {
+  height: 14px;
+  margin-left: -0.18rem;
+  padding: 0.18rem;
+  width: 14px;
+}
+
+.page-title {
+  align-items: center;
+  display: flex;
+  font-size: clamp(1.7rem, 3.4vw, 2.2rem);
+  gap: 0.45rem;
+  line-height: 1.06;
+  margin: 0;
+}
+
+.page-title svg {
+  color: var(--brand);
+  flex: 0 0 auto;
+  height: 24px;
+  width: 24px;
+}
+
+.page-subtitle {
+  font-size: clamp(0.95rem, 2.1vw, 1.05rem);
+  margin-top: 0.25rem;
+}
+
+.app-panel,
+.settings-card,
+.people-section-card,
+.transaction-sheet,
+.insight-visual-card,
+.insight-filter-card,
+.insight-link-card,
+.insight-transactions-card,
+.insight-daily-card {
+  border-radius: 20px;
+  padding: clamp(0.9rem, 2.2vw, 1.15rem);
+}
+
+.app-panel .panel-title {
+  font-size: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.app-panel .panel-title svg {
+  height: 18px;
+  width: 18px;
+}
+
+.settings-tabs {
+  gap: 0.45rem;
+  margin: 0.1rem -0.2rem 0.25rem;
+  padding: 0.15rem 0.2rem 0.45rem;
+  scrollbar-width: none;
+}
+
+.settings-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-tab {
+  border-radius: 999px;
+  box-shadow: none;
+  flex: 0 0 auto;
+  font-size: 0.88rem;
+  gap: 0.35rem;
+  min-height: 38px;
+  padding: 0.45rem 0.8rem;
+}
+
+.settings-tab svg {
+  height: 15px;
+  width: 15px;
+}
+
+.settings-tab-active {
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--brand) 14%, transparent);
+}
+
+.settings-profile-hero,
+.profile-detail-list,
+.settings-subcard {
+  border-radius: 18px;
+}
+
+.settings-profile-hero {
+  min-height: 72px;
+  padding: 0.75rem;
+}
+
+.profile-avatar {
+  border-radius: 16px;
+  height: 52px;
+  width: 52px;
+}
+
+.profile-detail-row {
+  align-items: center;
+  gap: 0.65rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 58px;
+  padding: 0.7rem 0.85rem;
+}
+
+.profile-detail-row > svg {
+  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+  border-radius: 999px;
+  box-sizing: content-box;
+  color: var(--brand);
+  height: 17px;
+  padding: 0.5rem;
+  width: 17px;
+}
+
+.profile-detail-row > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.profile-detail-row strong {
+  font-size: 0.98rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.settings-subcard-head svg {
+  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+  border-radius: 999px;
+  box-sizing: content-box;
+  color: var(--brand);
+  height: 18px;
+  padding: 0.55rem;
+  width: 18px;
+}
+
+.theme-mode-control {
+  border-radius: 16px;
+  gap: 0.35rem;
+  padding: 0.3rem;
+}
+
+.theme-mode-control button {
+  border-radius: 13px;
+  font-size: 0.86rem;
+  min-height: 38px;
+}
+
+.people-balance-card {
+  border-radius: 22px;
+  gap: 0.45rem;
+  padding: 1rem;
+}
+
+.people-balance-card > span {
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+}
+
+.people-balance-card > strong {
+  font-size: clamp(1.7rem, 5vw, 2.3rem);
+  line-height: 1.08;
+}
+
+.people-balance-card > p {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.people-balance-mini-grid {
+  border-radius: 18px;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  padding: 0.45rem;
+}
+
+.people-balance-mini-grid div {
+  align-items: center;
+  border-radius: 15px;
+  display: grid;
+  gap: 0.1rem 0.55rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 0.6rem;
+}
+
+.people-balance-mini-grid div svg {
+  grid-row: span 2;
+  height: 24px;
+  width: 24px;
+}
+
+.people-action-row {
+  gap: 0.65rem;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.people-action-row .primary-button,
+.people-action-row .secondary-button {
+  border-radius: 16px;
+  font-size: 0.92rem;
+  min-height: 46px;
+  padding: 0.65rem 0.75rem;
+}
+
+.people-action-row svg {
+  height: 17px;
+  width: 17px;
+}
+
+.people-search-wrap {
+  border-radius: 999px;
+  min-height: 46px;
+  padding-inline: 0.9rem;
+}
+
+.people-list-card {
+  padding: 0.95rem;
+}
+
+.friends-grid {
+  gap: 0.7rem;
+}
+
+.friend-card {
+  border-radius: 18px;
+  gap: 0.65rem;
+  padding: 0.8rem;
+}
+
+.friend-card-main {
+  gap: 0.65rem;
+}
+
+.friend-avatar {
+  border-radius: 999px;
+  font-size: 0.86rem;
+  height: 40px;
+  width: 40px;
+}
+
+.friend-title-line {
+  gap: 0.35rem;
+}
+
+.friend-title-line strong {
+  font-size: 0.98rem;
+}
+
+.friend-card-copy p {
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-balance-grid {
+  border-radius: 16px;
+  margin-top: 0;
+  padding: 0.4rem;
+}
+
+.friend-balance-grid div {
+  border-radius: 13px;
+  padding: 0.4rem 0.25rem;
+}
+
+.friend-balance-grid span {
+  font-size: 0.62rem;
+  letter-spacing: 0;
+}
+
+.friend-balance-grid strong {
+  font-size: 0.86rem;
+}
+
+.friend-actions {
+  margin-top: 0.1rem;
+}
+
+.friend-actions .small-button {
+  min-height: 34px;
+  padding: 0.4rem 0.65rem;
+}
+
+.friends-empty-state {
+  border-radius: 18px;
+  min-height: 190px;
+  padding: 1.1rem;
+}
+
+.friends-empty-state > svg {
+  background: color-mix(in srgb, var(--accent-soft) 82%, var(--panel));
+  border-radius: 999px;
+  box-sizing: content-box;
+  color: var(--brand);
+  padding: 0.8rem;
+}
+
+.person-profile-card {
+  border-radius: 22px;
+  gap: 0.55rem;
+  padding: 1rem;
+}
+
+.person-profile-avatar {
+  border-radius: 999px;
+  height: 54px;
+  width: 54px;
+}
+
+.person-balance-chip {
+  border-radius: 18px;
+  padding: 0.65rem;
+}
+
+.person-balance-chip strong {
+  font-size: 1.55rem;
+}
+
+.person-metrics {
+  gap: 0.45rem;
+}
+
+.person-metrics div {
+  border-radius: 15px;
+  padding: 0.55rem 0.4rem;
+}
+
+.person-record-row {
+  align-items: center;
+  border-radius: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 64px;
+  padding: 0.75rem;
+}
+
+.person-record-row p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nickname-card {
+  border-radius: 18px;
+  padding: 0.7rem;
+}
+
+.transaction-sheet {
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border-radius: 22px;
+  padding: 0.9rem;
+}
+
+.quick-transaction-form .segmented-control {
+  border-radius: 18px;
+  gap: 0.45rem;
+}
+
+.quick-transaction-form .segmented-control button {
+  align-items: center;
+  border-radius: 16px;
+  gap: 0.55rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-content: start;
+  min-height: 58px;
+  text-align: left;
+}
+
+.transaction-type-icon {
+  border-radius: 999px;
+  height: 40px;
+  width: 40px;
+}
+
+.transaction-type-icon svg {
+  height: 20px;
+  width: 20px;
+}
+
+.quick-field-grid {
+  border-radius: 20px;
+  gap: 0.65rem;
+  padding: 0.75rem;
+}
+
+.add-amount-shell {
+  border-radius: 18px;
+  padding: 0.75rem;
+}
+
+.add-amount-shell > div {
+  min-height: 54px;
+}
+
+.add-amount-shell .amount-input {
+  font-size: clamp(2rem, 7vw, 3rem);
+  min-height: 54px;
+}
+
+.field-with-leading-icon > div,
+.manage-inline-button,
+.receipt-control .secondary-button,
+.split-inline-card {
+  border-radius: 16px;
+}
+
+.field-with-leading-icon > div {
+  min-height: 52px;
+}
+
+.field-with-leading-icon > div > svg,
+.add-note-field > div > svg {
+  height: 18px;
+  width: 18px;
+}
+
+.receipt-icon-badge,
+.split-icon-badge {
+  height: 42px;
+  width: 42px;
+}
+
+.receipt-control .secondary-button {
+  min-height: 66px;
+}
+
+.split-inline-card {
+  padding: 0.8rem;
+}
+
+.transaction-save-button {
+  border-radius: 17px;
+  min-height: 52px;
+}
+
+.insight-metric-card {
+  border-radius: 18px;
+  min-height: 112px;
+  padding: 0.8rem;
+}
+
+.metric-icon {
+  height: 40px;
+  width: 40px;
+}
+
+.insight-empty-illustration {
+  min-height: 155px;
+}
+
+.insight-empty-illustration > svg {
+  background: color-mix(in srgb, var(--accent-soft) 82%, var(--panel));
+  border-radius: 999px;
+  box-sizing: content-box;
+  color: var(--brand);
+  padding: 0.8rem;
+}
+
+@media (max-width: 700px) {
+  .app-page.add-page,
+  .app-page.people-page,
+  .app-page.insights-page,
+  .app-page.settings-page {
+    padding-inline: 0.95rem;
+    padding-top: 0.55rem;
+  }
+
+  .page-title {
+    font-size: 1.55rem;
+  }
+
+  .page-subtitle {
+    font-size: 0.92rem;
+  }
+
+  .page-head-icon-cluster {
+    display: none;
+  }
+
+  .people-action-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .people-action-row .primary-button {
+    grid-column: 1 / -1;
+  }
+
+  .quick-transaction-form .segmented-control button {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-height: 58px;
+    text-align: center;
+  }
+
+  .transaction-type-icon {
+    height: 34px;
+    width: 34px;
+  }
+
+  .quick-transaction-form .segmented-control small {
+    display: none;
+  }
+
+  .profile-detail-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .profile-detail-row strong {
+    grid-column: 2;
+    text-align: left;
+  }
+
+  .profile-detail-row > .icon-button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+/* Focused polish for People, Insights, and Add Transaction. Keep this last so old page rules do not leak through. */
+.people-page,
+.insights-page,
+.add-page {
+  max-width: 980px;
+  overflow-x: clip;
+}
+
+.people-page .illustrated-page-head,
+.insights-page .illustrated-page-head,
+.add-page .illustrated-page-head {
+  margin: 0;
+  min-height: 0;
+  padding-block: 0.1rem 0.25rem;
+}
+
+.people-page .page-title,
+.insights-page .page-title,
+.add-page .page-title {
+  font-size: clamp(1.9rem, 5vw, 2.45rem);
+  line-height: 1.05;
+}
+
+.people-balance-card {
+  background:
+    radial-gradient(circle at 84% 18%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--panel) 92%, white), color-mix(in srgb, var(--accent-soft) 58%, var(--panel)));
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 24px;
+  box-shadow: 0 18px 40px color-mix(in srgb, var(--shadow-color) 45%, transparent);
+  gap: 0.6rem;
+  padding: clamp(1.05rem, 3vw, 1.35rem);
+}
+
+.people-balance-card > span {
+  color: var(--accent-dark);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.people-balance-card > strong {
+  color: var(--text);
+  font-size: clamp(1.75rem, 6vw, 2.35rem);
+  letter-spacing: 0;
+  line-height: 1.02;
+}
+
+.people-balance-card > p {
+  color: var(--muted);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.people-balance-mini-grid {
+  background: color-mix(in srgb, var(--panel) 76%, transparent);
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 74%, transparent);
+  gap: 0;
+  margin-top: 0.45rem;
+  overflow: hidden;
+  padding: 0;
+}
+
+.people-balance-mini-grid div {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  display: grid;
+  gap: 0.1rem 0.65rem;
+  grid-template-columns: 44px minmax(0, 1fr);
+  padding: 0.82rem;
+}
+
+.people-balance-mini-grid div + div {
+  border-left: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+}
+
+.people-balance-mini-grid svg {
+  background: color-mix(in srgb, var(--accent-soft) 80%, white);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  height: 42px;
+  padding: 0.55rem;
+  width: 42px;
+}
+
+.people-balance-mini-grid span,
+.people-balance-mini-grid strong {
+  grid-column: 2;
+}
+
+.people-balance-mini-grid span {
+  color: var(--accent-dark);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.people-balance-mini-grid strong {
+  font-size: 1.4rem;
+}
+
+.people-action-row {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.people-action-row .primary-button,
+.people-action-row .secondary-button,
+.person-action-row .primary-button,
+.person-action-row .secondary-button {
+  border-radius: 17px;
+  font-weight: 900;
+  min-height: 56px;
+}
+
+.people-action-row .secondary-button,
+.person-action-row .secondary-button {
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, var(--accent-soft));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow-color) 20%, transparent);
+  color: var(--text);
+}
+
+.people-action-row .primary-button,
+.person-action-row .primary-button {
+  background: var(--brand-gradient);
+  border: 0;
+  color: #fff;
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.people-action-row svg:last-child {
+  margin-left: auto;
+}
+
+.people-search-wrap {
+  border-radius: 999px;
+  min-height: 54px;
+  padding-inline: 1rem;
+}
+
+.people-search-wrap .field-input {
+  border: 0 !important;
+  box-shadow: none !important;
+  padding-inline: 0;
+}
+
+.people-list-card,
+.person-profile-card,
+.nickname-card {
+  border-radius: 24px;
+}
+
+.people-list-card > .panel-title {
+  border: 0;
+  padding-bottom: 0.2rem;
+}
+
+.friends-grid {
+  gap: 0.75rem;
+}
+
+.friend-card {
+  border-radius: 22px;
+  gap: 0.65rem;
+  padding: 0.85rem;
+}
+
+.friend-card-main {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+}
+
+.friend-avatar {
+  border: 0;
+  box-shadow: none;
+  height: 44px;
+  width: 44px;
+}
+
+.friend-card-copy p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-balance-grid {
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--panel));
+  border-radius: 17px;
+  gap: 0;
+  padding: 0.55rem 0.35rem;
+}
+
+.friend-balance-grid div {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 0;
+  padding: 0.15rem 0.3rem;
+}
+
+.friend-balance-grid span {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.friend-actions:empty {
+  display: none;
+}
+
+.friends-empty-state {
+  border: 0;
+  border-radius: 22px;
+  box-shadow: none;
+  min-height: 220px;
+}
+
+.person-profile-card {
+  align-items: center;
+  display: grid;
+  justify-items: center;
+  padding: 1rem;
+  text-align: center;
+}
+
+.person-profile-avatar {
+  height: 62px;
+  width: 62px;
+}
+
+.connection-code-pill {
+  border-radius: 999px;
+  font-size: 0.74rem;
+  max-width: min(100%, 260px);
+}
+
+.person-balance-chip {
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--panel));
+  border: 0;
+  border-radius: 22px;
+  box-shadow: none;
+  padding: 0.85rem;
+}
+
+.person-balance-chip strong {
+  font-size: clamp(1.7rem, 6vw, 2.2rem);
+}
+
+.person-metrics {
+  width: 100%;
+}
+
+.person-metrics div {
+  border: 0;
+  border-radius: 17px;
+  box-shadow: none;
+}
+
+.person-action-row {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1.35fr minmax(0, 1fr);
+}
+
+.person-record-row {
+  border-radius: 18px;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow-color) 18%, transparent);
+}
+
+.person-danger-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.transaction-sheet {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel) 96%, white), var(--panel)),
+    var(--panel);
+  border-radius: 26px;
+  padding: clamp(0.85rem, 2vw, 1.05rem);
+}
+
+.transaction-sheet .panel-title {
+  display: none;
+}
+
+.quick-transaction-form {
+  gap: 0.95rem;
+}
+
+.transaction-type-cards {
+  background: color-mix(in srgb, var(--panel-muted) 76%, transparent) !important;
+  border: 0 !important;
+  border-radius: 22px !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+  display: grid !important;
+  gap: 0.45rem !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0.42rem !important;
+}
+
+.transaction-type-cards button {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  border: 1px solid transparent;
+  border-radius: 18px;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: center;
+  min-height: 92px;
+  padding: 0.75rem 0.45rem;
+  text-align: center;
+}
+
+.transaction-type-cards .segment-active {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 78%, white), color-mix(in srgb, var(--panel) 82%, white));
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.transaction-type-icon {
+  background: color-mix(in srgb, var(--panel-muted) 80%, white);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  height: 42px;
+  width: 42px;
+}
+
+.transaction-type-cards .segment-active .transaction-type-icon {
+  background: var(--brand-gradient);
+  color: #fff;
+}
+
+.transaction-type-cards strong {
+  display: block;
+  font-size: 1.02rem;
+}
+
+.transaction-type-cards small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+}
+
+.quick-field-grid {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--shadow-color) 16%, transparent);
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.add-amount-shell {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0;
+}
+
+.add-amount-shell > span {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.add-amount-shell > div {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 94%, white);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 78px;
+  padding: 0.65rem 0.75rem;
+  width: 100%;
+}
+
+.add-amount-shell > div > svg {
+  color: var(--text);
+  height: 34px;
+  width: 34px;
+}
+
+.add-amount-shell .amount-input,
+.add-amount-shell .amount-input:focus,
+.add-amount-shell .amount-input:focus-visible {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--text);
+  font-size: clamp(2.1rem, 7vw, 3.05rem);
+  font-weight: 900;
+  min-height: 52px;
+  outline: 0 !important;
+  padding: 0 !important;
+  width: 100%;
+}
+
+.add-amount-shell strong {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 72%, white);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  border-radius: 14px;
+  color: var(--accent-dark);
+  display: inline-flex;
+  font-size: 0.95rem;
+  min-height: 42px;
+  padding: 0.45rem 0.72rem;
+}
+
+.field-with-leading-icon > div,
+.manage-inline-button,
+.receipt-control .secondary-button,
+.split-inline-card {
+  border-radius: 17px;
+}
+
+.transaction-save-button {
+  border-radius: 18px;
+  min-height: 58px;
+}
+
+.insight-metric-grid {
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.insight-metric-card,
+.insight-visual-card,
+.insight-filter-card {
+  border-radius: 22px;
+}
+
+.insight-metric-card {
+  min-height: 128px;
+  padding: 0.95rem;
+}
+
+.insight-daily-card .panel-helper {
+  font-size: 1rem;
+  margin-top: -0.25rem;
+}
+
+.insight-daily-bars {
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 18px;
+  min-height: 190px;
+  padding: 0.9rem;
+}
+
+.insight-micro-stats {
+  border-radius: 18px;
+}
+
+:root[data-theme="dark"] .people-balance-card,
+:root[data-theme="dark"] .person-balance-chip,
+:root[data-theme="dark"] .friend-balance-grid,
+:root[data-theme="dark"] .add-amount-shell > div,
+:root[data-theme="dark"] .transaction-type-cards .segment-active {
+  background: linear-gradient(135deg, rgba(0, 141, 99, 0.18), rgba(0, 40, 31, 0.82));
+}
+
+@media (max-width: 700px) {
+  .people-page,
+  .insights-page,
+  .add-page {
+    gap: 0.85rem;
+  }
+
+  .people-page .page-title,
+  .insights-page .page-title,
+  .add-page .page-title {
+    font-size: 1.85rem;
+  }
+
+  .people-action-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .people-action-row .primary-button,
+  .people-action-row .secondary-button {
+    font-size: 0.9rem;
+    min-height: 52px;
+    padding: 0.55rem 0.45rem;
+  }
+
+  .people-action-row .primary-button svg,
+  .people-action-row .secondary-button svg {
+    height: 17px;
+    width: 17px;
+  }
+
+  .people-action-row svg:last-child {
+    display: none;
+  }
+
+  .people-balance-mini-grid div {
+    grid-template-columns: 34px minmax(0, 1fr);
+    padding: 0.65rem 0.55rem;
+  }
+
+  .people-balance-mini-grid svg {
+    height: 32px;
+    padding: 0.38rem;
+    width: 32px;
+  }
+
+  .friend-balance-grid strong {
+    font-size: 0.95rem;
+  }
+
+  .person-action-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .transaction-type-cards {
+    gap: 0.35rem !important;
+  }
+
+  .transaction-type-cards button {
+    min-height: 82px;
+  }
+
+  .transaction-type-cards small {
+    display: none;
+  }
+
+  .quick-field-grid {
+    padding: 0.85rem;
+  }
+
+  .add-amount-shell > div {
+    min-height: 72px;
+  }
+
+  .insight-metric-grid {
+    gap: 0.55rem;
+  }
+
+  .insight-metric-card {
+    min-height: 116px;
+    padding: 0.8rem;
+  }
+
+  .insight-metric-card strong {
+    font-size: 1.35rem;
+  }
+
+  .insight-metric-card p {
+    font-size: 0.78rem;
+  }
+
+  .insight-daily-bars {
+    min-height: 160px;
+  }
+}
+
+/* Precision layout correction after UI audit. Keep one spacing scale across screens. */
+.app-main {
+  padding-inline: clamp(0.85rem, 3vw, 1.25rem);
+}
+
+.app-page,
+.app-page.add-page,
+.app-page.people-page,
+.app-page.insights-page,
+.app-page.settings-page,
+.app-page.activity-page,
+.app-page.manage-page,
+.app-page.calendar-page,
+.app-page.home-page {
+  box-sizing: border-box;
+  gap: clamp(0.75rem, 1.8vw, 1rem);
+  margin-inline: auto;
+  max-width: 980px;
+  padding-inline: 0;
+  padding-top: 0;
+  width: min(100%, 980px);
+}
+
+.home-page {
+  max-width: 1120px;
+  width: 100%;
+}
+
+.illustrated-page-head,
+.settings-illustrated-head,
+.people-illustrated-head,
+.add-illustrated-head,
+.subpage-title-row {
+  margin: 0 0 0.15rem;
+  min-height: 0;
+}
+
+.page-head-icon-cluster {
+  display: none;
+}
+
+.page-title {
+  font-size: clamp(1.55rem, 3.2vw, 2.05rem);
+  letter-spacing: 0;
+}
+
+.page-title svg {
+  height: 21px;
+  width: 21px;
+}
+
+.page-subtitle {
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.35;
+}
+
+.app-panel,
+.settings-card,
+.people-section-card,
+.transaction-sheet,
+.insight-visual-card,
+.insight-filter-card,
+.insight-link-card,
+.insight-transactions-card,
+.insight-daily-card,
+.activity-calendar-card,
+.activity-record-card,
+.activity-money-grid > div,
+.person-profile-card,
+.nickname-card,
+.friend-card {
+  border-color: color-mix(in srgb, var(--brand) 22%, var(--border));
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgb(0 95 70 / 0.06);
+}
+
+.app-panel,
+.settings-card,
+.people-section-card,
+.transaction-sheet {
+  padding: clamp(0.85rem, 2vw, 1rem);
+}
+
+.settings-page .settings-card .panel-title,
+.people-section-card .panel-title,
+.transaction-sheet .panel-title {
+  font-size: 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.settings-tabs {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  gap: 0.45rem;
+  margin: 0;
+  overflow-x: auto;
+  padding: 0.05rem 0 0.35rem;
+}
+
+.settings-tab {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  min-height: 36px;
+  padding: 0.42rem 0.78rem;
+}
+
+.settings-tab-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: white;
+}
+
+.settings-tab svg {
+  height: 14px;
+  width: 14px;
+}
+
+.settings-profile {
+  gap: 0.65rem;
+}
+
+.settings-profile-hero {
+  border-radius: 16px;
+  min-height: 64px;
+  padding: 0.65rem;
+}
+
+.profile-avatar {
+  border-radius: 14px;
+  height: 46px;
+  width: 46px;
+}
+
+.profile-detail-list {
+  border-radius: 16px;
+}
+
+.profile-detail-row {
+  min-height: 54px;
+  padding: 0.62rem 0.75rem;
+}
+
+.profile-detail-row > svg,
+.settings-subcard-head svg,
+.settings-toggle-row > svg {
+  background: transparent;
+  border-radius: 0;
+  box-sizing: border-box;
+  color: var(--brand);
+  height: 20px;
+  padding: 0;
+  width: 20px;
+}
+
+.profile-detail-row strong,
+.compact-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-subcard {
+  border-radius: 16px;
+  padding: 0.75rem;
+}
+
+.settings-toggle-row {
+  border-radius: 14px;
+  min-height: 56px;
+  padding: 0.62rem 0.7rem;
+}
+
+.settings-file-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.people-balance-card {
+  border-radius: 20px;
+  padding: 0.95rem;
+}
+
+.people-balance-card > strong {
+  font-size: clamp(1.55rem, 5vw, 2rem);
+}
+
+.people-balance-mini-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0.38rem;
+}
+
+.people-balance-mini-grid div {
+  gap: 0.1rem 0.45rem;
+  padding: 0.5rem;
+}
+
+.people-action-row {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: 1.35fr 1fr 1fr;
+}
+
+.people-action-row .primary-button,
+.people-action-row .secondary-button {
+  justify-content: center;
+  min-height: 44px;
+}
+
+.people-action-row .primary-button svg:last-child,
+.people-action-row .secondary-button svg:last-child {
+  display: none;
+}
+
+.people-search-wrap {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.people-list-card {
+  background: var(--panel);
+}
+
+.people-list-card > .panel-title {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.friend-card {
+  background: var(--panel);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.friend-card-main {
+  align-items: center;
+}
+
+.friend-title-line {
+  align-items: center;
+  display: flex;
+  min-width: 0;
+}
+
+.friend-title-line strong {
+  align-items: center;
+  display: inline-flex;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-card-chevron {
+  height: 18px;
+  width: 18px;
+}
+
+.friend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.person-profile-card {
+  padding: 0.95rem;
+}
+
+.person-profile-card > p {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin: 0;
+}
+
+.connection-code-pill {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-balance-chip {
+  width: 100%;
+}
+
+.person-danger-row {
+  gap: 0.55rem;
+}
+
+.quick-transaction-form {
+  gap: 0.72rem;
+}
+
+.transaction-sheet {
+  border-radius: 20px;
+}
+
+.quick-transaction-form .segmented-control {
+  background: color-mix(in srgb, var(--panel-muted) 76%, transparent);
+  border-radius: 16px;
+  gap: 0.35rem;
+  padding: 0.28rem;
+}
+
+.quick-transaction-form .segmented-control button {
+  min-height: 52px;
+  padding: 0.5rem;
+}
+
+.transaction-type-icon {
+  height: 34px;
+  width: 34px;
+}
+
+.quick-field-grid {
+  border-radius: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0.7rem;
+}
+
+.add-amount-shell {
+  grid-column: 1 / -1;
+  padding: 0.65rem;
+}
+
+.add-amount-shell .amount-input {
+  font-size: clamp(1.9rem, 6vw, 2.65rem);
+}
+
+.field-with-leading-icon > div {
+  min-height: 48px;
+}
+
+.manage-inline-button {
+  min-height: 48px;
+}
+
+.transaction-extra-grid {
+  gap: 0.7rem;
+}
+
+.receipt-control .secondary-button {
+  min-height: 60px;
+}
+
+.split-inline-card {
+  padding: 0.7rem;
+}
+
+.modal-form-grid {
+  gap: 0.7rem;
+}
+
+.list-modal,
+.transaction-detail-modal,
+.confirm-dialog {
+  border-radius: 20px;
+  max-width: min(92vw, 640px);
+}
+
+:root[data-theme="dark"] .app-panel,
+:root[data-theme="dark"] .settings-card,
+:root[data-theme="dark"] .people-section-card,
+:root[data-theme="dark"] .transaction-sheet,
+:root[data-theme="dark"] .friend-card,
+:root[data-theme="dark"] .person-profile-card,
+:root[data-theme="dark"] .nickname-card {
+  background: color-mix(in srgb, var(--panel) 94%, #00291f);
+}
+
+@media (max-width: 700px) {
+  .app-main {
+    padding-inline: 0.85rem;
+    padding-top: 0.75rem;
+  }
+
+  .app-page,
+  .app-page.add-page,
+  .app-page.people-page,
+  .app-page.insights-page,
+  .app-page.settings-page,
+  .app-page.activity-page,
+  .app-page.manage-page,
+  .app-page.calendar-page,
+  .app-page.home-page {
+    gap: 0.72rem;
+    padding-inline: 0;
+    width: 100%;
+  }
+
+  .people-action-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .people-action-row .primary-button {
+    grid-column: auto;
+  }
+
+  .people-action-row .primary-button,
+  .people-action-row .secondary-button {
+    font-size: 0.8rem;
+    gap: 0.25rem;
+    min-height: 42px;
+    padding-inline: 0.35rem;
+  }
+
+  .people-action-row svg {
+    height: 15px;
+    width: 15px;
+  }
+
+  .quick-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-file-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-detail-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .profile-detail-row strong,
+  .compact-value {
+    grid-column: 2 / -1;
+    text-align: left;
+  }
+
+  .profile-detail-row > .icon-button {
+    grid-column: 3;
+    justify-self: end;
+  }
+}
+
+/* Final screen-specific overrides for the current UI pass. */
+.people-page,
+.insights-page,
+.add-page {
+  overflow-x: clip;
+}
+
+.people-page .illustrated-page-head,
+.insights-page .illustrated-page-head,
+.add-page .illustrated-page-head,
+.subpage-title-row {
+  margin-bottom: 0.2rem;
+  padding-block: 0;
+}
+
+.people-page .page-title,
+.insights-page .page-title,
+.add-page .page-title {
+  font-size: clamp(1.85rem, 4vw, 2.35rem);
+  line-height: 1.08;
+}
+
+.people-balance-card {
+  background:
+    radial-gradient(circle at 86% 12%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 32%),
+    linear-gradient(135deg, color-mix(in srgb, var(--panel) 90%, white), color-mix(in srgb, var(--accent-soft) 62%, var(--panel)));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: 24px;
+  box-shadow: 0 16px 36px rgb(0 95 70 / 0.08);
+  gap: 0.65rem;
+  padding: clamp(1rem, 2.5vw, 1.35rem);
+}
+
+.people-balance-card > span {
+  color: var(--accent-dark);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.people-balance-card > strong {
+  font-size: clamp(1.8rem, 5.8vw, 2.35rem);
+  line-height: 1.05;
+}
+
+.people-balance-card > p {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.people-balance-mini-grid {
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+  gap: 0;
+  margin-top: 0.35rem;
+  overflow: hidden;
+  padding: 0;
+}
+
+.people-balance-mini-grid div {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  padding: 0.7rem;
+}
+
+.people-balance-mini-grid div + div {
+  border-left: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.people-balance-mini-grid svg {
+  background: color-mix(in srgb, var(--accent-soft) 80%, white);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  height: 36px;
+  padding: 0.45rem;
+  width: 36px;
+}
+
+.people-balance-mini-grid span,
+.people-balance-mini-grid strong {
+  grid-column: 2;
+}
+
+.people-action-row {
+  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr) minmax(0, 0.95fr);
+}
+
+.people-action-row .primary-button,
+.people-action-row .secondary-button,
+.person-action-row .primary-button,
+.person-action-row .secondary-button {
+  border-radius: 18px;
+  font-weight: 900;
+  min-height: 54px;
+}
+
+.people-action-row .secondary-button,
+.person-action-row .secondary-button {
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgb(0 95 70 / 0.06);
+  color: var(--text);
+}
+
+.people-action-row .primary-button,
+.person-action-row .primary-button {
+  background: var(--brand-gradient);
+  border-color: transparent;
+  color: #fff;
+}
+
+.people-action-row svg:last-child {
+  display: none;
+}
+
+.people-search-wrap {
+  border-radius: 999px;
+  min-height: 54px;
+  padding-inline: 1rem;
+}
+
+.people-search-wrap .field-input {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  min-height: 0;
+  padding-inline: 0;
+}
+
+.friend-card {
+  border-radius: 22px;
+  gap: 0.65rem;
+  padding: 0.85rem;
+}
+
+.friend-card-main {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+}
+
+.friend-avatar {
+  border: 0;
+  height: 44px;
+  width: 44px;
+}
+
+.friend-card-copy p,
+.friend-title-line strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-balance-grid {
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--panel));
+  border-radius: 17px;
+  gap: 0;
+  padding: 0.52rem 0.35rem;
+}
+
+.friend-balance-grid div {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0.12rem 0.3rem;
+}
+
+.friends-empty-state {
+  border: 0;
+  min-height: 220px;
+}
+
+.person-profile-card {
+  align-items: center;
+  border-radius: 24px;
+  display: grid;
+  justify-items: center;
+  padding: 1rem;
+  text-align: center;
+}
+
+.person-profile-avatar {
+  height: 62px;
+  width: 62px;
+}
+
+.person-balance-chip {
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--panel));
+  border: 0;
+  border-radius: 22px;
+}
+
+.person-action-row,
+.person-danger-row {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.person-record-row {
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgb(0 95 70 / 0.06);
+}
+
+.transaction-sheet {
+  border-radius: 26px;
+  padding: clamp(0.85rem, 2vw, 1rem);
+}
+
+.transaction-sheet .panel-title {
+  display: none;
+}
+
+.quick-transaction-form {
+  gap: 0.95rem;
+}
+
+.transaction-type-cards {
+  background: color-mix(in srgb, var(--panel-muted) 76%, transparent) !important;
+  border: 0 !important;
+  border-radius: 22px !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 72%, transparent);
+  display: grid !important;
+  gap: 0.42rem !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0.42rem !important;
+}
+
+.transaction-type-cards button {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 86%, transparent);
+  border: 1px solid transparent;
+  border-radius: 18px;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  justify-content: center;
+  min-height: 88px !important;
+  padding: 0.65rem 0.4rem !important;
+  text-align: center;
+}
+
+.transaction-type-cards .segment-active {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 82%, white), color-mix(in srgb, var(--panel) 86%, white));
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+  box-shadow: 0 12px 28px rgb(0 190 135 / 0.12);
+}
+
+.transaction-type-icon {
+  background: color-mix(in srgb, var(--panel-muted) 84%, white);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  height: 40px !important;
+  width: 40px !important;
+}
+
+.transaction-type-cards .segment-active .transaction-type-icon {
+  background: var(--brand-gradient);
+  color: #fff;
+}
+
+.transaction-type-cards strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.transaction-type-cards small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.quick-field-grid {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: 0 14px 30px rgb(0 95 70 / 0.06);
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.add-amount-shell {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  display: grid;
+  gap: 0.45rem;
+  grid-column: 1 / -1;
+  padding: 0 !important;
+}
+
+.add-amount-shell > span {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.add-amount-shell > div {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 94%, white);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 76px;
+  padding: 0.65rem 0.75rem;
+}
+
+.add-amount-shell > div > svg {
+  color: var(--text);
+  height: 34px !important;
+  width: 34px !important;
+}
+
+.add-amount-shell .amount-input,
+.add-amount-shell .amount-input:focus,
+.add-amount-shell .amount-input:focus-visible {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--text);
+  font-size: clamp(2.05rem, 6.5vw, 3rem) !important;
+  font-weight: 900;
+  min-height: 52px;
+  outline: 0 !important;
+  padding: 0 !important;
+  width: 100%;
+}
+
+.add-amount-shell strong {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 72%, white);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 14px;
+  color: var(--accent-dark);
+  display: inline-flex;
+  min-height: 42px;
+  padding: 0.45rem 0.72rem;
+}
+
+.transaction-save-button {
+  border-radius: 18px;
+  min-height: 58px;
+}
+
+.insight-metric-grid {
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.insight-metric-card {
+  border-radius: 22px;
+  min-height: 128px;
+  padding: 0.95rem;
+}
+
+.insight-visual-card,
+.insight-filter-card {
+  border-radius: 22px;
+}
+
+.insight-daily-bars {
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 18px;
+  min-height: 180px;
+  padding: 0.9rem;
+}
+
+@media (max-width: 700px) {
+  .people-action-row {
+    gap: 0.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .people-action-row .primary-button,
+  .people-action-row .secondary-button {
+    font-size: 0.9rem;
+    min-height: 52px;
+    padding: 0.55rem 0.45rem;
+  }
+
+  .transaction-type-cards button {
+    min-height: 82px !important;
+  }
+
+  .transaction-type-cards small {
+    display: none;
+  }
+
+  .insight-metric-grid {
+    gap: 0.55rem;
+  }
+
+  .insight-metric-card {
+    min-height: 112px;
+    padding: 0.8rem;
+  }
+
+  .insight-daily-bars {
+    min-height: 155px;
+  }
+}
+
+/* Final production polish: compact controls, dark contrast, and notifications */
+.notification-wrap {
+  position: relative;
+}
+
+.notification-popover {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: 0 26px 70px rgb(0 70 52 / 0.18);
+  display: grid;
+  gap: 0.8rem;
+  max-height: min(76dvh, 520px);
+  overflow: auto;
+  padding: 0.9rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.7rem);
+  width: min(88vw, 360px);
+  z-index: 80;
+}
+
+.notification-popover-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.notification-popover-head > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.notification-popover-head strong,
+.notification-item strong {
+  color: var(--text);
+}
+
+.notification-popover-head span,
+.notification-item p,
+.notification-item small {
+  color: var(--muted);
+}
+
+.icon-button-small {
+  height: 34px;
+  min-height: 34px;
+  width: 34px;
+}
+
+.notification-enable-button {
+  min-height: 44px;
+}
+
+.notification-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.notification-item {
+  align-items: start;
+  background: color-mix(in srgb, var(--panel-muted) 76%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 16px;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: 10px minmax(0, 1fr);
+  padding: 0.72rem;
+}
+
+.notification-item p {
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.notification-dot {
+  background: var(--accent);
+  border-radius: 999px;
+  height: 10px;
+  margin-top: 0.35rem;
+  width: 10px;
+}
+
+.notification-item-error .notification-dot {
+  background: #e11d48;
+}
+
+.notification-item-warning .notification-dot {
+  background: #f59e0b;
+}
+
+.notification-clear-button {
+  justify-self: center;
+}
+
+.add-page .illustrated-page-head,
+.add-page .add-illustrated-head {
+  margin-bottom: 0.65rem !important;
+  min-height: auto !important;
+  padding-block: 0.15rem 0.35rem !important;
+}
+
+.add-page .page-title {
+  font-size: clamp(1.7rem, 4vw, 2.15rem) !important;
+  line-height: 1.02;
+}
+
+.transaction-sheet {
+  border-radius: 24px !important;
+  padding: clamp(0.78rem, 2vw, 1rem) !important;
+}
+
+.transaction-type-cards {
+  border-radius: 20px !important;
+  gap: 0.35rem !important;
+  padding: 0.35rem !important;
+}
+
+.transaction-type-cards button {
+  flex-direction: row !important;
+  gap: 0.55rem !important;
+  min-height: 68px !important;
+  padding: 0.55rem !important;
+  text-align: left !important;
+}
+
+.transaction-type-icon {
+  height: 42px !important;
+  width: 42px !important;
+}
+
+.transaction-type-icon svg,
+.transaction-type-cards svg {
+  height: 23px !important;
+  width: 23px !important;
+}
+
+.transaction-type-cards strong {
+  font-size: clamp(0.98rem, 1.8vw, 1.12rem) !important;
+  line-height: 1.1;
+}
+
+.transaction-type-cards small {
+  font-size: 0.74rem !important;
+}
+
+.quick-field-grid {
+  gap: 0.72rem !important;
+  padding: 0.82rem !important;
+}
+
+.add-amount-shell {
+  border-bottom: 0 !important;
+  gap: 0.38rem !important;
+  padding-bottom: 0 !important;
+}
+
+.add-amount-shell > div {
+  border-radius: 17px !important;
+  grid-template-columns: 34px minmax(0, 1fr) !important;
+  min-height: 58px !important;
+  padding: 0.35rem 0.72rem !important;
+}
+
+.add-amount-shell > div > svg {
+  height: 28px !important;
+  width: 28px !important;
+}
+
+.add-amount-shell .amount-input,
+.add-amount-shell .amount-input:focus,
+.add-amount-shell .amount-input:focus-visible {
+  font-size: clamp(1.75rem, 5vw, 2.2rem) !important;
+  min-height: 42px !important;
+}
+
+.field-with-leading-icon > div {
+  background: var(--panel) !important;
+  border-color: var(--border) !important;
+  grid-template-columns: 28px minmax(0, 1fr) !important;
+}
+
+.field-with-leading-icon > div:focus-within,
+.add-amount-shell > div:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--border)) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent) !important;
+}
+
+.field-with-leading-icon > div > svg {
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  height: 21px !important;
+  width: 21px !important;
+}
+
+.people-balance-mini-grid svg {
+  height: 44px !important;
+  padding: 0.55rem !important;
+  width: 44px !important;
+}
+
+.modal-backdrop {
+  align-items: center !important;
+  padding: clamp(0.8rem, 3vw, 1.5rem) !important;
+}
+
+.list-modal,
+.dialog-card {
+  max-height: min(88dvh, 760px) !important;
+  overflow: auto !important;
+  width: min(94vw, 620px) !important;
+}
+
+.list-modal-body {
+  overflow: visible !important;
+}
+
+.insight-metric-card {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--panel) 96%, white), color-mix(in srgb, var(--accent-soft) 34%, var(--panel))) !important;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent) !important;
+  box-shadow: 0 14px 30px rgb(0 95 70 / 0.08) !important;
+}
+
+.segment-active,
+.settings-tab-active,
+.person-chip-active,
+.filter-chip-active {
+  background: var(--brand-gradient) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+
+.segment-active svg,
+.settings-tab-active svg,
+.person-chip-active svg,
+.filter-chip-active svg {
+  color: currentColor !important;
+}
+
+:root[data-theme="dark"] .notification-popover,
+:root[data-theme="dark"] .notification-item,
+:root[data-theme="dark"] .insight-metric-card,
+:root[data-theme="dark"] .quick-field-grid,
+:root[data-theme="dark"] .field-with-leading-icon > div,
+:root[data-theme="dark"] .add-amount-shell > div {
+  background: linear-gradient(145deg, rgba(0, 55, 43, 0.96), rgba(0, 30, 24, 0.98)) !important;
+  border-color: rgba(102, 255, 210, 0.22) !important;
+}
+
+:root[data-theme="dark"] .transaction-type-icon,
+:root[data-theme="dark"] .receipt-icon-badge,
+:root[data-theme="dark"] .split-icon-badge,
+:root[data-theme="dark"] .settings-subcard-head > svg,
+:root[data-theme="dark"] .field-with-leading-icon > div > svg {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] .transaction-type-cards button {
+  background: rgba(255, 255, 255, 0.035) !important;
+}
+
+:root[data-theme="dark"] .transaction-type-cards .segment-active {
+  background: linear-gradient(135deg, #00d99c, #00815f) !important;
+  color: #00261e !important;
+}
+
+:root[data-theme="dark"] .transaction-type-cards .segment-active .transaction-type-icon {
+  background: rgba(0, 38, 30, 0.16) !important;
+  color: #00261e !important;
+}
+
+:root[data-theme="dark"] .status-pill,
+:root[data-theme="dark"] .connection-code-pill,
+:root[data-theme="dark"] .person-chip,
+:root[data-theme="dark"] .filter-chip {
+  color: var(--text) !important;
+}
+
+:root[data-theme="dark"] .status-connected,
+:root[data-theme="dark"] .status-active {
+  background: rgba(84, 255, 191, 0.18) !important;
+  color: #9bffd9 !important;
+}
+
+@media (max-width: 700px) {
+  .transaction-type-cards button {
+    align-items: center !important;
+    flex-direction: column !important;
+    min-height: 70px !important;
+    text-align: center !important;
+  }
+
+  .transaction-type-icon {
+    height: 36px !important;
+    width: 36px !important;
+  }
+
+  .transaction-type-icon svg,
+  .transaction-type-cards svg {
+    height: 21px !important;
+    width: 21px !important;
+  }
+
+  .transaction-type-cards small {
+    display: none !important;
+  }
+
+  .add-amount-shell > div {
+    min-height: 54px !important;
+  }
+}
+
+/* Final contrast correction for shared-money filters and insight stats */
+.person-chip,
+.filter-chip {
+  background: color-mix(in srgb, var(--panel) 92%, white) !important;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent) !important;
+  color: color-mix(in srgb, var(--text) 82%, var(--muted)) !important;
+  box-shadow: 0 8px 18px rgb(0 95 70 / 0.06) !important;
+}
+
+.person-chip-active,
+.filter-chip-active {
+  background: linear-gradient(135deg, #007a53, #00c993) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 14px 28px rgb(0 129 95 / 0.22) !important;
+}
+
+.person-chip svg,
+.filter-chip svg {
+  color: currentColor !important;
+  height: 17px !important;
+  width: 17px !important;
+}
+
+.person-chip:not(.person-chip-active):has(.money-negative),
+.filter-chip:not(.filter-chip-active):has(.money-negative) {
+  background: linear-gradient(135deg, #fff7f8, #fff) !important;
+  border-color: rgb(255 180 196 / 0.72) !important;
+  color: #b00035 !important;
+}
+
+.person-chip:not(.person-chip-active):has(.money-positive),
+.filter-chip:not(.filter-chip-active):has(.money-positive) {
+  background: linear-gradient(135deg, #eafff6, #fff) !important;
+  border-color: rgb(0 190 135 / 0.22) !important;
+  color: #007a53 !important;
+}
+
+.insight-stat-grid,
+.insight-metric-grid {
+  isolation: isolate;
+}
+
+.insight-metric-card {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(242, 255, 250, 0.96)),
+    var(--panel) !important;
+  border: 1px solid rgba(0, 129, 95, 0.16) !important;
+  box-shadow: 0 16px 34px rgb(0 80 58 / 0.11), inset 0 1px 0 rgb(255 255 255 / 0.84) !important;
+}
+
+.insight-metric-card .metric-icon {
+  background: color-mix(in srgb, var(--accent-soft) 82%, white) !important;
+  border-radius: 999px !important;
+  color: var(--accent-dark) !important;
+}
+
+.insight-metric-card strong {
+  color: var(--text) !important;
+}
+
+.insight-metric-card small,
+.insight-metric-card p {
+  color: color-mix(in srgb, var(--muted) 88%, var(--text)) !important;
+}
+
+:root[data-theme="dark"] .person-chip,
+:root[data-theme="dark"] .filter-chip {
+  background: rgba(255, 255, 255, 0.055) !important;
+  border-color: rgba(137, 255, 218, 0.22) !important;
+  color: rgba(234, 255, 247, 0.86) !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] .person-chip-active,
+:root[data-theme="dark"] .filter-chip-active {
+  background: linear-gradient(135deg, #00e0a6, #009b72) !important;
+  color: #00291f !important;
+  box-shadow: 0 16px 34px rgb(0 224 166 / 0.18) !important;
+}
+
+:root[data-theme="dark"] .person-chip:not(.person-chip-active):has(.money-negative),
+:root[data-theme="dark"] .filter-chip:not(.filter-chip-active):has(.money-negative) {
+  background: rgba(255, 56, 101, 0.14) !important;
+  border-color: rgba(255, 121, 151, 0.32) !important;
+  color: #ff9db4 !important;
+}
+
+:root[data-theme="dark"] .person-chip:not(.person-chip-active):has(.money-positive),
+:root[data-theme="dark"] .filter-chip:not(.filter-chip-active):has(.money-positive) {
+  background: rgba(0, 224, 166, 0.12) !important;
+  border-color: rgba(98, 255, 209, 0.28) !important;
+  color: #8dffda !important;
+}
+
+:root[data-theme="dark"] .insight-metric-card {
+  background:
+    radial-gradient(circle at 16% 12%, rgba(0, 224, 166, 0.18), transparent 38%),
+    linear-gradient(145deg, rgba(0, 56, 44, 0.98), rgba(0, 25, 20, 0.98)) !important;
+  border-color: rgba(113, 255, 214, 0.24) !important;
+  box-shadow: 0 18px 38px rgb(0 0 0 / 0.22), inset 0 1px 0 rgb(255 255 255 / 0.07) !important;
+}
+
+:root[data-theme="dark"] .insight-metric-card .metric-icon {
+  background: rgba(88, 255, 205, 0.16) !important;
+  color: #7dffd5 !important;
 }

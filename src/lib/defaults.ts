@@ -17,13 +17,13 @@ export const defaultConfig: AppConfig = {
   surfaceColor: "#f3fbf7",
   textColor: "#0f172a",
   defaultCurrency: "INR",
-  adminId: "Admin",
-  adminPassword: "Admin@123",
+  adminId: "Admin@sk",
+  adminPassword: "2026",
   syncEnabled: false,
   aiEnabled: false,
   groqApiKey: "",
   aiModel: "llama-3.1-8b-instant",
-  themeMode: "light",
+  themeMode: "system",
   updatedAt: nowIso(),
 };
 

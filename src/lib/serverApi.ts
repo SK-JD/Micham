@@ -32,6 +32,12 @@ export type ServerUser = {
   emailVerified: boolean;
 };
 
+type RawServerUser = Partial<ServerUser> & {
+  display_name?: string;
+  connection_code?: string;
+  email_verified?: boolean;
+};
+
 type ApiOptions = {
   method?: "GET" | "POST";
   body?: unknown;
@@ -84,7 +90,28 @@ export type ServerSettlementEvent = {
 
 const TOKEN_KEY = "micham_server_token";
 const ADMIN_TOKEN_KEY = "micham_admin_token";
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+const NATIVE_API_BASE_URL = "https://micham-opal.vercel.app";
+
+function isNativeRuntime() {
+  const capacitor = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } }).Capacitor;
+  if (!capacitor) return false;
+  if (typeof capacitor.isNativePlatform === "function") return capacitor.isNativePlatform();
+  return capacitor.getPlatform?.() === "android" || capacitor.getPlatform?.() === "ios";
+}
+
+function resolveApiBaseUrl() {
+  const configured = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  if (isNativeRuntime()) return NATIVE_API_BASE_URL;
+  return "";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
+
+function emitApiDebug(detail: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("micham:api-debug", { detail }));
+}
 
 export class ApiClientError extends Error {
   status: number;
@@ -146,6 +173,7 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
     });
   } catch {
     const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    emitApiDebug({ path, status: 0, ok: false, code: offline ? "NETWORK_OFFLINE" : "NETWORK_ERROR" });
     throw new ApiClientError(
       0,
       offline ? "You are offline. The app will keep local changes and sync later." : "Server is unavailable. Try again shortly.",
@@ -157,16 +185,39 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
 
   const text = await response.text();
   let payload: Record<string, unknown> = {};
+  let parsedJson = true;
   try {
     payload = text ? (JSON.parse(text) as Record<string, unknown>) : {};
   } catch {
+    parsedJson = false;
     payload = { error: text || `HTTP ${response.status}` };
+  }
+  if (response.ok && !parsedJson) {
+    emitApiDebug({ path, status: response.status, ok: false, code: "INVALID_SERVER_RESPONSE", bodyStart: text.slice(0, 120) });
+    throw new ApiClientError(502, "Server returned an invalid response. Try again shortly.", "INVALID_SERVER_RESPONSE", undefined, true);
   }
   if (!response.ok) {
     const fallback =
       response.status === 404
         ? "Server API route was not found. Restart with `npm run dev`, not `npm run dev:ui`."
         : "Server request failed.";
+    emitApiDebug({
+      path,
+      status: response.status,
+      ok: false,
+      code: typeof payload.code === "string" ? payload.code : "REQUEST_FAILED",
+      error: typeof payload.error === "string" ? payload.error : fallback,
+      requestId: typeof payload.requestId === "string" ? payload.requestId : undefined,
+    });
+    if (response.status === 401 && typeof window !== "undefined") {
+      clearServerToken();
+      window.dispatchEvent(new CustomEvent("micham:session-expired", {
+        detail: {
+          path,
+          message: typeof payload.error === "string" ? payload.error : "Session expired. Login again.",
+        },
+      }));
+    }
     throw new ApiClientError(
       response.status,
       typeof payload.error === "string" ? payload.error : fallback,
@@ -175,21 +226,59 @@ async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
       typeof payload.retryable === "boolean" ? payload.retryable : response.status === 429 || response.status >= 500,
     );
   }
+  emitApiDebug({ path, status: response.status, ok: true, requestId: typeof payload.requestId === "string" ? payload.requestId : undefined });
   return payload as T;
 }
 
-export async function registerServerAccount(email: string, password: string, displayName: string, currency: string) {
-  return apiFetch<{ user: ServerUser; emailDelivery?: { delivered: boolean; reason?: string } }>("/api/auth/register", {
-    body: { email, password, displayName, currency },
+export async function registerServerAccount(email: string, pin: string, displayName: string, currency: string) {
+  const result = await apiFetch<{ user?: RawServerUser; emailDelivery?: { delivered: boolean; reason?: string } }>("/api/auth/register", {
+    body: { email, pin, displayName, currency },
   });
+  return { ...result, user: result.user ? normalizeServerUser(result.user) : undefined };
 }
 
-export async function loginServerAccount(email: string, password: string) {
-  const result = await apiFetch<{ token: string; expiresAt: string; user: ServerUser }>("/api/auth/login", {
-    body: { email, password },
+export async function loginServerAccount(email: string, pin: string) {
+  const result = await apiFetch<{ token: string; expiresAt: string; user: RawServerUser }>("/api/auth/login", {
+    body: { email, pin },
   });
+  if (!result.token) throw new ApiClientError(502, "Server response missed the login token. Try again shortly.", "INVALID_SERVER_RESPONSE");
   setServerToken(result.token);
-  return result;
+  return { ...result, user: normalizeServerUser(result.user ?? userFromToken(result.token, email)) };
+}
+
+function normalizeServerUser(user?: RawServerUser): ServerUser {
+  if (!user) throw new ApiClientError(502, "Server response was incomplete. Try again shortly.", "INVALID_SERVER_RESPONSE");
+  const email = user.email ?? "";
+  if (!email) throw new ApiClientError(502, "Server response missed the account email. Try again shortly.", "INVALID_SERVER_RESPONSE");
+  return {
+    id: user.id ?? "",
+    email,
+    displayName: user.displayName ?? user.display_name ?? email.split("@")[0] ?? "",
+    currency: user.currency ?? "INR",
+    connectionCode: user.connectionCode ?? user.connection_code ?? "",
+    emailVerified: user.emailVerified ?? user.email_verified ?? false,
+  };
+}
+
+function userFromToken(token: string, fallbackEmail: string): RawServerUser | undefined {
+  try {
+    const payloadPart = token.split(".")[1];
+    if (!payloadPart) return undefined;
+    const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const payload = JSON.parse(atob(padded)) as { sub?: string; email?: string };
+    if (!payload.sub) return undefined;
+    return {
+      id: payload.sub,
+      email: payload.email || fallbackEmail,
+      displayName: (payload.email || fallbackEmail).split("@")[0],
+      currency: "INR",
+      connectionCode: "",
+      emailVerified: true,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 export type AdminPermission =
@@ -229,6 +318,7 @@ export type AdminUserRow = {
   status: string;
   created_at: string;
   updated_at: string;
+  receipt_storage_limit_bytes?: number | null;
 };
 
 export type AdminCatalog = {
@@ -314,6 +404,10 @@ export async function revokeAdminUserSessions(userId: string) {
   return adminFetch<{ ok: true }>("/api/admin/users/revoke-sessions", { body: { userId } });
 }
 
+export async function setAdminUserReceiptLimit(userId: string, limitMb: number) {
+  return adminFetch<{ ok: true; limitBytes: number }>("/api/admin/users/storage-limit", { body: { userId, limitMb } });
+}
+
 export async function assignAdminUserPlan(userId: string, planCode: string) {
   return adminFetch<{ subscription: Record<string, unknown>; plan: Record<string, unknown> }>("/api/admin/users/assign-plan", { body: { userId, planCode } });
 }
@@ -360,11 +454,21 @@ export async function saveAdminAd(ad: {
 }
 
 export async function getRuntimeConfig() {
-  return apiFetch<RuntimeConfig>("/api/config/runtime");
+  const config = await apiFetch<Partial<RuntimeConfig> | null>("/api/config/runtime");
+  return {
+    settings: config?.settings && typeof config.settings === "object" ? config.settings : {},
+    flags: config?.flags && typeof config.flags === "object" ? config.flags : {},
+    announcements: Array.isArray(config?.announcements) ? config.announcements : [],
+    adPlacements: Array.isArray(config?.adPlacements) ? config.adPlacements : [],
+  };
 }
 
 export async function requestServerPasswordReset(email: string) {
   return apiFetch<{ ok: true }>("/api/auth/request-reset", { body: { email } });
+}
+
+export async function changeServerPin(currentPin: string, newPin: string) {
+  return apiFetch<{ ok: true }>("/api/auth/change-pin", { body: { currentPin, newPin } });
 }
 
 export async function deleteServerAccount() {
@@ -373,6 +477,52 @@ export async function deleteServerAccount() {
 
 export async function emailServerDataExport() {
   return apiFetch<{ ok: true; emailDelivery?: { delivered: boolean; reason?: string } }>("/api/export/email", { body: {} });
+}
+
+export type ServerReceiptMeta = {
+  path: string;
+  name: string;
+  size: number;
+  mime: string;
+  uploadedAt: string;
+};
+
+export type ServerReceiptUsage = {
+  usedBytes: number;
+  limitBytes: number;
+  remainingBytes: number;
+  fileCount: number;
+};
+
+export async function uploadServerReceipt(input: {
+  dataUrl: string;
+  filename: string;
+  relatedType: "transaction" | "settlement";
+  relatedId: string;
+}) {
+  return apiFetch<{ receipt: ServerReceiptMeta; usage: ServerReceiptUsage }>("/api/storage/upload", { body: input });
+}
+
+export async function getServerReceiptUsage() {
+  return apiFetch<{ usage: ServerReceiptUsage }>("/api/storage/usage");
+}
+
+export async function signServerReceipt(path: string) {
+  return apiFetch<{ url: string; expiresIn: number }>("/api/storage/sign", { body: { path } });
+}
+
+export async function clearServerReceipts(fromDate?: string, toDate?: string) {
+  return apiFetch<{ ok: true; deleted: number; freedBytes: number; usage: ServerReceiptUsage }>("/api/storage/clear", {
+    body: { fromDate, toDate },
+  });
+}
+
+export async function subscribeServerPush(subscription: PushSubscription) {
+  return apiFetch<{ ok: true }>("/api/notifications/subscribe", { body: { subscription } });
+}
+
+export async function unsubscribeServerPush(endpoint: string) {
+  return apiFetch<{ ok: true }>("/api/notifications/unsubscribe", { body: { endpoint } });
 }
 
 export async function ensureLocalProfileForServerUser(user: ServerUser, config: AppConfig) {
@@ -553,9 +703,13 @@ export async function pullServerChanges(localProfileId: string) {
 
   const grouped = new Map<EntityType, Record<string, unknown>[]>();
   const localPeople = await db.people.where("ownerProfileId").equals(localProfileId).toArray();
+  const incomingPeople = (result.entities ?? [])
+    .filter((row) => row.entity_type === "people")
+    .map((row) => ({ ...row.payload, ownerProfileId: localProfileId }) as unknown as Person);
+  const peopleForMapping = [...localPeople, ...incomingPeople];
   for (const row of result.entities ?? []) {
     const friendUserId = typeof row.payload.friendUserId === "string" ? row.payload.friendUserId : "";
-    const localFriend = friendUserId ? localPeople.find((person) => person.friendUserId === friendUserId) : undefined;
+    const localFriend = friendUserId ? peopleForMapping.find((person) => person.friendUserId === friendUserId) : undefined;
     const payload = {
       ...row.payload,
       ownerProfileId: localProfileId,

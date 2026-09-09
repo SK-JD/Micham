@@ -19,6 +19,8 @@ Owe/owed records are shared ledger items, not silent copies.
 
 - A connected friend can create an owe record.
 - The opposite side sees it as a pending shared item.
+- Offline owe records are stored locally and mirrored to the friend when the creator reconnects.
+- Mirrored records use stable mutation IDs so a slow network or double tap does not intentionally create duplicates.
 - Edits are tracked with the previous value and marked as edited.
 - Deletions require confirmation and are soft-deleted if linked to historical records.
 

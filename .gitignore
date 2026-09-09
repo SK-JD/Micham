@@ -6,3 +6,5 @@ supabase/.temp
 !.env.example
 npm-debug.log*
 *.tsbuildinfo
+.vercel
+*.apk

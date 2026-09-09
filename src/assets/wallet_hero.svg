@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 300">
+  <defs>
+    <linearGradient id="wallet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12B98D"/>
+      <stop offset="1" stop-color="#007F63"/>
+    </linearGradient>
+    <linearGradient id="wallet2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B8E70"/>
+      <stop offset="1" stop-color="#00644F"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-opacity=".16"/>
+    </filter>
+  </defs>
+  <ellipse cx="210" cy="248" rx="132" ry="20" fill="#BCEFE0" opacity=".55"/>
+  <g filter="url(#shadow)">
+    <path d="M104 84c0-17 14-30 31-30h128c13 0 24 11 24 24v32H128c-13 0-24-11-24-26z" fill="url(#wallet2)"/>
+    <path d="M94 103c0-17 13-30 30-30h137c13 0 24 11 24 24v108c0 18-14 32-32 32H125c-17 0-31-14-31-31z" fill="url(#wallet)"/>
+    <path d="M265 142h48c14 0 25 11 25 25v35c0 14-11 25-25 25h-48c-12 0-22-10-22-22v-41c0-12 10-22 22-22z" fill="#006F59"/>
+    <circle cx="276" cy="184" r="8" fill="#A8F0D9"/>
+    <path d="M111 112h130" stroke="#5AD8B7" stroke-width="8" stroke-linecap="round" opacity=".65"/>
+    <path d="M126 143h74M126 162h45" stroke="#73E1C2" stroke-width="9" stroke-linecap="round" opacity=".7"/>
+  </g>
+  <g filter="url(#shadow)">
+    <circle cx="315" cy="205" r="43" fill="#FFB629"/>
+    <circle cx="315" cy="205" r="34" fill="none" stroke="#FFD66D" stroke-width="4"/>
+    <text x="315" y="220" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700" fill="#fff">₹</text>
+  </g>
+</svg>

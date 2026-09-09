@@ -12,7 +12,7 @@ const checks = [
     message: "Main app should not use browser alert().",
   },
   {
-    file: "api/_lib/http.ts",
+    file: "server/_lib/http.ts",
     pattern: /res\.status\(status\)\.json\(\{\s*error:\s*message\s*\}\)/,
     message: "API errors must include safe structured metadata.",
   },

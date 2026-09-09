@@ -85,7 +85,8 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname.startsWith("/api/")) {
     try {
-      const modulePath = `${pathname}.ts`;
+      const routePath = pathname.replace(/^\/api\/?/, "").replace(/\/+$/g, "");
+      const modulePath = "/api/index.ts";
       const mod = await vite.ssrLoadModule(modulePath);
       const handler = mod.default;
       if (typeof handler !== "function") throw new Error(`No API handler found for ${pathname}`);
@@ -94,7 +95,7 @@ const server = http.createServer(async (req, res) => {
           method: req.method,
           body: await readBody(req),
           headers: req.headers,
-          query: queryObject(parsed.query),
+          query: { ...queryObject(parsed.query), path: routePath },
         },
         createApiResponse(res),
       );

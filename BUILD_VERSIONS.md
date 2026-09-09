@@ -1,5 +1,42 @@
 # Micham Build Versions
 
+## 1.0.0 - android-2026.09.08.3
+
+Date: 2026-09-08
+
+- Redeployed production after Vercel environment updates.
+- Prepared a fresh Android debug APK from the same source state.
+- Keeps native API calls pointed at the production Vercel backend.
+
+## 1.0.0 - android-2026.09.08.2
+
+Date: 2026-09-08
+
+- Updated email branding to use public PNG logo assets.
+- Split Settings into tab page modules for Profile, Security, Sync & Cloud, Tools, Data, and About.
+- Added Manage tabs for accounts, categories, and budgets.
+- Hardened shared-money settle-up against duplicate taps and added pending acknowledgement state.
+- Updated local admin password to `2026`.
+
+## 1.0.0 - android-2026.09.08.1
+
+Date: 2026-09-08
+
+- Promoted the current cloud-ready source state to version 1.0.0 for APK testing.
+- Includes server-managed receipt storage, PIN-based auth wording, local-to-cloud sync flow, and queued friend mirror sync.
+
+## 0.1.13 - web-2026.09.08.4
+
+Date: 2026-09-08
+
+- Added server-managed receipt storage endpoints for upload, signed viewing, usage calculation, and date-range cleanup.
+- Added compressed receipt upload metadata for transactions and shared-money records.
+- Added per-user receipt quota support with admin override hooks.
+- Switched user-facing cloud credentials to 4-digit PIN wording and changed forgot/reset copy to PIN.
+- Changed local-only profiles so they no longer require email until the user chooses Sync To Server.
+- Added queued friend-mirror retry for offline shared-money records.
+- Replaced externally hosted email logo usage with inline branded email header text to avoid broken image placeholders.
+
 ## 0.1.7 - web-2026.09.05.7
 
 Date: 2026-09-05

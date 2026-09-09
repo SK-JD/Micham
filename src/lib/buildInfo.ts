@@ -1,6 +1,6 @@
 export const buildInfo = {
-  version: "0.1.7",
-  build: "web-2026.09.05.7",
-  date: "2026-09-05",
+  version: "1.0.0",
+  build: "android-2026.09.09.1",
+  date: "2026-09-09",
   channel: "development",
 } as const;

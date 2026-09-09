@@ -83,6 +83,10 @@ export interface Transaction extends BaseEntity {
   note: string;
   receiptName?: string;
   receiptData?: string;
+  receiptPath?: string;
+  receiptSize?: number;
+  receiptMime?: string;
+  receiptUploadedAt?: string;
   personIds?: string[];
   edited?: boolean;
   editCount?: number;
@@ -133,8 +137,17 @@ export interface Settlement extends BaseEntity {
   accountId?: string;
   categoryId?: string;
   transactionId?: string;
+  receiptName?: string;
+  receiptData?: string;
+  receiptPath?: string;
+  receiptSize?: number;
+  receiptMime?: string;
+  receiptUploadedAt?: string;
   linkedSettlementId?: string;
   friendUserId?: string;
+  friendMirrorState?: "queued" | "synced" | "failed";
+  friendMirrorError?: string;
+  friendMirrorClientMutationId?: string;
   status?: SettlementStatus;
   pendingRepaymentAmount?: number;
   parentSettlementId?: string;
